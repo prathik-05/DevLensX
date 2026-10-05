@@ -8,6 +8,7 @@ Exposes endpoints for:
   - GET /api/score: Latest Repository Intelligence Score breakdown.
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -51,16 +52,18 @@ from devlensx.api.routes import (
     analyze_router,
 )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize Relational Database Tables on startup
+    init_db()
+    yield
+
 app = FastAPI(
     title="DevLensX Engine API",
     description="Evidence-Verified Software Engineering Intelligence Platform API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
-
-# Initialize Relational Database Tables on startup
-@app.on_event("startup")
-def on_startup():
-    init_db()
 
 # Enable CORS for frontend integration
 app.add_middleware(

@@ -2,7 +2,7 @@
 Repository and Analysis Pydantic Schemas
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -14,6 +14,8 @@ class RepositoryCreate(BaseModel):
 
 
 class RepositoryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     owner_id: int
     name: str
@@ -22,9 +24,6 @@ class RepositoryResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class AnalyzeRequest(BaseModel):
@@ -37,6 +36,8 @@ class AnalyzeRequest(BaseModel):
 
 
 class FindingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: Optional[int] = None
     category: str
     severity: str
@@ -46,9 +47,6 @@ class FindingResponse(BaseModel):
     class_name: Optional[str] = None
     critic_verdict: str = "VERIFIED"
     evidence_coverage_score: float = 100.0
-
-    class Config:
-        from_attributes = True
 
 
 class ScoreResponse(BaseModel):

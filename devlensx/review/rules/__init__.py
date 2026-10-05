@@ -1,4 +1,4 @@
-﻿"""
+"""
 DevLensX Review Rules and Sniffer System
 Behavioral mechanisms inspired by Alibaba OpenCodeReview (Apache-2.0).
 Provides language-specific review rules, path sniffing, and pre-verification negative constraints.

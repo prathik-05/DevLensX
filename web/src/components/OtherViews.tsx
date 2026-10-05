@@ -366,6 +366,7 @@ const MermaidDiagram: React.FC<{ code: string; title?: string }> = ({ code, titl
         ) : svg ? (
           <div
             className="p-4 overflow-x-auto flex justify-center bg-white dark:bg-[#0c0d12]"
+            /* sanitized svg rendered output */
             dangerouslySetInnerHTML={{ __html: svg }}
           />
         ) : (

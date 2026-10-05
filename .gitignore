@@ -25,8 +25,10 @@ saved_db_*
 test_*_db
 tp_bench_*
 devlensx_graph_db/
+devlensx_graph_db*
 devlensx.db
 *.db-journal
+*.wal
 .devlensx_cache/
 .devlensx-runtime/faiss_index.bin
 .devlensx-runtime/doc_cache/

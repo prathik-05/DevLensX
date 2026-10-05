@@ -1,4 +1,4 @@
-﻿"""
+"""
 DevLensX Myers Line-Diff Engine
 Inspired by Alibaba OpenCodeReview (Apache-2.0).
 Computes shortest edit script / line-level diffs between code snippets to produce

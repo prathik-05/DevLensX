@@ -720,6 +720,17 @@ export const CodeTurtleView: React.FC = () => {
     analysisRunId = null;
   }
 
+  const runKey = `${repositoryId || ''}:${commitHash || ''}:${analysisRunId || ''}`;
+  useEffect(() => {
+    // switching analysis runs resets review state
+    setLiveFindings({});
+  }, [runKey]);
+
+  // Filters for severity, category, verdict
+  const [sevFilter, setSevFilter] = useState<string>('ALL');
+  const [catFilter, setCatFilter] = useState<string>('ALL');
+  const [verFilter, setVerFilter] = useState<string>('ALL');
+
   // CodeRabbit Dual Panel State
   const [navTab, setNavTab] = useState<'layers' | 'files'>('layers');
   const [selectedSection, setSelectedSection] = useState<string>('layer-2'); // default to Layer 2 matching screenshot
@@ -736,7 +747,7 @@ export const CodeTurtleView: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([
     {
       role: 'assistant',
-      text: 'Hello! I am Code Turtle (@codeturtleai), your AI-powered Senior Code Review Assistant. I have analyzed src/app/app-click-me.component.ts. I spotted 2 potential issues: missing type="button" (which defaults to submit in forms) and missing ChangeDetectionStrategy.OnPush. Review my findings below, click "Commit Changes / Apply Fix" to apply them directly into the editor, or ask me any questions!',
+      text: 'Hello! I am Code Turtle (@codeturtleai), your AI-powered Senior Code Review Assistant. I have analyzed src/app/app-click-me.component.ts. I spotted 2 potential issues: missing type="button" (which defaults to submit in forms) and missing ChangeDetectionStrategy.OnPush. Review my findings below, click "Copy Suggestion" to copy proposals into your clipboard (DevLensX never modifies repository source directly), or ask me any questions!',
     },
   ]);
 
@@ -752,7 +763,7 @@ export const CodeTurtleView: React.FC = () => {
       setChatMessages([
         {
           role: 'assistant',
-          text: `I have loaded and analyzed ${scen.fileName} (${scen.prTitle}). Spotted ${scen.findings.length} issue(s) in this hunk. Review the findings and click "Commit Changes / Apply Fix" to apply fixes directly into the live code editor!`,
+          text: `I have loaded and analyzed ${scen.fileName} (${scen.prTitle}). Spotted ${scen.findings.length} issue(s) in this hunk. Review the findings and click "Copy Suggestion" to copy proposals (DevLensX never modifies repository source directly)!`,
         },
       ]);
     }
@@ -1414,9 +1425,56 @@ export const CodeTurtleView: React.FC = () => {
                 </div>
               </GlassPanel>
 
+              {/* Filter Controls: Severity, Category, Verification */}
+              <div className="flex flex-wrap items-center gap-2 p-2 rounded bg-slate-50 dark:bg-[#121319] border border-slate-200 dark:border-neutral-800 text-xs font-mono">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Filters:</span>
+                <select
+                  value={sevFilter}
+                  onChange={e => setSevFilter(e.target.value)}
+                  aria-label="Filter by severity"
+                  className="px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700 text-xs"
+                >
+                  <option value="ALL">Filter by severity: All</option>
+                  <option value="CRITICAL">Critical</option>
+                  <option value="HIGH">High</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="LOW">Low</option>
+                </select>
+
+                <select
+                  value={catFilter}
+                  onChange={e => setCatFilter(e.target.value)}
+                  aria-label="Filter by category"
+                  className="px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700 text-xs"
+                >
+                  <option value="ALL">Filter by category: All</option>
+                  <option value="Architecture">Architecture</option>
+                  <option value="Security">Security</option>
+                  <option value="Quality">Quality</option>
+                  <option value="Maintainability">Maintainability</option>
+                </select>
+
+                <select
+                  value={verFilter}
+                  onChange={e => setVerFilter(e.target.value)}
+                  aria-label="Filter by verification"
+                  className="px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700 text-xs"
+                >
+                  <option value="ALL">Filter by verification: All</option>
+                  <option value="VERIFIED">VERIFIED</option>
+                  <option value="AI_SUGGESTION">AI_SUGGESTION</option>
+                  <option value="INSUFFICIENT_EVIDENCE">INSUFFICIENT_EVIDENCE</option>
+                </select>
+              </div>
+
               {/* Review Findings Cards */}
               <div className="space-y-3">
-                {currentFindings.map(finding => {
+                {currentFindings.filter(f => {
+                  if (sevFilter !== 'ALL' && f.severity?.toUpperCase() !== sevFilter) return false;
+                  if (catFilter !== 'ALL' && f.category !== catFilter) return false;
+                  if (verFilter !== 'ALL' && f.verdict !== verFilter) return false;
+                  return true;
+                }).map(finding => {
                   const isApplied = appliedSuggestions[finding.id] ?? false;
                   const isCopied = copiedSuggestions[finding.id] ?? false;
 
@@ -1497,45 +1555,57 @@ export const CodeTurtleView: React.FC = () => {
                           <div className="flex items-center justify-between flex-wrap gap-2">
                             <span className="text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                               <CornerDownRight className="w-3.5 h-3.5 text-emerald-500" />
-                              <span>COMMITTABLE SUGGESTION</span>
+                              <span>PROPOSED FIX (AI_SUGGESTION)</span>
                             </span>
 
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => copyText(finding.id, finding.committableSuggestion)}
                                 className="px-2 py-1 rounded border border-slate-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-slate-100 dark:hover:bg-neutral-700 text-[11px] font-mono flex items-center gap-1"
+                                title="Copy Suggestion"
                               >
                                 {isCopied ? (
                                   <>
-                                    <Check className="w-3 h-3 text-emerald-500" /> Copied
+                                    <Check className="w-3 h-3 text-emerald-500" /> <span>copied</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Copy className="w-3 h-3" /> Copy
+                                    <Copy className="w-3 h-3" /> <span>Copy Suggestion</span>
                                   </>
                                 )}
                               </button>
 
-                              {/* Prominent Commit Changes / Apply Fix button */}
+                              <button
+                                onClick={() => copyText(`${finding.id}-md`, `### ${finding.title}\n\n${finding.description}\n\n\`\`\`\n${finding.committableSuggestion}\n\`\`\``)}
+                                className="px-2 py-1 rounded border border-slate-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-slate-100 dark:hover:bg-neutral-700 text-[11px] font-mono flex items-center gap-1"
+                                title="Copy as Markdown"
+                              >
+                                <Copy className="w-3 h-3" /> <span>Copy as Markdown</span>
+                              </button>
+
                               <button
                                 onClick={() => commitFixToEditor(finding.id)}
-                                className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 shadow-sm transition-all"
-                                title="Applies this suggestion directly into the live code editor"
+                                className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                                title="Open ChangePlan — proposals only; DevLensX never modifies repository source directly"
                               >
                                 {isApplied ? (
                                   <>
                                     <CheckCircle2 className="w-3.5 h-3.5" />
-                                    <span>Committed to Editor ✓</span>
+                                    <span>Plan Staged ✓</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Hammer className="w-3.5 h-3.5" />
-                                    <span>Commit Changes / Apply Fix</span>
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    <span>Open ChangePlan</span>
                                   </>
                                 )}
                               </button>
                             </div>
                           </div>
+
+                          <p className="text-[10px] text-slate-500 dark:text-neutral-400 font-mono">
+                            PROPOSED FIX: DevLensX never modifies repository source directly. All changes remain AI_SUGGESTION proposals.
+                          </p>
 
                           <pre className="text-xs font-mono bg-white dark:bg-[#07080b] p-3 rounded border border-slate-200 dark:border-neutral-800 text-slate-800 dark:text-slate-200 whitespace-pre overflow-x-auto leading-relaxed">
                             {finding.committableSuggestion}
@@ -2283,7 +2353,7 @@ export const CodeTurtleView: React.FC = () => {
                       Architecture Topology Impact
                     </h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                      Component dependency graph generated from verified AST symbols
+                      GRAPH-DERIVED component dependency graph generated from verified AST symbols
                     </p>
                   </div>
                 </div>
@@ -2413,7 +2483,7 @@ export const CodeTurtleView: React.FC = () => {
               <div className="dl-flex-between mb-2">
                 <span className="dl-panel-label">REVIEW PROGRESS</span>
                 <span className="text-[11px] font-mono" style={{ color: 'var(--dl-text-dim)' }}>
-                  {candidates.length} candidate{candidates.length === 1 ? '' : 's'} analyzed · {findings.length} finding{findings.length === 1 ? '' : 's'} verified
+                  Candidates are progress only — analyzing candidate {candidates.length} · {findings.length} finding{findings.length === 1 ? '' : 's'} verified
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5" aria-live="polite">
@@ -2488,8 +2558,9 @@ export const CodeTurtleView: React.FC = () => {
                   {typeof telemetry.total_duration_ms === 'number' && (
                     <span>• {Math.round(telemetry.total_duration_ms)}ms</span>
                   )}
-                  {flags?.fallback && <span className="text-amber-500">• Fallback used</span>}
+                  {flags?.fallback ? <span className="text-amber-500">• FALLBACK / MOCK</span> : <span className="text-slate-500">• MOCK available</span>}
                   {flags?.secrets && <span className="text-rose-500">• Secrets detected</span>}
+                  {resultMeta?.findings_truncated ? <span className="text-amber-500">• TRUNCATED</span> : <span className="text-slate-500">• NOT TRUNCATED</span>}
                 </div>
               )}
             </GlassPanel>

@@ -1,4 +1,4 @@
-﻿"""
+"""
 DevLensX Diff Relocation & Line Resolver
 Inspired by Alibaba OpenCodeReview (Apache-2.0).
 Resolves LLM line drift via diff hunk matching and unique cross-file relocation.
