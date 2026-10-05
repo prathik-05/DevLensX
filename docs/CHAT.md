@@ -1,0 +1,2 @@
+# Chat
+Modes: FAST (intent→small evidence→ClaimVerifier), CODEMAP (symbol→Kuzu 1..3 hops→CALL_GRAPH), DEEP_RESEARCH (planner→6 subquestions parallel→12 excerpts/20 files→fusion→verification). Budgets: MAX_SUBQUESTIONS 6, MAX_EXCERPTS 12, MAX_FILES 20, MAX_HOPS 3. SSE events: research_started, retrieval_started, claim_verification_started, answer_token, research_complete. Snapshot-bound via ChatContext.

@@ -1,0 +1,2 @@
+# Workspace
+ASK → UNDERSTAND → GRAPH → DIAGRAM → SOURCE → VERIFY → IMPACT → BUILD/DEBUG/REVIEW. WorkspaceContext canonical (page/section/symbol/diagram/files/evidence/task/mode) + SessionRegistry + Orchestrator. Impact: DIRECT/DOWNSTREAM/TEST/CONFIG via Kuzu. Build: ChangePlan (AI_SUGGESTION, verification_required). Debug: stacktrace→SourceReader→Kuzu→verified_location+hypothesis. Review: git diff→changed files→URM→Kuzu affected→ReviewFinding (WHAT_CHANGED/AFFECTED VERIFIED, WHAT_MIGHT_BREAK AI_SUGGESTION).

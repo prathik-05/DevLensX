@@ -1,0 +1,3578 @@
+{
+  "dataset_version": "1.0",
+  "generated_at": "2026-08-29T18:10:46Z",
+  "repositories": [
+    "sp-portfolio",
+    "battleship-python",
+    "spring-petclinic"
+  ],
+  "cases": 33,
+  "passed": 33,
+  "failed": 0,
+  "verified_claims": 22,
+  "insufficient_claims": 10,
+  "suggestions": 1,
+  "evidence_resolution_failures": 0,
+  "snapshot_isolation_failures": 0,
+  "details": [
+    {
+      "id": "petclinic_owner_location",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'Where is OwnerController defined?': the repository contains OwnerController, OwnerController, OwnerController, Owner, MySqlIntegrationTests, findAll. Verified relationships: Owner EXTENDS Person; Owner DEPENDS_ON List<Pet>; OwnerController DEPENDS_ON OwnerRepository. OwnerController depends on OwnerRepository.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Owner",
+            "predicate": "extends",
+            "object": "Person",
+            "claim_type": "inheritance",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176",
+            "line_reference": "L47-L176"
+          },
+          {
+            "subject": "Owner",
+            "predicate": "depends_on",
+            "object": "List",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Missing relationship proof",
+            "line_reference": null
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends_on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java",
+            "line_start": 47,
+            "line_end": 176,
+            "symbol_id": null,
+            "symbol_name": "Owner",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java",
+            "line_start": 55,
+            "line_end": 57,
+            "symbol_id": null,
+            "symbol_name": "OwnerController",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 1
+        },
+        "generated_at": "2026-08-29T18:10:23.850813Z"
+      }
+    },
+    {
+      "id": "petclinic_repo_location",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'Where is OwnerRepository defined?': the repository contains OwnerRepository, Owner, MySqlIntegrationTests, findAll, ownerDetails, findAll. Verified relationships: Owner EXTENDS Person; Owner DEPENDS_ON List<Pet>; MySqlIntegrationTests DEPENDS_ON VetRepository.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Owner",
+            "predicate": "extends",
+            "object": "Person",
+            "claim_type": "inheritance",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176",
+            "line_reference": "L47-L176"
+          },
+          {
+            "subject": "Owner",
+            "predicate": "depends_on",
+            "object": "List",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Missing relationship proof",
+            "line_reference": null
+          },
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "VetRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java",
+            "line_start": 47,
+            "line_end": 176,
+            "symbol_id": null,
+            "symbol_name": "Owner",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java",
+            "line_start": 41,
+            "line_end": 74,
+            "symbol_id": null,
+            "symbol_name": "MySqlIntegrationTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 2,
+          "suggestions": 0,
+          "insufficient_evidence": 1
+        },
+        "generated_at": "2026-08-29T18:10:25.756911Z"
+      }
+    },
+    {
+      "id": "petclinic_controller_depends_repo",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'Does OwnerController depend on OwnerRepository?': the repository contains OwnerController, OwnerController, OwnerController, OwnerRepository, Owner, MySqlIntegrationTests. Verified relationships: Owner EXTENDS Person; Owner DEPENDS_ON List<Pet>; OwnerController DEPENDS_ON OwnerRepository. OwnerController depends on OwnerRepository.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Owner",
+            "predicate": "extends",
+            "object": "Person",
+            "claim_type": "inheritance",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176",
+            "line_reference": "L47-L176"
+          },
+          {
+            "subject": "Owner",
+            "predicate": "depends_on",
+            "object": "List",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Missing relationship proof",
+            "line_reference": null
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends_on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java",
+            "line_start": 47,
+            "line_end": 176,
+            "symbol_id": null,
+            "symbol_name": "Owner",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java",
+            "line_start": 55,
+            "line_end": 57,
+            "symbol_id": null,
+            "symbol_name": "OwnerController",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 1
+        },
+        "generated_at": "2026-08-29T18:10:26.401125Z"
+      }
+    },
+    {
+      "id": "petclinic_controller_depends_service",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Codemap path: OwnerController -> Owner\n\nBased on indexed evidence for 'Does OwnerController depend on OwnerService?': the repository contains OwnerController, OwnerController, OwnerController, Owner. Verified relationships: Owner EXTENDS Person; Owner DEPENDS_ON List<Pet>; OwnerController DEPENDS_ON OwnerRepository. OwnerController depends on OwnerRepository.",
+        "mode": "CODEMAP",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Owner",
+            "predicate": "extends",
+            "object": "Person",
+            "claim_type": "inheritance",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176",
+            "line_reference": "L47-L176"
+          },
+          {
+            "subject": "Owner",
+            "predicate": "depends_on",
+            "object": "List",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Missing relationship proof",
+            "line_reference": null
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends_on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java",
+            "line_start": 47,
+            "line_end": 176,
+            "symbol_id": null,
+            "symbol_name": "Owner",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java",
+            "line_start": 55,
+            "line_end": 57,
+            "symbol_id": null,
+            "symbol_name": "OwnerController",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57"
+          }
+        ],
+        "diagrams": [
+          {
+            "type": "CALL_GRAPH",
+            "nodes": [
+              {
+                "id": "OwnerController",
+                "label": "OwnerController"
+              },
+              {
+                "id": "Owner",
+                "label": "Owner"
+              }
+            ],
+            "edges": []
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 1
+        },
+        "generated_at": "2026-08-29T18:10:26.859835Z"
+      }
+    },
+    {
+      "id": "petclinic_owner_flow",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Codemap path: findPaginatedForOwnersLastName -> processUpdateOwnerForm -> initUpdateOwnerForm\n\nBased on indexed evidence for 'How does the owner request reach persistence?': the repository contains Owner, initUpdateOwnerForm, initUpdateOwnerForm, findPaginatedForOwnersLastName, initUpdateOwnerForm, processUpdateOwnerForm. Verified relationships: Owner EXTENDS Person; Owner DEPENDS_ON List<Pet>. Owner depends on Person.",
+        "mode": "CODEMAP",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Owner",
+            "predicate": "extends",
+            "object": "Person",
+            "claim_type": "inheritance",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176",
+            "line_reference": "L47-L176"
+          },
+          {
+            "subject": "Owner",
+            "predicate": "depends_on",
+            "object": "List",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Missing relationship proof",
+            "line_reference": null
+          },
+          {
+            "subject": "Owner",
+            "predicate": "depends on",
+            "object": "Person",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176",
+            "line_reference": "L47-L176"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java",
+            "line_start": 47,
+            "line_end": 176,
+            "symbol_id": null,
+            "symbol_name": "Owner",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176"
+          }
+        ],
+        "diagrams": [
+          {
+            "type": "CALL_GRAPH",
+            "nodes": [
+              {
+                "id": "findPaginatedForOwnersLastName",
+                "label": "findPaginatedForOwnersLastName"
+              },
+              {
+                "id": "processUpdateOwnerForm",
+                "label": "processUpdateOwnerForm"
+              },
+              {
+                "id": "initUpdateOwnerForm",
+                "label": "initUpdateOwnerForm"
+              }
+            ],
+            "edges": []
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 2,
+          "suggestions": 0,
+          "insufficient_evidence": 1
+        },
+        "generated_at": "2026-08-29T18:10:27.351126Z"
+      }
+    },
+    {
+      "id": "petclinic_persistence",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'What classes implement the persistence layer?': the repository contains MySqlIntegrationTests, findAll, ownerDetails, findAll, ownerDetails, MysqlTestApplication. Verified relationships: MySqlIntegrationTests DEPENDS_ON VetRepository; MySqlIntegrationTests DEPENDS_ON RestTemplateBuilder; PetClinicConcurrencyTests DEPENDS_ON OwnerRepository.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "VetRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "RestTemplateBuilder",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "PetClinicConcurrencyTests",
+            "predicate": "depends_on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java#L28-L134",
+            "line_reference": "L28-L134"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java",
+            "line_start": 41,
+            "line_end": 74,
+            "symbol_id": null,
+            "symbol_name": "MySqlIntegrationTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java",
+            "line_start": 28,
+            "line_end": 134,
+            "symbol_id": null,
+            "symbol_name": "PetClinicConcurrencyTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java#L28-L134"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 0
+        },
+        "generated_at": "2026-08-29T18:10:27.829686Z"
+      }
+    },
+    {
+      "id": "petclinic_architecture",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'What are the major architectural layers?': the repository contains MySqlIntegrationTests, findAll, ownerDetails, findAll, ownerDetails, MysqlTestApplication. Verified relationships: MySqlIntegrationTests DEPENDS_ON VetRepository; MySqlIntegrationTests DEPENDS_ON RestTemplateBuilder; PetClinicConcurrencyTests DEPENDS_ON OwnerRepository.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "VetRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "RestTemplateBuilder",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "PetClinicConcurrencyTests",
+            "predicate": "depends_on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java#L28-L134",
+            "line_reference": "L28-L134"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java",
+            "line_start": 41,
+            "line_end": 74,
+            "symbol_id": null,
+            "symbol_name": "MySqlIntegrationTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java",
+            "line_start": 28,
+            "line_end": 134,
+            "symbol_id": null,
+            "symbol_name": "PetClinicConcurrencyTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java#L28-L134"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 0
+        },
+        "generated_at": "2026-08-29T18:10:28.767157Z"
+      }
+    },
+    {
+      "id": "petclinic_docs",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'Explain OwnerController': the repository contains OwnerController, OwnerController, OwnerController, Owner, MySqlIntegrationTests, findAll. Verified relationships: Owner EXTENDS Person; Owner DEPENDS_ON List<Pet>; OwnerController DEPENDS_ON OwnerRepository. OwnerController depends on OwnerRepository.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Owner",
+            "predicate": "extends",
+            "object": "Person",
+            "claim_type": "inheritance",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176",
+            "line_reference": "L47-L176"
+          },
+          {
+            "subject": "Owner",
+            "predicate": "depends_on",
+            "object": "List",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Missing relationship proof",
+            "line_reference": null
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends_on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java",
+            "line_start": 47,
+            "line_end": 176,
+            "symbol_id": null,
+            "symbol_name": "Owner",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java",
+            "line_start": 55,
+            "line_end": 57,
+            "symbol_id": null,
+            "symbol_name": "OwnerController",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 1
+        },
+        "generated_at": "2026-08-29T18:10:29.285340Z"
+      }
+    },
+    {
+      "id": "petclinic_redis_negative",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "result": {
+        "answer": "Based on indexed evidence for 'Does this application use Redis?': the repository contains MySqlIntegrationTests, findAll, ownerDetails, findAll, ownerDetails, MysqlTestApplication. Verified relationships: MySqlIntegrationTests DEPENDS_ON VetRepository; MySqlIntegrationTests DEPENDS_ON RestTemplateBuilder; PetClinicConcurrencyTests DEPENDS_ON OwnerRepository. The application uses Redis for caching.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "VetRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "RestTemplateBuilder",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "PetClinicConcurrencyTests",
+            "predicate": "depends_on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java#L28-L134",
+            "line_reference": "L28-L134"
+          },
+          {
+            "subject": "application",
+            "predicate": "uses",
+            "object": "Redis",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java",
+            "line_start": 41,
+            "line_end": 74,
+            "symbol_id": null,
+            "symbol_name": "MySqlIntegrationTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java",
+            "line_start": 28,
+            "line_end": 134,
+            "symbol_id": null,
+            "symbol_name": "PetClinicConcurrencyTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java#L28-L134"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 1
+        },
+        "generated_at": "2026-08-29T18:10:29.729283Z"
+      }
+    },
+    {
+      "id": "petclinic_kafka_negative",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "result": {
+        "answer": "Based on indexed evidence for 'Does this application use Kafka?': the repository contains MySqlIntegrationTests, findAll, ownerDetails, findAll, ownerDetails, MysqlTestApplication. Verified relationships: MySqlIntegrationTests DEPENDS_ON VetRepository; MySqlIntegrationTests DEPENDS_ON RestTemplateBuilder; PetClinicConcurrencyTests DEPENDS_ON OwnerRepository. No evidence was found for kafka in this repository.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "VetRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "RestTemplateBuilder",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "PetClinicConcurrencyTests",
+            "predicate": "depends_on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java#L28-L134",
+            "line_reference": "L28-L134"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java",
+            "line_start": 41,
+            "line_end": 74,
+            "symbol_id": null,
+            "symbol_name": "MySqlIntegrationTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java",
+            "line_start": 28,
+            "line_end": 134,
+            "symbol_id": null,
+            "symbol_name": "PetClinicConcurrencyTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java#L28-L134"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 0
+        },
+        "generated_at": "2026-08-29T18:10:30.210850Z"
+      }
+    },
+    {
+      "id": "petclinic_mongo_negative",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "result": {
+        "answer": "Based on indexed evidence for 'Does this application use MongoDB?': the repository contains MySqlIntegrationTests, findAll, ownerDetails, findAll, ownerDetails, MysqlTestApplication. Verified relationships: MySqlIntegrationTests DEPENDS_ON VetRepository; MySqlIntegrationTests DEPENDS_ON RestTemplateBuilder; PetClinicConcurrencyTests DEPENDS_ON OwnerRepository. No evidence was found for mongodb in this repository.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "VetRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "RestTemplateBuilder",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "PetClinicConcurrencyTests",
+            "predicate": "depends_on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java#L28-L134",
+            "line_reference": "L28-L134"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java",
+            "line_start": 41,
+            "line_end": 74,
+            "symbol_id": null,
+            "symbol_name": "MySqlIntegrationTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java",
+            "line_start": 28,
+            "line_end": 134,
+            "symbol_id": null,
+            "symbol_name": "PetClinicConcurrencyTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java#L28-L134"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 0
+        },
+        "generated_at": "2026-08-29T18:10:30.861202Z"
+      }
+    },
+    {
+      "id": "petclinic_snapshot_isolation",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "result": {
+        "answer": "Based on indexed evidence for 'Does PetClinic contain AIPlayer?': the repository contains Pet, MySqlIntegrationTests, findAll, ownerDetails, findAll, ownerDetails. Verified relationships: Pet EXTENDS NamedEntity; Pet DEPENDS_ON Set<Visit>; MySqlIntegrationTests DEPENDS_ON VetRepository. Pet depends on NamedEntity.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Pet",
+            "predicate": "extends",
+            "object": "NamedEntity",
+            "claim_type": "inheritance",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Pet.java#L44-L85",
+            "line_reference": "L44-L85"
+          },
+          {
+            "subject": "Pet",
+            "predicate": "depends_on",
+            "object": "Set",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Missing relationship proof",
+            "line_reference": null
+          },
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "VetRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "Pet",
+            "predicate": "depends on",
+            "object": "NamedEntity",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Pet.java#L44-L85",
+            "line_reference": "L44-L85"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/Pet.java",
+            "line_start": 44,
+            "line_end": 85,
+            "symbol_id": null,
+            "symbol_name": "Pet",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/Pet.java#L44-L85"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java",
+            "line_start": 41,
+            "line_end": 74,
+            "symbol_id": null,
+            "symbol_name": "MySqlIntegrationTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 1
+        },
+        "generated_at": "2026-08-29T18:10:31.353213Z"
+      }
+    },
+    {
+      "id": "portfolio_spdevprovider",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'Where is SPDevProvider defined?': the repository contains SPDevProvider, RootLayout, manifest, NotFound, Home, robots. No verified inter-component relationships were bound to this query.",
+        "mode": "FAST",
+        "repository_id": "sp-portfolio",
+        "analysis_run_id": "run_3eee11501291",
+        "commit_hash": "1653fa99de1b",
+        "context": null,
+        "claims": [],
+        "evidence_refs": [
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/layout.tsx",
+            "line_start": 74,
+            "line_end": 86,
+            "symbol_id": null,
+            "symbol_name": "RootLayout",
+            "evidence_type": "AST",
+            "citation": "src/app/layout.tsx#L74-L86"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/manifest.ts",
+            "line_start": 3,
+            "line_end": 13,
+            "symbol_id": null,
+            "symbol_name": "manifest",
+            "evidence_type": "AST",
+            "citation": "src/app/manifest.ts#L3-L13"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/not-found.tsx",
+            "line_start": 5,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "NotFound",
+            "evidence_type": "AST",
+            "citation": "src/app/not-found.tsx#L5-L26"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/page.tsx",
+            "line_start": 4,
+            "line_end": 6,
+            "symbol_id": null,
+            "symbol_name": "Home",
+            "evidence_type": "AST",
+            "citation": "src/app/page.tsx#L4-L6"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/robots.ts",
+            "line_start": 3,
+            "line_end": 11,
+            "symbol_id": null,
+            "symbol_name": "robots",
+            "evidence_type": "AST",
+            "citation": "src/app/robots.ts#L3-L11"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/sitemap.ts",
+            "line_start": 4,
+            "line_end": 42,
+            "symbol_id": null,
+            "symbol_name": "sitemap",
+            "evidence_type": "AST",
+            "citation": "src/app/sitemap.ts#L4-L42"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 18,
+            "line_end": 61,
+            "symbol_id": null,
+            "symbol_name": "CardTwoPortfolio",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L18-L61"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 26,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "handleContactSubmit",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L26-L44"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 0
+        },
+        "generated_at": "2026-08-29T18:10:35.810722Z"
+      }
+    },
+    {
+      "id": "portfolio_theme",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'Where is the theme configuration defined?': the repository contains RootLayout, manifest, NotFound, Home, robots, sitemap. No verified inter-component relationships were bound to this query.",
+        "mode": "FAST",
+        "repository_id": "sp-portfolio",
+        "analysis_run_id": "run_3eee11501291",
+        "commit_hash": "1653fa99de1b",
+        "context": null,
+        "claims": [],
+        "evidence_refs": [
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/layout.tsx",
+            "line_start": 74,
+            "line_end": 86,
+            "symbol_id": null,
+            "symbol_name": "RootLayout",
+            "evidence_type": "AST",
+            "citation": "src/app/layout.tsx#L74-L86"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/manifest.ts",
+            "line_start": 3,
+            "line_end": 13,
+            "symbol_id": null,
+            "symbol_name": "manifest",
+            "evidence_type": "AST",
+            "citation": "src/app/manifest.ts#L3-L13"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/not-found.tsx",
+            "line_start": 5,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "NotFound",
+            "evidence_type": "AST",
+            "citation": "src/app/not-found.tsx#L5-L26"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/page.tsx",
+            "line_start": 4,
+            "line_end": 6,
+            "symbol_id": null,
+            "symbol_name": "Home",
+            "evidence_type": "AST",
+            "citation": "src/app/page.tsx#L4-L6"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/robots.ts",
+            "line_start": 3,
+            "line_end": 11,
+            "symbol_id": null,
+            "symbol_name": "robots",
+            "evidence_type": "AST",
+            "citation": "src/app/robots.ts#L3-L11"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/sitemap.ts",
+            "line_start": 4,
+            "line_end": 42,
+            "symbol_id": null,
+            "symbol_name": "sitemap",
+            "evidence_type": "AST",
+            "citation": "src/app/sitemap.ts#L4-L42"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 18,
+            "line_end": 61,
+            "symbol_id": null,
+            "symbol_name": "CardTwoPortfolio",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L18-L61"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 26,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "handleContactSubmit",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L26-L44"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 0
+        },
+        "generated_at": "2026-08-29T18:10:36.445959Z"
+      }
+    },
+    {
+      "id": "portfolio_component_rel",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Codemap path: SPDevContextType -> ProjectUseCaseProps -> ProjectUseCase\n\nBased on indexed evidence for 'What components use the application context?': the repository contains SPDevContextType, ProjectUseCaseProps, ProjectUseCase. No verified inter-component relationships were bound to this query.",
+        "mode": "CODEMAP",
+        "repository_id": "sp-portfolio",
+        "analysis_run_id": "run_3eee11501291",
+        "commit_hash": "1653fa99de1b",
+        "context": null,
+        "claims": [],
+        "evidence_refs": [
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/layout.tsx",
+            "line_start": 74,
+            "line_end": 86,
+            "symbol_id": null,
+            "symbol_name": "RootLayout",
+            "evidence_type": "AST",
+            "citation": "src/app/layout.tsx#L74-L86"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/manifest.ts",
+            "line_start": 3,
+            "line_end": 13,
+            "symbol_id": null,
+            "symbol_name": "manifest",
+            "evidence_type": "AST",
+            "citation": "src/app/manifest.ts#L3-L13"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/not-found.tsx",
+            "line_start": 5,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "NotFound",
+            "evidence_type": "AST",
+            "citation": "src/app/not-found.tsx#L5-L26"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/page.tsx",
+            "line_start": 4,
+            "line_end": 6,
+            "symbol_id": null,
+            "symbol_name": "Home",
+            "evidence_type": "AST",
+            "citation": "src/app/page.tsx#L4-L6"
+          }
+        ],
+        "diagrams": [
+          {
+            "type": "CALL_GRAPH",
+            "nodes": [
+              {
+                "id": "SPDevContextType",
+                "label": "SPDevContextType"
+              },
+              {
+                "id": "ProjectUseCaseProps",
+                "label": "ProjectUseCaseProps"
+              },
+              {
+                "id": "ProjectUseCase",
+                "label": "ProjectUseCase"
+              }
+            ],
+            "edges": []
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 0
+        },
+        "generated_at": "2026-08-29T18:10:36.929051Z"
+      }
+    },
+    {
+      "id": "portfolio_state",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'How is state management implemented?': the repository contains RootLayout, manifest, NotFound, Home, robots, sitemap. No verified inter-component relationships were bound to this query.",
+        "mode": "FAST",
+        "repository_id": "sp-portfolio",
+        "analysis_run_id": "run_3eee11501291",
+        "commit_hash": "1653fa99de1b",
+        "context": null,
+        "claims": [],
+        "evidence_refs": [
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/layout.tsx",
+            "line_start": 74,
+            "line_end": 86,
+            "symbol_id": null,
+            "symbol_name": "RootLayout",
+            "evidence_type": "AST",
+            "citation": "src/app/layout.tsx#L74-L86"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/manifest.ts",
+            "line_start": 3,
+            "line_end": 13,
+            "symbol_id": null,
+            "symbol_name": "manifest",
+            "evidence_type": "AST",
+            "citation": "src/app/manifest.ts#L3-L13"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/not-found.tsx",
+            "line_start": 5,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "NotFound",
+            "evidence_type": "AST",
+            "citation": "src/app/not-found.tsx#L5-L26"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/page.tsx",
+            "line_start": 4,
+            "line_end": 6,
+            "symbol_id": null,
+            "symbol_name": "Home",
+            "evidence_type": "AST",
+            "citation": "src/app/page.tsx#L4-L6"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/robots.ts",
+            "line_start": 3,
+            "line_end": 11,
+            "symbol_id": null,
+            "symbol_name": "robots",
+            "evidence_type": "AST",
+            "citation": "src/app/robots.ts#L3-L11"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/sitemap.ts",
+            "line_start": 4,
+            "line_end": 42,
+            "symbol_id": null,
+            "symbol_name": "sitemap",
+            "evidence_type": "AST",
+            "citation": "src/app/sitemap.ts#L4-L42"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 18,
+            "line_end": 61,
+            "symbol_id": null,
+            "symbol_name": "CardTwoPortfolio",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L18-L61"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 26,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "handleContactSubmit",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L26-L44"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 0
+        },
+        "generated_at": "2026-08-29T18:10:37.564557Z"
+      }
+    },
+    {
+      "id": "portfolio_effect",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'What visual effects are implemented?': the repository contains RootLayout, manifest, NotFound, Home, robots, sitemap. No verified inter-component relationships were bound to this query.",
+        "mode": "FAST",
+        "repository_id": "sp-portfolio",
+        "analysis_run_id": "run_3eee11501291",
+        "commit_hash": "1653fa99de1b",
+        "context": null,
+        "claims": [],
+        "evidence_refs": [
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/layout.tsx",
+            "line_start": 74,
+            "line_end": 86,
+            "symbol_id": null,
+            "symbol_name": "RootLayout",
+            "evidence_type": "AST",
+            "citation": "src/app/layout.tsx#L74-L86"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/manifest.ts",
+            "line_start": 3,
+            "line_end": 13,
+            "symbol_id": null,
+            "symbol_name": "manifest",
+            "evidence_type": "AST",
+            "citation": "src/app/manifest.ts#L3-L13"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/not-found.tsx",
+            "line_start": 5,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "NotFound",
+            "evidence_type": "AST",
+            "citation": "src/app/not-found.tsx#L5-L26"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/page.tsx",
+            "line_start": 4,
+            "line_end": 6,
+            "symbol_id": null,
+            "symbol_name": "Home",
+            "evidence_type": "AST",
+            "citation": "src/app/page.tsx#L4-L6"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/robots.ts",
+            "line_start": 3,
+            "line_end": 11,
+            "symbol_id": null,
+            "symbol_name": "robots",
+            "evidence_type": "AST",
+            "citation": "src/app/robots.ts#L3-L11"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/sitemap.ts",
+            "line_start": 4,
+            "line_end": 42,
+            "symbol_id": null,
+            "symbol_name": "sitemap",
+            "evidence_type": "AST",
+            "citation": "src/app/sitemap.ts#L4-L42"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 18,
+            "line_end": 61,
+            "symbol_id": null,
+            "symbol_name": "CardTwoPortfolio",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L18-L61"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 26,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "handleContactSubmit",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L26-L44"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 0
+        },
+        "generated_at": "2026-08-29T18:10:38.044796Z"
+      }
+    },
+    {
+      "id": "portfolio_structure",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'What is the project structure?': the repository contains RootLayout, manifest, NotFound, Home, robots, sitemap. No verified inter-component relationships were bound to this query.",
+        "mode": "FAST",
+        "repository_id": "sp-portfolio",
+        "analysis_run_id": "run_3eee11501291",
+        "commit_hash": "1653fa99de1b",
+        "context": null,
+        "claims": [],
+        "evidence_refs": [
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/layout.tsx",
+            "line_start": 74,
+            "line_end": 86,
+            "symbol_id": null,
+            "symbol_name": "RootLayout",
+            "evidence_type": "AST",
+            "citation": "src/app/layout.tsx#L74-L86"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/manifest.ts",
+            "line_start": 3,
+            "line_end": 13,
+            "symbol_id": null,
+            "symbol_name": "manifest",
+            "evidence_type": "AST",
+            "citation": "src/app/manifest.ts#L3-L13"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/not-found.tsx",
+            "line_start": 5,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "NotFound",
+            "evidence_type": "AST",
+            "citation": "src/app/not-found.tsx#L5-L26"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/page.tsx",
+            "line_start": 4,
+            "line_end": 6,
+            "symbol_id": null,
+            "symbol_name": "Home",
+            "evidence_type": "AST",
+            "citation": "src/app/page.tsx#L4-L6"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/robots.ts",
+            "line_start": 3,
+            "line_end": 11,
+            "symbol_id": null,
+            "symbol_name": "robots",
+            "evidence_type": "AST",
+            "citation": "src/app/robots.ts#L3-L11"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/sitemap.ts",
+            "line_start": 4,
+            "line_end": 42,
+            "symbol_id": null,
+            "symbol_name": "sitemap",
+            "evidence_type": "AST",
+            "citation": "src/app/sitemap.ts#L4-L42"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 18,
+            "line_end": 61,
+            "symbol_id": null,
+            "symbol_name": "CardTwoPortfolio",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L18-L61"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 26,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "handleContactSubmit",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L26-L44"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 0
+        },
+        "generated_at": "2026-08-29T18:10:38.527329Z"
+      }
+    },
+    {
+      "id": "portfolio_redis_negative",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "result": {
+        "answer": "Based on indexed evidence for 'Does this application use Redis?': the repository contains RootLayout, manifest, NotFound, Home, robots, sitemap. No verified inter-component relationships were bound to this query. The application uses Redis for caching.",
+        "mode": "FAST",
+        "repository_id": "sp-portfolio",
+        "analysis_run_id": "run_3eee11501291",
+        "commit_hash": "1653fa99de1b",
+        "context": null,
+        "claims": [
+          {
+            "subject": "application",
+            "predicate": "uses",
+            "object": "Redis",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/layout.tsx",
+            "line_start": 74,
+            "line_end": 86,
+            "symbol_id": null,
+            "symbol_name": "RootLayout",
+            "evidence_type": "AST",
+            "citation": "src/app/layout.tsx#L74-L86"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/manifest.ts",
+            "line_start": 3,
+            "line_end": 13,
+            "symbol_id": null,
+            "symbol_name": "manifest",
+            "evidence_type": "AST",
+            "citation": "src/app/manifest.ts#L3-L13"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/not-found.tsx",
+            "line_start": 5,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "NotFound",
+            "evidence_type": "AST",
+            "citation": "src/app/not-found.tsx#L5-L26"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/page.tsx",
+            "line_start": 4,
+            "line_end": 6,
+            "symbol_id": null,
+            "symbol_name": "Home",
+            "evidence_type": "AST",
+            "citation": "src/app/page.tsx#L4-L6"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/robots.ts",
+            "line_start": 3,
+            "line_end": 11,
+            "symbol_id": null,
+            "symbol_name": "robots",
+            "evidence_type": "AST",
+            "citation": "src/app/robots.ts#L3-L11"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/sitemap.ts",
+            "line_start": 4,
+            "line_end": 42,
+            "symbol_id": null,
+            "symbol_name": "sitemap",
+            "evidence_type": "AST",
+            "citation": "src/app/sitemap.ts#L4-L42"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 18,
+            "line_end": 61,
+            "symbol_id": null,
+            "symbol_name": "CardTwoPortfolio",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L18-L61"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 26,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "handleContactSubmit",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L26-L44"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 1
+        },
+        "generated_at": "2026-08-29T18:10:39.007265Z"
+      }
+    },
+    {
+      "id": "portfolio_spring_negative",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "result": {
+        "answer": "Based on indexed evidence for 'Does this repository use Spring or JPA?': the repository contains RootLayout, manifest, NotFound, Home, robots, sitemap. No verified inter-component relationships were bound to this query.",
+        "mode": "FAST",
+        "repository_id": "sp-portfolio",
+        "analysis_run_id": "run_3eee11501291",
+        "commit_hash": "1653fa99de1b",
+        "context": null,
+        "claims": [],
+        "evidence_refs": [
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/layout.tsx",
+            "line_start": 74,
+            "line_end": 86,
+            "symbol_id": null,
+            "symbol_name": "RootLayout",
+            "evidence_type": "AST",
+            "citation": "src/app/layout.tsx#L74-L86"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/manifest.ts",
+            "line_start": 3,
+            "line_end": 13,
+            "symbol_id": null,
+            "symbol_name": "manifest",
+            "evidence_type": "AST",
+            "citation": "src/app/manifest.ts#L3-L13"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/not-found.tsx",
+            "line_start": 5,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "NotFound",
+            "evidence_type": "AST",
+            "citation": "src/app/not-found.tsx#L5-L26"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/page.tsx",
+            "line_start": 4,
+            "line_end": 6,
+            "symbol_id": null,
+            "symbol_name": "Home",
+            "evidence_type": "AST",
+            "citation": "src/app/page.tsx#L4-L6"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/robots.ts",
+            "line_start": 3,
+            "line_end": 11,
+            "symbol_id": null,
+            "symbol_name": "robots",
+            "evidence_type": "AST",
+            "citation": "src/app/robots.ts#L3-L11"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/app/sitemap.ts",
+            "line_start": 4,
+            "line_end": 42,
+            "symbol_id": null,
+            "symbol_name": "sitemap",
+            "evidence_type": "AST",
+            "citation": "src/app/sitemap.ts#L4-L42"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 18,
+            "line_end": 61,
+            "symbol_id": null,
+            "symbol_name": "CardTwoPortfolio",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L18-L61"
+          },
+          {
+            "repository_id": "sp-portfolio",
+            "analysis_run_id": "run_3eee11501291",
+            "commit_hash": "1653fa99de1b",
+            "file_path": "src/components/card-two-portfolio.tsx",
+            "line_start": 26,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "handleContactSubmit",
+            "evidence_type": "AST",
+            "citation": "src/components/card-two-portfolio.tsx#L26-L44"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 0
+        },
+        "generated_at": "2026-08-29T18:10:39.489894Z"
+      }
+    },
+    {
+      "id": "battleship_aiplayer",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'Where is the AI player defined?': the repository contains AIPlayer, __init__, choose_move, register_hit, register_miss, get_accuracy. Verified relationships: Game_play_full_game_ai_vs_ai CALLS Game_setup; Game_play_full_game_ai_vs_ai CALLS Game_ai_turn.",
+        "mode": "FAST",
+        "repository_id": "battleship-python",
+        "analysis_run_id": "run_c4eb9a13a31b",
+        "commit_hash": "bc49474b7ae6",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_setup",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          },
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_ai_turn",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 4,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "AIPlayer",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L4-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 5,
+            "line_end": 10,
+            "symbol_id": null,
+            "symbol_name": "__init__",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L5-L10"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 12,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "choose_move",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L12-L26"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 28,
+            "line_end": 32,
+            "symbol_id": null,
+            "symbol_name": "register_hit",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L28-L32"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 34,
+            "line_end": 35,
+            "symbol_id": null,
+            "symbol_name": "register_miss",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L34-L35"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 37,
+            "line_end": 38,
+            "symbol_id": null,
+            "symbol_name": "get_accuracy",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L37-L38"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 40,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "reset",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L40-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "game.py",
+            "line_start": 9,
+            "line_end": 69,
+            "symbol_id": null,
+            "symbol_name": "Game",
+            "evidence_type": "AST",
+            "citation": "game.py#L9-L69"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 2
+        },
+        "generated_at": "2026-08-29T18:10:40.615904Z"
+      }
+    },
+    {
+      "id": "battleship_gamelogic",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'Where is the main game logic defined?': the repository contains Game, AIPlayer, __init__, choose_move, register_hit, register_miss. Verified relationships: Game_play_full_game_ai_vs_ai CALLS Game_setup; Game_play_full_game_ai_vs_ai CALLS Game_ai_turn.",
+        "mode": "FAST",
+        "repository_id": "battleship-python",
+        "analysis_run_id": "run_c4eb9a13a31b",
+        "commit_hash": "bc49474b7ae6",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_setup",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          },
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_ai_turn",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 4,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "AIPlayer",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L4-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 5,
+            "line_end": 10,
+            "symbol_id": null,
+            "symbol_name": "__init__",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L5-L10"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 12,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "choose_move",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L12-L26"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 28,
+            "line_end": 32,
+            "symbol_id": null,
+            "symbol_name": "register_hit",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L28-L32"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 34,
+            "line_end": 35,
+            "symbol_id": null,
+            "symbol_name": "register_miss",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L34-L35"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 37,
+            "line_end": 38,
+            "symbol_id": null,
+            "symbol_name": "get_accuracy",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L37-L38"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 40,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "reset",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L40-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "game.py",
+            "line_start": 9,
+            "line_end": 69,
+            "symbol_id": null,
+            "symbol_name": "Game",
+            "evidence_type": "AST",
+            "citation": "game.py#L9-L69"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 2
+        },
+        "generated_at": "2026-08-29T18:10:41.085386Z"
+      }
+    },
+    {
+      "id": "battleship_module_rel",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Codemap path: Game\n\nBased on indexed evidence for 'How does the game flow between modules?': the repository contains Game. No verified inter-component relationships were bound to this query.",
+        "mode": "CODEMAP",
+        "repository_id": "battleship-python",
+        "analysis_run_id": "run_c4eb9a13a31b",
+        "commit_hash": "bc49474b7ae6",
+        "context": null,
+        "claims": [],
+        "evidence_refs": [
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 4,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "AIPlayer",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L4-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 5,
+            "line_end": 10,
+            "symbol_id": null,
+            "symbol_name": "__init__",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L5-L10"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 12,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "choose_move",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L12-L26"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 28,
+            "line_end": 32,
+            "symbol_id": null,
+            "symbol_name": "register_hit",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L28-L32"
+          }
+        ],
+        "diagrams": [
+          {
+            "type": "CALL_GRAPH",
+            "nodes": [
+              {
+                "id": "Game",
+                "label": "Game"
+              }
+            ],
+            "edges": []
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 0
+        },
+        "generated_at": "2026-08-29T18:10:41.562655Z"
+      }
+    },
+    {
+      "id": "battleship_entry",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'Where is the entry point?': the repository contains AIPlayer, __init__, choose_move, register_hit, register_miss, get_accuracy. Verified relationships: Game_play_full_game_ai_vs_ai CALLS Game_setup; Game_play_full_game_ai_vs_ai CALLS Game_ai_turn.",
+        "mode": "FAST",
+        "repository_id": "battleship-python",
+        "analysis_run_id": "run_c4eb9a13a31b",
+        "commit_hash": "bc49474b7ae6",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_setup",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          },
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_ai_turn",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 4,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "AIPlayer",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L4-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 5,
+            "line_end": 10,
+            "symbol_id": null,
+            "symbol_name": "__init__",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L5-L10"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 12,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "choose_move",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L12-L26"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 28,
+            "line_end": 32,
+            "symbol_id": null,
+            "symbol_name": "register_hit",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L28-L32"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 34,
+            "line_end": 35,
+            "symbol_id": null,
+            "symbol_name": "register_miss",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L34-L35"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 37,
+            "line_end": 38,
+            "symbol_id": null,
+            "symbol_name": "get_accuracy",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L37-L38"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 40,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "reset",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L40-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "game.py",
+            "line_start": 9,
+            "line_end": 69,
+            "symbol_id": null,
+            "symbol_name": "Game",
+            "evidence_type": "AST",
+            "citation": "game.py#L9-L69"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 2
+        },
+        "generated_at": "2026-08-29T18:10:42.052930Z"
+      }
+    },
+    {
+      "id": "battleship_arch",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'What is the architecture?': the repository contains AIPlayer, __init__, choose_move, register_hit, register_miss, get_accuracy. Verified relationships: Game_play_full_game_ai_vs_ai CALLS Game_setup; Game_play_full_game_ai_vs_ai CALLS Game_ai_turn.",
+        "mode": "FAST",
+        "repository_id": "battleship-python",
+        "analysis_run_id": "run_c4eb9a13a31b",
+        "commit_hash": "bc49474b7ae6",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_setup",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          },
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_ai_turn",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 4,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "AIPlayer",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L4-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 5,
+            "line_end": 10,
+            "symbol_id": null,
+            "symbol_name": "__init__",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L5-L10"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 12,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "choose_move",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L12-L26"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 28,
+            "line_end": 32,
+            "symbol_id": null,
+            "symbol_name": "register_hit",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L28-L32"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 34,
+            "line_end": 35,
+            "symbol_id": null,
+            "symbol_name": "register_miss",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L34-L35"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 37,
+            "line_end": 38,
+            "symbol_id": null,
+            "symbol_name": "get_accuracy",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L37-L38"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 40,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "reset",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L40-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "game.py",
+            "line_start": 9,
+            "line_end": 69,
+            "symbol_id": null,
+            "symbol_name": "Game",
+            "evidence_type": "AST",
+            "citation": "game.py#L9-L69"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 2
+        },
+        "generated_at": "2026-08-29T18:10:42.529360Z"
+      }
+    },
+    {
+      "id": "battleship_redis_negative",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "result": {
+        "answer": "Based on indexed evidence for 'Does this repository use Redis?': the repository contains AIPlayer, __init__, choose_move, register_hit, register_miss, get_accuracy. Verified relationships: Game_play_full_game_ai_vs_ai CALLS Game_setup; Game_play_full_game_ai_vs_ai CALLS Game_ai_turn. The application uses Redis for caching.",
+        "mode": "FAST",
+        "repository_id": "battleship-python",
+        "analysis_run_id": "run_c4eb9a13a31b",
+        "commit_hash": "bc49474b7ae6",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_setup",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          },
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_ai_turn",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          },
+          {
+            "subject": "application",
+            "predicate": "uses",
+            "object": "Redis",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 4,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "AIPlayer",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L4-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 5,
+            "line_end": 10,
+            "symbol_id": null,
+            "symbol_name": "__init__",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L5-L10"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 12,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "choose_move",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L12-L26"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 28,
+            "line_end": 32,
+            "symbol_id": null,
+            "symbol_name": "register_hit",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L28-L32"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 34,
+            "line_end": 35,
+            "symbol_id": null,
+            "symbol_name": "register_miss",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L34-L35"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 37,
+            "line_end": 38,
+            "symbol_id": null,
+            "symbol_name": "get_accuracy",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L37-L38"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 40,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "reset",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L40-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "game.py",
+            "line_start": 9,
+            "line_end": 69,
+            "symbol_id": null,
+            "symbol_name": "Game",
+            "evidence_type": "AST",
+            "citation": "game.py#L9-L69"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 3
+        },
+        "generated_at": "2026-08-29T18:10:43.008355Z"
+      }
+    },
+    {
+      "id": "battleship_spring_negative",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "result": {
+        "answer": "Based on indexed evidence for 'Does this repository use Spring?': the repository contains AIPlayer, __init__, choose_move, register_hit, register_miss, get_accuracy. Verified relationships: Game_play_full_game_ai_vs_ai CALLS Game_setup; Game_play_full_game_ai_vs_ai CALLS Game_ai_turn.",
+        "mode": "FAST",
+        "repository_id": "battleship-python",
+        "analysis_run_id": "run_c4eb9a13a31b",
+        "commit_hash": "bc49474b7ae6",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_setup",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          },
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_ai_turn",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 4,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "AIPlayer",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L4-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 5,
+            "line_end": 10,
+            "symbol_id": null,
+            "symbol_name": "__init__",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L5-L10"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 12,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "choose_move",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L12-L26"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 28,
+            "line_end": 32,
+            "symbol_id": null,
+            "symbol_name": "register_hit",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L28-L32"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 34,
+            "line_end": 35,
+            "symbol_id": null,
+            "symbol_name": "register_miss",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L34-L35"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 37,
+            "line_end": 38,
+            "symbol_id": null,
+            "symbol_name": "get_accuracy",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L37-L38"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 40,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "reset",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L40-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "game.py",
+            "line_start": 9,
+            "line_end": 69,
+            "symbol_id": null,
+            "symbol_name": "Game",
+            "evidence_type": "AST",
+            "citation": "game.py#L9-L69"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 2
+        },
+        "generated_at": "2026-08-29T18:10:43.483836Z"
+      }
+    },
+    {
+      "id": "battleship_owner_isolation",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "result": {
+        "answer": "Based on indexed evidence for 'Where is OwnerController?': the repository contains AIPlayer, __init__, choose_move, register_hit, register_miss, get_accuracy. Verified relationships: Game_play_full_game_ai_vs_ai CALLS Game_setup; Game_play_full_game_ai_vs_ai CALLS Game_ai_turn.",
+        "mode": "FAST",
+        "repository_id": "battleship-python",
+        "analysis_run_id": "run_c4eb9a13a31b",
+        "commit_hash": "bc49474b7ae6",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_setup",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          },
+          {
+            "subject": "Game_play_full_game_ai_vs_ai",
+            "predicate": "calls",
+            "object": "Game_ai_turn",
+            "claim_type": "invocation",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Non-existent symbol in repository",
+            "line_reference": null
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 4,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "AIPlayer",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L4-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 5,
+            "line_end": 10,
+            "symbol_id": null,
+            "symbol_name": "__init__",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L5-L10"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 12,
+            "line_end": 26,
+            "symbol_id": null,
+            "symbol_name": "choose_move",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L12-L26"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 28,
+            "line_end": 32,
+            "symbol_id": null,
+            "symbol_name": "register_hit",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L28-L32"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 34,
+            "line_end": 35,
+            "symbol_id": null,
+            "symbol_name": "register_miss",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L34-L35"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 37,
+            "line_end": 38,
+            "symbol_id": null,
+            "symbol_name": "get_accuracy",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L37-L38"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "ai_player.py",
+            "line_start": 40,
+            "line_end": 44,
+            "symbol_id": null,
+            "symbol_name": "reset",
+            "evidence_type": "AST",
+            "citation": "ai_player.py#L40-L44"
+          },
+          {
+            "repository_id": "battleship-python",
+            "analysis_run_id": "run_c4eb9a13a31b",
+            "commit_hash": "bc49474b7ae6",
+            "file_path": "game.py",
+            "line_start": 9,
+            "line_end": 69,
+            "symbol_id": null,
+            "symbol_name": "Game",
+            "evidence_type": "AST",
+            "citation": "game.py#L9-L69"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 0,
+          "suggestions": 0,
+          "insufficient_evidence": 2
+        },
+        "generated_at": "2026-08-29T18:10:43.926890Z"
+      }
+    },
+    {
+      "id": "cross_filename_collision",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'Does battleship-python contain OwnerController?': the repository contains OwnerController, OwnerController, OwnerController, Owner, MySqlIntegrationTests, findAll. Verified relationships: Owner EXTENDS Person; Owner DEPENDS_ON List<Pet>; OwnerController DEPENDS_ON OwnerRepository. OwnerController depends on OwnerRepository.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Owner",
+            "predicate": "extends",
+            "object": "Person",
+            "claim_type": "inheritance",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176",
+            "line_reference": "L47-L176"
+          },
+          {
+            "subject": "Owner",
+            "predicate": "depends_on",
+            "object": "List",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Missing relationship proof",
+            "line_reference": null
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends_on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java",
+            "line_start": 47,
+            "line_end": 176,
+            "symbol_id": null,
+            "symbol_name": "Owner",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java",
+            "line_start": 55,
+            "line_end": 57,
+            "symbol_id": null,
+            "symbol_name": "OwnerController",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 1
+        },
+        "generated_at": "2026-08-29T18:10:44.392766Z"
+      }
+    },
+    {
+      "id": "cross_stale_snapshot",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "result": {
+        "answer": "Based on indexed evidence for 'Does this repository use Kubernetes?': the repository contains MySqlIntegrationTests, findAll, ownerDetails, findAll, ownerDetails, MysqlTestApplication. Verified relationships: MySqlIntegrationTests DEPENDS_ON VetRepository; MySqlIntegrationTests DEPENDS_ON RestTemplateBuilder; PetClinicConcurrencyTests DEPENDS_ON OwnerRepository.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "VetRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "RestTemplateBuilder",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "PetClinicConcurrencyTests",
+            "predicate": "depends_on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java#L28-L134",
+            "line_reference": "L28-L134"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java",
+            "line_start": 41,
+            "line_end": 74,
+            "symbol_id": null,
+            "symbol_name": "MySqlIntegrationTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java",
+            "line_start": 28,
+            "line_end": 134,
+            "symbol_id": null,
+            "symbol_name": "PetClinicConcurrencyTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/PetClinicConcurrencyTests.java#L28-L134"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 0
+        },
+        "generated_at": "2026-08-29T18:10:44.893499Z"
+      }
+    },
+    {
+      "id": "cross_evidence_resolution",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'Where is OwnerController evidence?': the repository contains OwnerController, OwnerController, OwnerController, Owner, MySqlIntegrationTests, findAll. Verified relationships: Owner EXTENDS Person; Owner DEPENDS_ON List<Pet>; OwnerController DEPENDS_ON OwnerRepository. OwnerController depends on OwnerRepository.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Owner",
+            "predicate": "extends",
+            "object": "Person",
+            "claim_type": "inheritance",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176",
+            "line_reference": "L47-L176"
+          },
+          {
+            "subject": "Owner",
+            "predicate": "depends_on",
+            "object": "List",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Missing relationship proof",
+            "line_reference": null
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends_on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java",
+            "line_start": 47,
+            "line_end": 176,
+            "symbol_id": null,
+            "symbol_name": "Owner",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java",
+            "line_start": 55,
+            "line_end": 57,
+            "symbol_id": null,
+            "symbol_name": "OwnerController",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 1
+        },
+        "generated_at": "2026-08-29T18:10:45.534907Z"
+      }
+    },
+    {
+      "id": "cross_workspace_context",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "VERIFIED",
+      "result": {
+        "answer": "Based on indexed evidence for 'Explain OwnerController with workspace context': the repository contains OwnerController, OwnerController, OwnerController, Owner, MySqlIntegrationTests, findAll. Verified relationships: Owner EXTENDS Person; Owner DEPENDS_ON List<Pet>; OwnerController DEPENDS_ON OwnerRepository. OwnerController depends on OwnerRepository.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Owner",
+            "predicate": "extends",
+            "object": "Person",
+            "claim_type": "inheritance",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176",
+            "line_reference": "L47-L176"
+          },
+          {
+            "subject": "Owner",
+            "predicate": "depends_on",
+            "object": "List",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Missing relationship proof",
+            "line_reference": null
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends_on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          },
+          {
+            "subject": "OwnerController",
+            "predicate": "depends on",
+            "object": "OwnerRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57",
+            "line_reference": "L55-L57"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java",
+            "line_start": 47,
+            "line_end": 176,
+            "symbol_id": null,
+            "symbol_name": "Owner",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java",
+            "line_start": 55,
+            "line_end": 57,
+            "symbol_id": null,
+            "symbol_name": "OwnerController",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java#L55-L57"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 1
+        },
+        "generated_at": "2026-08-29T18:10:46.090638Z"
+      }
+    },
+    {
+      "id": "suggestion_pagination",
+      "passed": true,
+      "error": null,
+      "expected_verdict": "AI_SUGGESTION",
+      "result": {
+        "answer": "Based on indexed evidence for 'How could pagination be added to the owner API?': the repository contains Owner, MySqlIntegrationTests, findAll, ownerDetails, findAll, ownerDetails. Verified relationships: Owner EXTENDS Person; Owner DEPENDS_ON List<Pet>; MySqlIntegrationTests DEPENDS_ON VetRepository. Owner depends on Person.",
+        "mode": "FAST",
+        "repository_id": "spring-petclinic",
+        "analysis_run_id": "run_3426b85288f6",
+        "commit_hash": "f182358d02e4",
+        "context": null,
+        "claims": [
+          {
+            "subject": "Owner",
+            "predicate": "extends",
+            "object": "Person",
+            "claim_type": "inheritance",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176",
+            "line_reference": "L47-L176"
+          },
+          {
+            "subject": "Owner",
+            "predicate": "depends_on",
+            "object": "List",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udd34 INSUFFICIENT EVIDENCE",
+            "evidence_source": "Missing relationship proof",
+            "line_reference": null
+          },
+          {
+            "subject": "MySqlIntegrationTests",
+            "predicate": "depends_on",
+            "object": "VetRepository",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74",
+            "line_reference": "L41-L74"
+          },
+          {
+            "subject": "Owner",
+            "predicate": "depends on",
+            "object": "Person",
+            "claim_type": "structural",
+            "verdict": "\ud83d\udfe2 VERIFIED",
+            "evidence_source": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176",
+            "line_reference": "L47-L176"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java",
+            "line_start": 47,
+            "line_end": 176,
+            "symbol_id": null,
+            "symbol_name": "Owner",
+            "evidence_type": "AST",
+            "citation": "src/main/java/org/springframework/samples/petclinic/owner/Owner.java#L47-L176"
+          },
+          {
+            "repository_id": "spring-petclinic",
+            "analysis_run_id": "run_3426b85288f6",
+            "commit_hash": "f182358d02e4",
+            "file_path": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java",
+            "line_start": 41,
+            "line_end": 74,
+            "symbol_id": null,
+            "symbol_name": "MySqlIntegrationTests",
+            "evidence_type": "AST",
+            "citation": "src/test/java/org/springframework/samples/petclinic/MySqlIntegrationTests.java#L41-L74"
+          }
+        ],
+        "diagrams": [
+          {
+            "id": "DEPENDENCY"
+          }
+        ],
+        "research": null,
+        "verification_summary": {
+          "verified": 3,
+          "suggestions": 0,
+          "insufficient_evidence": 1
+        },
+        "generated_at": "2026-08-29T18:10:46.556872Z"
+      }
+    }
+  ]
+}

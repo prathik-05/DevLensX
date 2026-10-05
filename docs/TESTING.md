@@ -1,0 +1,12 @@
+# Testing
+- Unit: `pytest tests/unit -q`
+- Integration: `pytest tests/integration -q`
+- Security: `pytest tests/security -v`
+- E2E (isolated): `pytest tests/e2e -v`
+- Performance: `pytest tests/performance -v`
+- Golden: `python -m devlensx.evaluation.runner` (33/33)
+- Polyglot: `python -m devlensx.polyglot.matrix`
+- Frontend: `npm --prefix web run build`
+- Full: `pytest tests/ -k "not performance" -q` + e2e + build
+- UX: `pytest tests/ux -v`
+- Observability: `pytest tests/observability -v`

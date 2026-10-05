@@ -1,0 +1,42 @@
+{
+  "release": "DevLensX",
+  "status": "PASS",
+  "git_commit": "bc49474",
+  "python_version": "3.13.14",
+  "node_version": "v22.14.0",
+  "npm_version": "10.9.2",
+  "os": "Windows",
+  "kuzu_config": "embedded",
+  "llm_available": false,
+  "milestones": {
+    "D1": "FROZEN",
+    "D2": "FROZEN",
+    "D3": "FROZEN",
+    "D4": "FROZEN",
+    "D5": "FROZEN",
+    "D6": "FROZEN",
+    "D7": "FROZEN",
+    "D8": "FROZEN",
+    "D9": "FROZEN",
+    "D10.1": "FROZEN",
+    "D10.2": "FROZEN",
+    "D10.3": "FROZEN",
+    "D10.4": "FROZEN",
+    "D10.5": "FROZEN",
+    "D10.6": "FROZEN",
+    "D10.7": "FROZEN",
+    "D10.8": "FROZEN",
+    "D10.9": "FROZEN"
+  },
+  "security": "PASS",
+  "golden_evaluation": {
+    "passed": 33,
+    "failed": 0
+  },
+  "polyglot": {
+    "validated": ["Java", "TypeScript", "Python"]
+  },
+  "frontend_build": "PASS",
+  "e2e": "PASS",
+  "performance": "PASS"
+}

@@ -1,0 +1,151 @@
+{
+  "cases": [
+    {
+      "id": "petclinic_redis_negative",
+      "repository": "spring-petclinic",
+      "question": "Does this application use Redis?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Redis"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "petclinic_kafka_negative",
+      "repository": "spring-petclinic",
+      "question": "Does this application use Kafka?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Kafka"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "petclinic_mongo_negative",
+      "repository": "spring-petclinic",
+      "question": "Does this application use MongoDB?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "MongoDB"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "portfolio_redis_negative",
+      "repository": "sp-portfolio",
+      "question": "Does this application use Redis?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Redis"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_spring_negative",
+      "repository": "sp-portfolio",
+      "question": "Does this repository use Spring or JPA?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Spring"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "battleship_redis_negative",
+      "repository": "battleship-python",
+      "question": "Does this repository use Redis?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Redis"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_spring_negative",
+      "repository": "battleship-python",
+      "question": "Does this repository use Spring?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Spring"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    }
+  ]
+}

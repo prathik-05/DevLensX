@@ -1,0 +1,2 @@
+# Evaluation
+33-case golden dataset `GOLDEN_EVALUATION_DATASET.json` + report `GOLDEN_EVALUATION_REPORT.json`. Categories: structural (OwnerController location), relationship (Controller→Repository), architecture, cross-repo, adversarial (Redis/Kafka/Mongo/Kubernetes → INSUFFICIENT), suggestion (pagination → AI_SUGGESTION). Levels: repo/run/commit → file → symbol → RESOLVED. Run: `python -m devlensx.evaluation.runner` → 33/33. Re-run per release protects against parser/LLM drift.

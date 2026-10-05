@@ -1,0 +1,172 @@
+{
+  "cases": [
+    {
+      "id": "battleship_aiplayer",
+      "repository": "battleship-python",
+      "question": "Where is the AI player defined?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "AIPlayer",
+        "predicate": "DEFINED_IN",
+        "object": "ai_player.py"
+      },
+      "expected_evidence": {
+        "file": "ai_player.py",
+        "symbol": "AIPlayer",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_gamelogic",
+      "repository": "battleship-python",
+      "question": "Where is the main game logic defined?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Game",
+        "predicate": "DEFINED_IN",
+        "object": "game.py"
+      },
+      "expected_evidence": {
+        "file": "game.py",
+        "symbol": "Game",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_module_rel",
+      "repository": "battleship-python",
+      "question": "How does the game flow between modules?",
+      "commit_hash": null,
+      "mode": "CODEMAP",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Game",
+        "predicate": "CALLS",
+        "object": "Player"
+      },
+      "expected_evidence": {
+        "file": "game.py",
+        "symbol": "Game",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_entry",
+      "repository": "battleship-python",
+      "question": "Where is the entry point?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Game",
+        "predicate": "DEFINED_IN",
+        "object": "game.py"
+      },
+      "expected_evidence": {
+        "file": "game.py",
+        "symbol": "Game",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_arch",
+      "repository": "battleship-python",
+      "question": "What is the architecture?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Game",
+        "predicate": "ARCHITECTURE",
+        "object": "Modular"
+      },
+      "expected_evidence": {
+        "file": "game.py",
+        "symbol": "Game",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_redis_negative",
+      "repository": "battleship-python",
+      "question": "Does this repository use Redis?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Redis"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_spring_negative",
+      "repository": "battleship-python",
+      "question": "Does this repository use Spring?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Spring"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_owner_isolation",
+      "repository": "battleship-python",
+      "question": "Where is OwnerController?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "OwnerController",
+        "predicate": "DEFINED_IN",
+        "object": "OwnerController.java"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    }
+  ]
+}

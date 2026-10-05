@@ -1,0 +1,172 @@
+{
+  "cases": [
+    {
+      "id": "portfolio_spdevprovider",
+      "repository": "sp-portfolio",
+      "question": "Where is SPDevProvider defined?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "SPDevProvider",
+        "predicate": "DEFINED_IN",
+        "object": "SPDevProvider.tsx"
+      },
+      "expected_evidence": {
+        "file": "SPDevProvider",
+        "symbol": "SPDevProvider",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_theme",
+      "repository": "sp-portfolio",
+      "question": "Where is the theme configuration defined?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Theme",
+        "predicate": "DEFINED_IN",
+        "object": "theme.ts"
+      },
+      "expected_evidence": {
+        "file": "theme",
+        "symbol": "Theme",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_component_rel",
+      "repository": "sp-portfolio",
+      "question": "What components use the application context?",
+      "commit_hash": null,
+      "mode": "CODEMAP",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Component",
+        "predicate": "USES",
+        "object": "Context"
+      },
+      "expected_evidence": {
+        "file": "SPDevProvider",
+        "symbol": "SPDevProvider",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_state",
+      "repository": "sp-portfolio",
+      "question": "How is state management implemented?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "SPDevProvider",
+        "predicate": "PROVIDES",
+        "object": "Context"
+      },
+      "expected_evidence": {
+        "file": "SPDevProvider",
+        "symbol": "SPDevProvider",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_effect",
+      "repository": "sp-portfolio",
+      "question": "What visual effects are implemented?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Effect",
+        "predicate": "DEFINED_IN",
+        "object": "effects"
+      },
+      "expected_evidence": {
+        "file": "effects",
+        "symbol": "Effect",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_structure",
+      "repository": "sp-portfolio",
+      "question": "What is the project structure?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Project",
+        "predicate": "HAS_STRUCTURE",
+        "object": "src"
+      },
+      "expected_evidence": {
+        "file": "src",
+        "symbol": "Project",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_redis_negative",
+      "repository": "sp-portfolio",
+      "question": "Does this application use Redis?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Redis"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_spring_negative",
+      "repository": "sp-portfolio",
+      "question": "Does this repository use Spring or JPA?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Spring"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    }
+  ]
+}

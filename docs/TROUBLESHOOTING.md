@@ -1,0 +1,11 @@
+# Troubleshooting
+- Backend won't start: check port 8000, `python -m pytest tests/unit -q`, check Kuzu lock
+- Frontend won't start: `cd web; npm install; npm run build`
+- Port occupied: use dynamic ports via D10.1 harness
+- Kuzu locked: remove `devlensx_graph_db` or use `KUZU_DB_PATH` temp
+- Stale snapshot: `STALE_COMMIT` → Re-analyze
+- Evidence cannot resolve: `UNKNOWN_SNAPSHOT` → analyze first
+- SourceViewer cannot open: `PATH_VIOLATION`/`BINARY_FILE`/`FILE_TOO_LARGE` handled
+- LLM unavailable: deterministic URM/Kuzu/Evidence/Diagrams still work
+- Invalid ZIP: `BadZipFile` → 400, no traceback
+- Huge input: 413 or bounded

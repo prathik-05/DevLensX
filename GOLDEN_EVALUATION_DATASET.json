@@ -1,0 +1,698 @@
+{
+  "dataset_version": "1.0",
+  "cases": [
+    {
+      "id": "petclinic_owner_location",
+      "repository": "spring-petclinic",
+      "question": "Where is OwnerController defined?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "OwnerController",
+        "predicate": "DEFINED_IN",
+        "object": "OwnerController.java"
+      },
+      "expected_evidence": {
+        "file": "OwnerController.java",
+        "symbol": "OwnerController",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": "OwnerController location",
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "petclinic_repo_location",
+      "repository": "spring-petclinic",
+      "question": "Where is OwnerRepository defined?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "OwnerRepository",
+        "predicate": "DEFINED_IN",
+        "object": "OwnerRepository.java"
+      },
+      "expected_evidence": {
+        "file": "OwnerRepository.java",
+        "symbol": "OwnerRepository",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "petclinic_controller_depends_repo",
+      "repository": "spring-petclinic",
+      "question": "Does OwnerController depend on OwnerRepository?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "OwnerController",
+        "predicate": "DEPENDS_ON",
+        "object": "OwnerRepository"
+      },
+      "expected_evidence": {
+        "file": "OwnerController.java",
+        "symbol": "OwnerController",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "petclinic_controller_depends_service",
+      "repository": "spring-petclinic",
+      "question": "Does OwnerController depend on OwnerService?",
+      "commit_hash": null,
+      "mode": "CODEMAP",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "OwnerController",
+        "predicate": "DEPENDS_ON",
+        "object": "OwnerService"
+      },
+      "expected_evidence": {
+        "file": "OwnerController.java",
+        "symbol": "OwnerController",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "petclinic_owner_flow",
+      "repository": "spring-petclinic",
+      "question": "How does the owner request reach persistence?",
+      "commit_hash": null,
+      "mode": "CODEMAP",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "OwnerController",
+        "predicate": "CALLS",
+        "object": "OwnerService"
+      },
+      "expected_evidence": {
+        "file": "OwnerController.java",
+        "symbol": "OwnerController",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "petclinic_persistence",
+      "repository": "spring-petclinic",
+      "question": "What classes implement the persistence layer?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "OwnerRepository",
+        "predicate": "IMPLEMENTS",
+        "object": "Repository"
+      },
+      "expected_evidence": {
+        "file": "OwnerRepository.java",
+        "symbol": "OwnerRepository",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "petclinic_architecture",
+      "repository": "spring-petclinic",
+      "question": "What are the major architectural layers?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "OwnerController",
+        "predicate": "LAYER",
+        "object": "Controller"
+      },
+      "expected_evidence": {
+        "file": "OwnerController.java",
+        "symbol": "OwnerController",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "petclinic_docs",
+      "repository": "spring-petclinic",
+      "question": "Explain OwnerController",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "OwnerController",
+        "predicate": "DEFINED_IN",
+        "object": "OwnerController.java"
+      },
+      "expected_evidence": {
+        "file": "OwnerController.java",
+        "symbol": "OwnerController",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "petclinic_redis_negative",
+      "repository": "spring-petclinic",
+      "question": "Does this application use Redis?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Redis"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "petclinic_kafka_negative",
+      "repository": "spring-petclinic",
+      "question": "Does this application use Kafka?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Kafka"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "petclinic_mongo_negative",
+      "repository": "spring-petclinic",
+      "question": "Does this application use MongoDB?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "MongoDB"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "petclinic_snapshot_isolation",
+      "repository": "spring-petclinic",
+      "question": "Does PetClinic contain AIPlayer?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "AIPlayer",
+        "predicate": "DEFINED_IN",
+        "object": "AIPlayer.java"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "portfolio_spdevprovider",
+      "repository": "sp-portfolio",
+      "question": "Where is SPDevProvider defined?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "SPDevProvider",
+        "predicate": "DEFINED_IN",
+        "object": "SPDevProvider.tsx"
+      },
+      "expected_evidence": {
+        "file": "SPDevProvider",
+        "symbol": "SPDevProvider",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_theme",
+      "repository": "sp-portfolio",
+      "question": "Where is the theme configuration defined?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Theme",
+        "predicate": "DEFINED_IN",
+        "object": "theme.ts"
+      },
+      "expected_evidence": {
+        "file": "theme",
+        "symbol": "Theme",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_component_rel",
+      "repository": "sp-portfolio",
+      "question": "What components use the application context?",
+      "commit_hash": null,
+      "mode": "CODEMAP",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Component",
+        "predicate": "USES",
+        "object": "Context"
+      },
+      "expected_evidence": {
+        "file": "SPDevProvider",
+        "symbol": "SPDevProvider",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_state",
+      "repository": "sp-portfolio",
+      "question": "How is state management implemented?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "SPDevProvider",
+        "predicate": "PROVIDES",
+        "object": "Context"
+      },
+      "expected_evidence": {
+        "file": "SPDevProvider",
+        "symbol": "SPDevProvider",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_effect",
+      "repository": "sp-portfolio",
+      "question": "What visual effects are implemented?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Effect",
+        "predicate": "DEFINED_IN",
+        "object": "effects"
+      },
+      "expected_evidence": {
+        "file": "effects",
+        "symbol": "Effect",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_structure",
+      "repository": "sp-portfolio",
+      "question": "What is the project structure?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Project",
+        "predicate": "HAS_STRUCTURE",
+        "object": "src"
+      },
+      "expected_evidence": {
+        "file": "src",
+        "symbol": "Project",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_redis_negative",
+      "repository": "sp-portfolio",
+      "question": "Does this application use Redis?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Redis"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "portfolio_spring_negative",
+      "repository": "sp-portfolio",
+      "question": "Does this repository use Spring or JPA?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Spring"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/sp-portfolio"
+    },
+    {
+      "id": "battleship_aiplayer",
+      "repository": "battleship-python",
+      "question": "Where is the AI player defined?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "AIPlayer",
+        "predicate": "DEFINED_IN",
+        "object": "ai_player.py"
+      },
+      "expected_evidence": {
+        "file": "ai_player.py",
+        "symbol": "AIPlayer",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_gamelogic",
+      "repository": "battleship-python",
+      "question": "Where is the main game logic defined?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Game",
+        "predicate": "DEFINED_IN",
+        "object": "game.py"
+      },
+      "expected_evidence": {
+        "file": "game.py",
+        "symbol": "Game",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_module_rel",
+      "repository": "battleship-python",
+      "question": "How does the game flow between modules?",
+      "commit_hash": null,
+      "mode": "CODEMAP",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Game",
+        "predicate": "CALLS",
+        "object": "Player"
+      },
+      "expected_evidence": {
+        "file": "game.py",
+        "symbol": "Game",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_entry",
+      "repository": "battleship-python",
+      "question": "Where is the entry point?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Game",
+        "predicate": "DEFINED_IN",
+        "object": "game.py"
+      },
+      "expected_evidence": {
+        "file": "game.py",
+        "symbol": "Game",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_arch",
+      "repository": "battleship-python",
+      "question": "What is the architecture?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "Game",
+        "predicate": "ARCHITECTURE",
+        "object": "Modular"
+      },
+      "expected_evidence": {
+        "file": "game.py",
+        "symbol": "Game",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_redis_negative",
+      "repository": "battleship-python",
+      "question": "Does this repository use Redis?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Redis"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_spring_negative",
+      "repository": "battleship-python",
+      "question": "Does this repository use Spring?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Spring"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "battleship_owner_isolation",
+      "repository": "battleship-python",
+      "question": "Where is OwnerController?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "OwnerController",
+        "predicate": "DEFINED_IN",
+        "object": "OwnerController.java"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/battleship-python"
+    },
+    {
+      "id": "cross_filename_collision",
+      "repository": "spring-petclinic",
+      "question": "Does battleship-python contain OwnerController?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "OwnerController",
+        "predicate": "DEFINED_IN",
+        "object": "OwnerController.java"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "cross_stale_snapshot",
+      "repository": "spring-petclinic",
+      "question": "Does this repository use Kubernetes?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "INSUFFICIENT_EVIDENCE",
+      "expected_claim": {
+        "subject": "Application",
+        "predicate": "USES",
+        "object": "Kubernetes"
+      },
+      "expected_evidence": {
+        "file": "",
+        "symbol": "",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "cross_evidence_resolution",
+      "repository": "spring-petclinic",
+      "question": "Where is OwnerController evidence?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "OwnerController",
+        "predicate": "DEFINED_IN",
+        "object": "OwnerController.java"
+      },
+      "expected_evidence": {
+        "file": "OwnerController.java",
+        "symbol": "OwnerController",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "cross_workspace_context",
+      "repository": "spring-petclinic",
+      "question": "Explain OwnerController with workspace context",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "VERIFIED",
+      "expected_claim": {
+        "subject": "OwnerController",
+        "predicate": "DEFINED_IN",
+        "object": "OwnerController.java"
+      },
+      "expected_evidence": {
+        "file": "OwnerController.java",
+        "symbol": "OwnerController",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    },
+    {
+      "id": "suggestion_pagination",
+      "repository": "spring-petclinic",
+      "question": "How could pagination be added to the owner API?",
+      "commit_hash": null,
+      "mode": "FAST",
+      "expected_verdict": "AI_SUGGESTION",
+      "expected_claim": {
+        "subject": "Pagination",
+        "predicate": "SUGGESTED_FOR",
+        "object": "OwnerAPI"
+      },
+      "expected_evidence": {
+        "file": "OwnerController.java",
+        "symbol": "OwnerController",
+        "line_start": null,
+        "line_end": null
+      },
+      "description": null,
+      "repository_path": "eval_repos/spring-petclinic"
+    }
+  ]
+}

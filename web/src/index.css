@@ -1,0 +1,1429 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  /* ==========================================================================
+     DevLensX MONOCHROME EDITORIAL & REFINED SYSTEM DESIGN
+     "Form follows function — High contrast, timeless monochrome precision."
+     Brutalist Structure + Editorial Typography + Pure Grayscale Taxonomy
+     ========================================================================== */
+
+  /* ----- Light Mode Monochrome Foundation (Clean Studio Surfaces) ----- */
+  --cyber-bg: #fafafa;
+  --cyber-card: #ffffff;
+  --cyber-muted: #f4f4f5;
+  --cyber-muted-fg: #71717a;
+  --cyber-border: #18181b;
+  --cyber-border-active: #09090b;
+  --cyber-input: #ffffff;
+
+  /* ----- Monochrome Functional Scale (Replacing Rainbow Neons) ----- */
+  --neon-green: #18181b;       /* Primary Interaction & Verified System */
+  --neon-cyan: #27272a;        /* Technical Info, AST & Knowledge Graph */
+  --neon-magenta: #3f3f46;     /* AI Reasoning & Guided Suggestions */
+  --neon-yellow: #52525b;      /* Telemetry, Impact & Highlights */
+  --neon-red: #09090b;         /* Security Findings & Critical Priority */
+  --neon-danger: #09090b;
+
+  /* ----- Structural Primaries (Pure Monochrome) ----- */
+  --bauhaus-red: #18181b;
+  --bauhaus-blue: #27272a;
+  --bauhaus-yellow: #52525b;
+  --bauhaus-black: #09090b;
+  --bauhaus-white: #ffffff;
+
+  /* ----- Base Surfaces ----- */
+  --dl-bg: var(--cyber-bg);
+  --dl-bg-elevated: var(--cyber-card);
+  --dl-surface: var(--cyber-card);
+  --dl-surface-hover: #f4f4f5;
+  --dl-surface-pressed: #e4e4e7;
+  --dl-panel: var(--cyber-card);
+  --dl-panel-border: var(--cyber-border);
+
+  /* ----- Primary Accent: Crisp Inverted Black ----- */
+  --dl-accent: #18181b;
+  --dl-accent-soft: rgba(24, 24, 27, 0.08);
+  --dl-accent-strong: rgba(24, 24, 27, 0.16);
+  --dl-accent-dim: rgba(24, 24, 27, 0.04);
+
+  /* ----- Semantic Taxonomy (High-Contrast Monochrome Precision) ----- */
+  --semantic-verified: #18181b;
+  --semantic-verified-bg: #f4f4f5;
+  --semantic-verified-border: #18181b;
+
+  --semantic-ai-suggestion: #27272a;
+  --semantic-ai-suggestion-bg: #f4f4f5;
+  --semantic-ai-suggestion-border: #3f3f46;
+
+  --semantic-insufficient: #71717a;
+  --semantic-insufficient-bg: #f4f4f5;
+  --semantic-insufficient-border: #71717a;
+
+  --semantic-not-verified: #71717a;
+  --semantic-not-verified-bg: #f4f4f5;
+  --semantic-not-verified-border: #a1a1aa;
+
+  --semantic-risk-critical: #09090b;
+  --semantic-risk-critical-bg: #18181b;
+  --semantic-risk-critical-border: #09090b;
+
+  --semantic-risk-high: #18181b;
+  --semantic-risk-high-bg: #f4f4f5;
+  --semantic-risk-high-border: #18181b;
+
+  --semantic-risk-medium: #3f3f46;
+  --semantic-risk-medium-bg: #f4f4f5;
+  --semantic-risk-medium-border: #52525b;
+
+  --semantic-risk-low: #71717a;
+  --semantic-risk-low-bg: #f4f4f5;
+  --semantic-risk-low-border: #a1a1aa;
+
+  --semantic-finding-arch: #18181b;
+  --semantic-finding-arch-bg: #f4f4f5;
+  --semantic-finding-arch-border: #18181b;
+
+  --semantic-finding-sec: #09090b;
+  --semantic-finding-sec-bg: #18181b;
+  --semantic-finding-sec-border: #09090b;
+
+  --semantic-finding-impact: #3f3f46;
+  --semantic-finding-impact-bg: #f4f4f5;
+  --semantic-finding-impact-border: #52525b;
+
+  --semantic-finding-perf: #27272a;
+  --semantic-finding-perf-bg: #f4f4f5;
+  --semantic-finding-perf-border: #27272a;
+
+  /* ----- Text Colors (High Contrast on Clean Monochrome Canvas) ----- */
+  --dl-text: #09090b;
+  --dl-text-strong: #000000;
+  --dl-text-dim: #52525b;
+  --dl-text-muted: #71717a;
+  --dl-text-on-accent: #ffffff;
+
+  /* ----- Typography Scale ----- */
+  --dl-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --dl-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --text-display: clamp(32px, 5vw, 64px);
+  --text-h1: clamp(24px, 3.5vw, 36px);
+  --text-h2: 18px;
+  --text-h3: 15px;
+  --text-body: 14px;
+  --text-body-lg: 16px;
+  --text-sm: 13px;
+  --text-xs: 11px;
+  --text-caption: 10px;
+
+  --leading-tight: 0.95;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  /* ----- Spacing Scale ----- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ----- Binary Border Radius (0px Default) ----- */
+  --radius-none: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-panel: 0;
+  --radius-full: 9999px;
+
+  /* ----- Technical Monochrome Borders ----- */
+  --border-hairline: 1px;
+  --border-thick: 2px;
+  --border-heavy: 4px;
+
+  /* ----- Refined Crisp Shadows (No Loud Color Bleeds) ----- */
+  --shadow-hard-sm: 2px 2px 0px 0px #18181b;
+  --shadow-hard-md: 3px 3px 0px 0px #18181b;
+  --shadow-hard-lg: 5px 5px 0px 0px #18181b;
+
+  --glow-green: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --glow-cyan: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --glow-magenta: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --glow-yellow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --glow-red: 0 1px 2px rgba(0, 0, 0, 0.08);
+
+  /* ----- Motion Tokens ----- */
+  --motion-fast: 100ms;
+  --motion-base: 200ms;
+  --motion-slow: 300ms;
+  --motion-ease: cubic-bezier(0, 0, 0.2, 1);
+  --motion-ease-out: cubic-bezier(0, 0, 0.2, 1);
+
+  /* ----- Focus Ring ----- */
+  --focus-ring: 2px solid var(--dl-accent);
+  --focus-ring-offset: 2px;
+
+  /* ----- Compat Aliases ----- */
+  --dl-primary: var(--neon-green);
+  --dl-primary-hover: #27272a;
+  --dl-primary-soft: var(--dl-accent-soft);
+  --dl-tertiary: var(--dl-text-muted);
+  --dl-muted: var(--dl-text-dim);
+  --dl-text-on-primary: #ffffff;
+  --dl-card: var(--cyber-card);
+  --dl-card-hover: var(--dl-surface-hover);
+  --dl-border: var(--cyber-border);
+  --dl-border-subtle: var(--cyber-border);
+  --dl-cyan: var(--neon-cyan);
+  --dl-indigo: var(--bauhaus-blue);
+  --dl-green: var(--neon-green);
+  --dl-amber: var(--neon-yellow);
+  --dl-rose: var(--neon-danger);
+  --dl-purple: var(--neon-magenta);
+  --dl-sky: var(--neon-cyan);
+  --glass-surface-border: var(--cyber-border);
+}
+
+html[data-theme="dark"] {
+  /* ----- Sleek Modern Dark Surfaces (Vercel / Linear / Raycast Inspired) ----- */
+  --cyber-bg: #090a0f;
+  --cyber-card: #11131a;
+  --cyber-muted: #171924;
+  --cyber-muted-fg: #94a3b8;
+  --cyber-border: #1e2230;
+  --cyber-border-active: #38bdf8;
+  --cyber-input: #0e1017;
+
+  /* Vibrant Functional Accents */
+  --neon-green: #10b981;
+  --neon-cyan: #06b6d4;
+  --neon-magenta: #a855f7;
+  --neon-yellow: #f59e0b;
+  --neon-red: #f43f5e;
+  --neon-danger: #f43f5e;
+
+  /* Structural Primaries */
+  --bauhaus-red: #f43f5e;
+  --bauhaus-blue: #3b82f6;
+  --bauhaus-yellow: #f59e0b;
+  --bauhaus-black: #090a0f;
+  --bauhaus-white: #f8fafc;
+
+  --dl-bg: #090a0f;
+  --dl-bg-elevated: #161822;
+  --dl-surface: #11131a;
+  --dl-surface-hover: #191c28;
+  --dl-surface-pressed: #222636;
+  --dl-panel: #11131a;
+  --dl-panel-border: #1e2230;
+
+  --dl-accent: #38bdf8;
+  --dl-accent-soft: rgba(56, 189, 248, 0.12);
+  --dl-accent-strong: rgba(56, 189, 248, 0.25);
+  --dl-accent-dim: rgba(56, 189, 248, 0.05);
+
+  --dl-text: #f1f5f9;
+  --dl-text-strong: #ffffff;
+  --dl-text-dim: #94a3b8;
+  --dl-text-muted: #64748b;
+  --dl-text-on-accent: #090a0f;
+
+  /* Tasteful Semantic Color Taxonomy */
+  --semantic-verified: #10b981;
+  --semantic-verified-bg: rgba(16, 185, 129, 0.12);
+  --semantic-verified-border: rgba(16, 185, 129, 0.35);
+
+  --semantic-ai-suggestion: #a855f7;
+  --semantic-ai-suggestion-bg: rgba(168, 85, 247, 0.12);
+  --semantic-ai-suggestion-border: rgba(168, 85, 247, 0.35);
+
+  --semantic-insufficient: #94a3b8;
+  --semantic-insufficient-bg: rgba(148, 163, 184, 0.12);
+  --semantic-insufficient-border: rgba(148, 163, 184, 0.3);
+
+  --semantic-not-verified: #64748b;
+  --semantic-not-verified-bg: rgba(100, 116, 139, 0.12);
+  --semantic-not-verified-border: rgba(100, 116, 139, 0.3);
+
+  --semantic-risk-critical: #f43f5e;
+  --semantic-risk-critical-bg: rgba(244, 63, 94, 0.15);
+  --semantic-risk-critical-border: rgba(244, 63, 94, 0.45);
+
+  --semantic-risk-high: #fb923c;
+  --semantic-risk-high-bg: rgba(251, 146, 60, 0.15);
+  --semantic-risk-high-border: rgba(251, 146, 60, 0.4);
+
+  --semantic-risk-medium: #facc15;
+  --semantic-risk-medium-bg: rgba(250, 204, 21, 0.12);
+  --semantic-risk-medium-border: rgba(250, 204, 21, 0.35);
+
+  --semantic-risk-low: #38bdf8;
+  --semantic-risk-low-bg: rgba(56, 189, 248, 0.12);
+  --semantic-risk-low-border: rgba(56, 189, 248, 0.35);
+
+  --semantic-finding-arch: #38bdf8;
+  --semantic-finding-arch-bg: rgba(56, 189, 248, 0.12);
+  --semantic-finding-arch-border: rgba(56, 189, 248, 0.35);
+
+  --semantic-finding-sec: #f43f5e;
+  --semantic-finding-sec-bg: rgba(244, 63, 94, 0.15);
+  --semantic-finding-sec-border: rgba(244, 63, 94, 0.45);
+
+  --semantic-finding-impact: #c084fc;
+  --semantic-finding-impact-bg: rgba(192, 132, 252, 0.12);
+  --semantic-finding-impact-border: rgba(192, 132, 252, 0.35);
+
+  --semantic-finding-perf: #2dd4bf;
+  --semantic-finding-perf-bg: rgba(45, 212, 191, 0.12);
+  --semantic-finding-perf-border: rgba(45, 212, 191, 0.35);
+
+  --glow-green: 0 0 16px rgba(16, 185, 129, 0.25);
+  --glow-cyan: 0 0 16px rgba(6, 182, 212, 0.25);
+  --glow-magenta: 0 0 16px rgba(168, 85, 247, 0.25);
+  --glow-yellow: 0 0 16px rgba(245, 158, 11, 0.25);
+  --glow-red: 0 0 16px rgba(244, 63, 94, 0.25);
+
+  --shadow-hard-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-hard-md: 0 3px 8px rgba(0, 0, 0, 0.5);
+  --shadow-hard-lg: 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+/* ==========================================================================
+   Reduced Motion — Global
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   Base Styles
+   ========================================================================== */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--dl-bg);
+  color: var(--dl-text);
+  font-family: var(--dl-font-sans);
+  font-size: var(--text-body);
+  line-height: var(--leading-normal);
+  overflow-x: hidden;
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* Clean background — no noise texture */
+body::before {
+  display: none !important;
+}
+
+code, pre, .font-mono, kbd, samp, .dl-mono {
+  font-family: var(--dl-font-mono);
+}
+
+/* ==========================================================================
+   Selection
+   ========================================================================== */
+::selection {
+  background-color: var(--dl-accent);
+  color: var(--dl-text-on-accent);
+}
+
+/* ==========================================================================
+   Scrollbar (Terminal Style)
+   ========================================================================== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--dl-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--dl-panel-border);
+  border: 2px solid var(--dl-bg);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--dl-accent);
+}
+::-webkit-scrollbar-corner {
+  background: var(--dl-bg);
+}
+
+/* ==========================================================================
+   Panel System (Cyber-Bauhaus: Technical Void Surfaces, Hard Shadows)
+   ========================================================================== */
+.dl-panel {
+  background: var(--cyber-card);
+  border: 1px solid var(--cyber-border);
+  border-radius: 0 !important;
+  box-shadow: var(--shadow-hard-md);
+}
+
+.dl-panel-elevated {
+  background: var(--cyber-card);
+  border: 2px solid var(--cyber-border);
+  border-radius: 0 !important;
+  box-shadow: var(--shadow-hard-lg);
+}
+
+.dl-panel-raised {
+  background: var(--cyber-muted);
+  border: 2px solid var(--cyber-border);
+  border-radius: 0 !important;
+  box-shadow: var(--shadow-hard-lg);
+}
+
+/* Panel header label (uppercase technical font) */
+.dl-panel-label {
+  font-family: var(--dl-font-mono);
+  font-size: var(--text-caption);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--neon-cyan);
+}
+
+/* ==========================================================================
+   Button System (Cyber-Bauhaus Command Controls)
+   ========================================================================== */
+.dl-btn {
+  font-family: var(--dl-font-mono);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  border-radius: 0 !important;
+  border: 1px solid var(--neon-green);
+  background: transparent;
+  color: var(--neon-green);
+  box-shadow: var(--shadow-hard-sm);
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--motion-ease),
+              box-shadow var(--motion-fast) var(--motion-ease),
+              background var(--motion-fast) var(--motion-ease),
+              color var(--motion-fast) var(--motion-ease);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.dl-btn:hover:not(:disabled) {
+  background: var(--neon-green);
+  color: #0a0a0f;
+  box-shadow: var(--glow-green), var(--shadow-hard-sm);
+}
+
+.dl-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: none !important;
+}
+
+.dl-btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.dl-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Ghost / Terminal button */
+.dl-btn-ghost {
+  background: transparent;
+  color: var(--dl-text);
+  border-color: var(--cyber-border);
+}
+.dl-btn-ghost:hover:not(:disabled) {
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+  background: rgba(0, 212, 255, 0.08);
+}
+
+/* Subtle */
+.dl-btn-subtle {
+  background: var(--cyber-card);
+  color: var(--dl-text);
+  border-color: var(--cyber-border);
+}
+.dl-btn-subtle:hover:not(:disabled) {
+  background: var(--cyber-muted);
+  border-color: var(--neon-green);
+  color: var(--neon-green);
+}
+
+/* Primary (Electric Green fill) */
+.dl-btn-primary {
+  background: var(--neon-green);
+  color: #0a0a0f;
+  border-color: var(--neon-green);
+}
+.dl-btn-primary:hover:not(:disabled) {
+  background: #00cc6e;
+  box-shadow: var(--glow-green);
+}
+
+/* Danger (Neon Red) */
+.dl-btn-danger {
+  background: transparent;
+  color: var(--neon-danger);
+  border-color: var(--neon-danger);
+}
+.dl-btn-danger:hover:not(:disabled) {
+  background: var(--neon-danger);
+  color: #0a0a0f;
+  box-shadow: var(--glow-red);
+}
+
+/* Icon button */
+.dl-btn-icon {
+  padding: 8px;
+  border-radius: 0 !important;
+}
+
+/* ==========================================================================
+   Cyber-Bauhaus Specific Utilities
+   ========================================================================== */
+.cyber-chamfer {
+  clip-path: polygon(
+    0 10px,
+    10px 0,
+    calc(100% - 10px) 0,
+    100% 10px,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    10px 100%,
+    0 calc(100% - 10px)
+  );
+}
+
+.cyber-grid {
+  background-color: var(--dl-bg);
+}
+
+.cyber-scanlines::after {
+  display: none;
+}
+
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes glitch {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(2px, -2px); }
+  60% { transform: translate(-1px, -1px); }
+  80% { transform: translate(1px, 1px); }
+}
+
+.glitch-text {
+  text-shadow: -2px 0 #ff00ff, 2px 0 #00d4ff;
+}
+
+/* Cyber Button Variants */
+.cyber-btn {
+  font-family: var(--dl-font-mono);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  border-radius: 0 !important;
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out, background 150ms ease-out;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid var(--cyber-border);
+  color: var(--dl-text);
+  box-shadow: var(--shadow-hard-sm);
+}
+.cyber-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: none !important;
+}
+
+.cyber-btn-green {
+  border-color: var(--neon-green);
+  color: var(--neon-green);
+}
+.cyber-btn-green:hover:not(:disabled) {
+  background: var(--neon-green);
+  color: #0a0a0f;
+  box-shadow: var(--glow-green), var(--shadow-hard-sm);
+}
+
+.cyber-btn-cyan {
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+}
+.cyber-btn-cyan:hover:not(:disabled) {
+  background: var(--neon-cyan);
+  color: #0a0a0f;
+  box-shadow: var(--glow-cyan), var(--shadow-hard-sm);
+}
+
+.cyber-btn-magenta {
+  border-color: var(--neon-magenta);
+  color: var(--neon-magenta);
+}
+.cyber-btn-magenta:hover:not(:disabled) {
+  background: var(--neon-magenta);
+  color: #0a0a0f;
+  box-shadow: var(--glow-magenta), var(--shadow-hard-sm);
+}
+
+.cyber-btn-yellow {
+  border-color: var(--neon-yellow);
+  color: var(--neon-yellow);
+}
+.cyber-btn-yellow:hover:not(:disabled) {
+  background: var(--neon-yellow);
+  color: #0a0a0f;
+  box-shadow: var(--glow-yellow), var(--shadow-hard-sm);
+}
+
+.cyber-btn-red {
+  border-color: var(--neon-red);
+  color: var(--neon-red);
+}
+.cyber-btn-red:hover:not(:disabled) {
+  background: var(--neon-red);
+  color: #0a0a0f;
+  box-shadow: var(--glow-red), var(--shadow-hard-sm);
+}
+
+/* Bauhaus Constructivist Compat Utilities */
+.bauhaus-card {
+  background: var(--cyber-card);
+  border: 2px solid var(--cyber-border);
+  box-shadow: var(--shadow-hard-lg);
+  border-radius: 0 !important;
+  transition: transform 200ms ease-out, border-color 200ms ease-out;
+}
+.bauhaus-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--neon-green);
+}
+
+.bauhaus-btn {
+  font-family: var(--dl-font-mono);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-radius: 0 !important;
+  border: 1px solid var(--cyber-border);
+  box-shadow: var(--shadow-hard-sm);
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.bauhaus-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: none !important;
+}
+
+.bauhaus-btn-red {
+  background: transparent;
+  border-color: var(--neon-red);
+  color: var(--neon-red);
+}
+.bauhaus-btn-red:hover:not(:disabled) {
+  background: var(--neon-red);
+  color: #0a0a0f;
+  box-shadow: var(--glow-red);
+}
+
+.bauhaus-btn-blue {
+  background: transparent;
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+}
+.bauhaus-btn-blue:hover:not(:disabled) {
+  background: var(--neon-cyan);
+  color: #0a0a0f;
+  box-shadow: var(--glow-cyan);
+}
+
+.bauhaus-btn-yellow {
+  background: transparent;
+  border-color: var(--neon-yellow);
+  color: var(--neon-yellow);
+}
+.bauhaus-btn-yellow:hover:not(:disabled) {
+  background: var(--neon-yellow);
+  color: #0a0a0f;
+  box-shadow: var(--glow-yellow);
+}
+
+.bauhaus-btn-white {
+  background: transparent;
+  border-color: var(--dl-text);
+  color: var(--dl-text);
+}
+.bauhaus-btn-white:hover:not(:disabled) {
+  background: var(--dl-text);
+  color: #0a0a0f;
+}
+
+.bauhaus-badge {
+  font-family: var(--dl-font-mono);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--cyber-border);
+  box-shadow: 2px 2px 0px 0px #000000;
+  border-radius: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ==========================================================================
+   Cyber-Bauhaus Badge System (.dl-badge)
+   ========================================================================== */
+.dl-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--dl-font-mono);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-radius: 0 !important;
+  border: 1px solid transparent;
+  box-shadow: 1px 1px 0px 0px var(--cyber-border);
+}
+
+.dl-badge-verified {
+  background: var(--semantic-verified-bg);
+  color: var(--semantic-verified);
+  border-color: var(--semantic-verified-border);
+}
+
+.dl-badge-ai-suggestion {
+  background: var(--semantic-ai-suggestion-bg);
+  color: var(--semantic-ai-suggestion);
+  border-color: var(--semantic-ai-suggestion-border);
+}
+
+.dl-badge-insufficient {
+  background: var(--semantic-insufficient-bg);
+  color: var(--semantic-insufficient);
+  border-color: var(--semantic-insufficient-border);
+}
+
+.dl-badge-not-verified {
+  background: var(--semantic-not-verified-bg);
+  color: var(--semantic-not-verified);
+  border-color: var(--semantic-not-verified-border);
+}
+
+.dl-badge-risk-critical {
+  background: var(--semantic-risk-critical-bg);
+  color: var(--dl-text-on-accent);
+  border-color: var(--semantic-risk-critical-border);
+}
+
+.dl-badge-risk-high {
+  background: var(--semantic-risk-high-bg);
+  color: var(--semantic-risk-high);
+  border-color: var(--semantic-risk-high-border);
+}
+
+.dl-badge-risk-medium {
+  background: var(--semantic-risk-medium-bg);
+  color: var(--semantic-risk-medium);
+  border-color: var(--semantic-risk-medium-border);
+}
+
+.dl-badge-risk-low {
+  background: var(--semantic-risk-low-bg);
+  color: var(--semantic-risk-low);
+  border-color: var(--semantic-risk-low-border);
+}
+
+.dl-badge-arch {
+  background: var(--semantic-finding-arch-bg);
+  color: var(--semantic-finding-arch);
+  border-color: var(--semantic-finding-arch-border);
+}
+
+.dl-badge-sec {
+  background: var(--semantic-finding-sec-bg);
+  color: var(--semantic-finding-sec);
+  border-color: var(--semantic-finding-sec-border);
+}
+
+.dl-badge-impact {
+  background: var(--semantic-finding-impact-bg);
+  color: var(--semantic-finding-impact);
+  border-color: var(--semantic-finding-impact-border);
+}
+
+.dl-badge-perf {
+  background: var(--semantic-finding-perf-bg);
+  color: var(--semantic-finding-perf);
+  border-color: var(--semantic-finding-perf-border);
+}
+
+/* ==========================================================================
+   Input System (Terminal Command-Line Style)
+   ========================================================================== */
+.dl-input {
+  font-family: var(--dl-font-mono);
+  font-size: var(--text-sm);
+  background: var(--cyber-input);
+  border: 1px solid var(--cyber-border);
+  border-radius: 0 !important;
+  color: var(--neon-green);
+  padding: 8px 12px;
+  width: 100%;
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
+  outline: none;
+}
+.dl-input::placeholder {
+  color: #6b7280;
+}
+.dl-input:focus {
+  border-color: var(--neon-green);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+}
+
+
+/* ==========================================================================
+   KBD
+   ========================================================================== */
+.dl-kbd {
+  font-family: var(--dl-font-mono);
+  font-size: var(--text-caption);
+  color: var(--dl-text-dim);
+  background: var(--dl-surface);
+  border: var(--border-hairline) solid var(--dl-panel-border);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   Table (Monospace Data, Aligned Numerics)
+   ========================================================================== */
+.dl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.dl-table th,
+.dl-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: var(--border-hairline) solid var(--dl-panel-border);
+}
+.dl-table th {
+  font-family: var(--dl-font-mono);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dl-text-muted);
+  background: var(--dl-bg-elevated);
+}
+.dl-table td {
+  font-family: var(--dl-font-sans);
+  color: var(--dl-text);
+}
+.dl-table td.dl-mono,
+.dl-table th.dl-mono {
+  font-family: var(--dl-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.dl-table tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.015);
+}
+.dl-table tr:hover td {
+  background: rgba(212, 168, 67, 0.03);
+}
+
+/* ==========================================================================
+   Prose (Wiki/Codemap Reading)
+   ========================================================================== */
+.dl-prose {
+  max-width: 74ch;
+  line-height: var(--leading-relaxed);
+  font-size: var(--text-body);
+  color: var(--dl-text);
+}
+.dl-prose h1 { font-size: var(--text-h1); font-weight: 700; margin: 0 0 var(--space-4); color: var(--dl-text-strong); }
+.dl-prose h2 { font-size: var(--text-h2); font-weight: 600; margin: var(--space-5) 0 var(--space-2); color: var(--dl-text-strong); }
+.dl-prose h3 { font-size: var(--text-h3); font-weight: 600; margin: var(--space-4) 0 var(--space-2); color: var(--dl-text); }
+.dl-prose p { margin: 0 0 var(--space-3); }
+.dl-prose code {
+  font-family: var(--dl-font-mono);
+  font-size: 0.9em;
+  background: var(--dl-surface);
+  border: var(--border-hairline) solid var(--dl-panel-border);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+}
+.dl-prose pre {
+  background: var(--dl-bg);
+  border: var(--border-hairline) solid var(--dl-panel-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  overflow-x: auto;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+.dl-prose pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
+.dl-prose a {
+  color: var(--dl-accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--motion-fast);
+}
+.dl-prose a:hover {
+  border-bottom-color: var(--dl-accent);
+}
+.dl-prose ul, .dl-prose ol { margin: 0 0 var(--space-3) var(--space-4); }
+.dl-prose li { margin: var(--space-1) 0; }
+.dl-prose blockquote {
+  border-left: 2px solid var(--dl-accent);
+  padding-left: var(--space-4);
+  margin: var(--space-4) 0;
+  color: var(--dl-text-dim);
+  font-style: italic;
+}
+.dl-prose hr {
+  border: none;
+  border-top: var(--border-hairline) solid var(--dl-panel-border);
+  margin: var(--space-6) 0;
+}
+
+/* Details (Collapsible) */
+.dl-details {
+  border: var(--border-hairline) solid var(--dl-panel-border);
+  border-radius: var(--radius-md);
+  background: var(--dl-surface);
+}
+.dl-details summary {
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--dl-font-mono);
+  font-size: var(--text-xs);
+  color: var(--dl-text-dim);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dl-details summary::-webkit-details-marker { display: none; }
+.dl-details summary::before {
+  content: ">";
+  font-size: var(--text-xs);
+  color: var(--dl-accent);
+  transition: transform var(--motion-fast);
+}
+.dl-details[open] summary::before {
+  transform: rotate(90deg);
+}
+.dl-details[open] summary { color: var(--dl-text); }
+.dl-details .dl-details-body { padding: 0 var(--space-3) var(--space-3); }
+
+/* ==========================================================================
+   Skeleton Loading (Terminal Style)
+   ========================================================================== */
+@keyframes dl-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes dl-pulse { 0%, 100% { opacity: 0.5; } }
+}
+
+.dl-skeleton {
+  background: var(--dl-surface);
+  border: var(--border-hairline) solid var(--dl-panel-border);
+  border-radius: var(--radius-sm);
+  animation: dl-pulse 1.2s ease-in-out infinite;
+}
+.dl-skeleton-line { height: 1em; width: 100%; }
+.dl-skeleton-line:last-child { width: 65%; }
+.dl-skeleton-title { height: 1.5em; width: 35%; }
+.dl-skeleton-panel { height: 140px; width: 100%; border-radius: var(--radius-panel); }
+.dl-skeleton-badge { width: 70px; height: 18px; border-radius: var(--radius-sm); }
+
+/* ==========================================================================
+   Layout Helpers
+   ========================================================================== */
+.dl-flex-center { display: flex; align-items: center; justify-content: center; }
+.dl-flex-between { display: flex; align-items: center; justify-content: space-between; }
+.dl-flex-gap-2 { display: flex; align-items: center; gap: var(--space-2); }
+.dl-flex-gap-3 { display: flex; align-items: center; gap: var(--space-3); }
+
+.dl-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.dl-divider {
+  height: var(--border-hairline);
+  background: var(--dl-panel-border);
+  margin: var(--space-3) 0;
+}
+
+/* ==========================================================================
+   Page/Panel Enter Animation
+   ========================================================================== */
+@keyframes dl-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes dl-fade-in { from { opacity: 0; } to { opacity: 1; } }
+}
+.dl-fade-in { animation: dl-fade-in var(--motion-base) var(--motion-ease-out) forwards; }
+.dl-slide-in-left { animation: dl-slide-in-left var(--motion-base) var(--motion-ease-out) forwards; }
+
+@keyframes dl-slide-in-left {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ==========================================================================
+   Blinking Caret (for empty/loading states)
+   ========================================================================== */
+@keyframes dl-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes dl-blink { 0%, 100% { opacity: 1; } }
+}
+.dl-caret::after {
+  content: "_";
+  font-family: var(--dl-font-mono);
+  animation: dl-blink 1s step-end infinite;
+  color: var(--dl-accent);
+  margin-left: 2px;
+}
+
+/* ==========================================================================
+   Command Palette (Terminal Style)
+   ========================================================================== */
+.dl-cmd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(10, 10, 12, 0.85);
+  backdrop-filter: blur(4px);
+}
+.dl-cmd-window {
+  position: fixed;
+  top: 15vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, calc(100vw - 32px));
+  z-index: 101;
+  background: var(--dl-panel);
+  border: var(--border-hairline) solid var(--dl-panel-border);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 16px 48px -16px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+}
+.dl-cmd-input {
+  width: 100%;
+  background: var(--dl-bg);
+  border: none;
+  border-bottom: var(--border-hairline) solid var(--dl-panel-border);
+  padding: 14px 16px;
+  font-family: var(--dl-font-mono);
+  font-size: var(--text-body);
+  color: var(--dl-text);
+  outline: none;
+}
+.dl-cmd-input::placeholder { color: var(--dl-text-muted); }
+.dl-cmd-results { max-height: 50vh; overflow-y: auto; }
+.dl-cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background var(--motion-fast);
+}
+.dl-cmd-item:hover, .dl-cmd-item.selected {
+  background: var(--dl-surface-hover);
+}
+.dl-cmd-item-icon { color: var(--dl-text-muted); flex-shrink: 0; }
+.dl-cmd-item-title { font-weight: 500; color: var(--dl-text); flex: 1; }
+.dl-cmd-item-desc { font-size: var(--text-xs); color: var(--dl-text-dim); }
+.dl-cmd-item-shortcut { font-family: var(--dl-font-mono); font-size: var(--text-caption); color: var(--dl-text-muted); }
+.dl-cmd-section { font-family: var(--dl-font-mono); font-size: var(--text-caption); text-transform: uppercase; color: var(--dl-text-muted); padding: 8px 16px 4px; letter-spacing: 0.06em; }
+
+/* ==========================================================================
+   Compat Utilities — terminal-styled equivalents for classes referenced by
+   older components (GlassPanel elevations, section titles, focus, rail,
+   transitions, hover, background texture, skeleton variants).
+   ========================================================================== */
+.glass-surface {
+  background: var(--dl-panel);
+  border: var(--border-hairline) solid var(--dl-panel-border);
+  box-shadow: 0 2px 8px -4px rgba(0, 0, 0, 0.5);
+}
+.glass-raised {
+  background: var(--dl-surface);
+  border: var(--border-hairline) solid var(--dl-panel-border);
+  box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.6);
+}
+.glass-overlay {
+  background: var(--dl-surface-hover);
+  border: var(--border-hairline) solid var(--dl-panel-border);
+  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+}
+.glass-modal {
+  background: var(--dl-bg-elevated);
+  border: var(--border-hairline) solid var(--dl-panel-border);
+  box-shadow: 0 16px 48px -16px rgba(0, 0, 0, 0.8);
+}
+
+.dl-section-title {
+  font-family: var(--dl-font-mono);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dl-text-muted);
+}
+
+.dl-focus-ring:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.dl-rail-active {
+  background: var(--dl-accent-soft);
+  color: var(--dl-accent);
+  border: 1px solid var(--dl-accent);
+}
+
+.dl-transition-transform { transition: transform var(--motion-base) var(--motion-ease); }
+.dl-transition-colors {
+  transition: background var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+.dl-card-hover { transition: border-color var(--motion-fast) var(--motion-ease); }
+.dl-card-hover:hover { border-color: var(--dl-accent); }
+
+.dl-skeleton-text { height: 1em; width: 100%; }
+.dl-skeleton-card { height: 140px; width: 100%; border-radius: var(--radius-panel); }
+.dl-skeleton-avatar { width: 40px; height: 40px; border-radius: var(--radius-full); }
+
+.dl-fade-in-up { animation: dl-fade-in var(--motion-base) var(--motion-ease-out) forwards; }
+
+/* ==========================================================================
+   Normal Clean High-Contrast Typography & Surface Text Guarantees
+   ========================================================================== */
+/* Dark surfaces and buttons ALWAYS have crisp white text */
+.bg-black,
+.bg-black *,
+.bg-slate-900,
+.bg-slate-900 *,
+.bg-slate-950,
+.bg-slate-950 *,
+.bg-slate-800,
+.bg-slate-800 *,
+.bg-indigo-600,
+.bg-indigo-600 *,
+.bg-blue-600,
+.bg-blue-600 *,
+.dl-btn-primary,
+.dl-btn-primary * {
+  color: #ffffff;
+}
+
+/* Light mode fallback for un-migrated text-white on light surfaces */
+:root:not([data-theme="dark"]) .text-white:not(.bg-black):not(.bg-black *):not(.bg-slate-900):not(.bg-slate-900 *):not(.bg-slate-950):not(.bg-slate-950 *):not(.bg-slate-800):not(.bg-slate-800 *):not(.bg-indigo-600):not(.bg-indigo-600 *):not(.bg-blue-600):not(.bg-blue-600 *):not(.dl-btn-primary):not(.dl-btn-primary *):not([data-terminal] *):not(.terminal-window *):not(.terminal-dark *) {
+  color: #0f172a !important;
+}
+
+/* In dark mode, text-white is pure white, except on inverted elements */
+html[data-theme="dark"] .text-white:not(.sidebar-nav-item-active):not(.sidebar-nav-item-active *):not(.sidebar-preset-active):not(.sidebar-btn-analyze):not(.sidebar-btn-analyze *),
+html.dark .text-white:not(.sidebar-nav-item-active):not(.sidebar-nav-item-active *):not(.sidebar-preset-active):not(.sidebar-btn-analyze):not(.sidebar-btn-analyze *) {
+  color: #ffffff !important;
+}
+
+/* ==========================================================================
+   Smooth Theme Transition (Triggered only during active switch)
+   ========================================================================== */
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition: background-color 240ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 240ms cubic-bezier(0.4, 0, 0.2, 1),
+              color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 240ms cubic-bezier(0.4, 0, 0.2, 1),
+              fill 200ms ease,
+              stroke 200ms ease !important;
+}
+
+/* ==========================================================================
+   Dark Theme System Harmonization (Covers all cards, sidebars, headers, panels)
+   ========================================================================== */
+html[data-theme="dark"],
+html.dark {
+  color-scheme: dark;
+}
+
+html[data-theme="dark"] body,
+html.dark body {
+  background-color: var(--dl-bg);
+  color: var(--dl-text);
+}
+
+/* Base card surfaces */
+html[data-theme="dark"] .bg-white,
+html.dark .bg-white {
+  background-color: var(--cyber-card) !important;
+}
+
+html[data-theme="dark"] .bg-\[\#f8fafc\],
+html.dark .bg-\[\#f8fafc\] {
+  background-color: var(--cyber-bg) !important;
+}
+
+html[data-theme="dark"] .bg-\[\#fafafa\],
+html.dark .bg-\[\#fafafa\],
+html[data-theme="dark"] .bg-neutral-50,
+html.dark .bg-neutral-50,
+html[data-theme="dark"] .bg-slate-50,
+html.dark .bg-slate-50 {
+  background-color: var(--cyber-muted) !important;
+}
+
+html[data-theme="dark"] .bg-neutral-100,
+html.dark .bg-neutral-100,
+html[data-theme="dark"] .bg-slate-100,
+html.dark .bg-slate-100 {
+  background-color: #1a1c29 !important;
+}
+
+html[data-theme="dark"] .hover\:bg-neutral-100:hover,
+html.dark .hover\:bg-neutral-100:hover,
+html[data-theme="dark"] .hover\:bg-neutral-50:hover,
+html.dark .hover\:bg-neutral-50:hover {
+  background-color: #222538 !important;
+}
+
+/* Typography in dark mode */
+html[data-theme="dark"] .text-black:not(.sidebar-nav-item-active):not(.sidebar-nav-item-active *):not(.sidebar-preset-active):not(.sidebar-btn-analyze):not(.sidebar-btn-analyze *),
+html.dark .text-black:not(.sidebar-nav-item-active):not(.sidebar-nav-item-active *):not(.sidebar-preset-active):not(.sidebar-btn-analyze):not(.sidebar-btn-analyze *),
+html[data-theme="dark"] .text-\[\#0f172a\],
+html.dark .text-\[\#0f172a\] {
+  color: var(--dl-text) !important;
+}
+
+html[data-theme="dark"] .text-neutral-500,
+html.dark .text-neutral-500,
+html[data-theme="dark"] .text-neutral-600,
+html.dark .text-neutral-600,
+html[data-theme="dark"] .text-slate-500,
+html.dark .text-slate-500,
+html[data-theme="dark"] .text-slate-600,
+html.dark .text-slate-600 {
+  color: var(--dl-text-muted) !important;
+}
+
+html[data-theme="dark"] .hover\:text-black:hover,
+html.dark .hover\:text-black:hover {
+  color: #ffffff !important;
+}
+
+/* Borders & Dividers */
+html[data-theme="dark"] .border-black,
+html.dark .border-black {
+  border-color: #2d3148 !important;
+}
+
+html[data-theme="dark"] .border-neutral-200,
+html.dark .border-neutral-200,
+html[data-theme="dark"] .border-neutral-300,
+html.dark .border-neutral-300,
+html[data-theme="dark"] .border-slate-200,
+html.dark .border-slate-200 {
+  border-color: #2a2d3e !important;
+}
+
+html[data-theme="dark"] .bg-neutral-300,
+html.dark .bg-neutral-300 {
+  background-color: #2a2d3e !important;
+}
+
+/* Hard Shadows in dark mode */
+html[data-theme="dark"] .shadow-\[0_2px_0_0_\#000000\],
+html.dark .shadow-\[0_2px_0_0_\#000000\] {
+  box-shadow: 0 2px 0 0 rgba(0, 0, 0, 0.8) !important;
+}
+
+html[data-theme="dark"] .shadow-\[2px_2px_0px_0px_\#000000\],
+html.dark .shadow-\[2px_2px_0px_0px_\#000000\] {
+  box-shadow: 2px 2px 0px 0px rgba(0, 0, 0, 0.7) !important;
+}
+
+html[data-theme="dark"] .shadow-\[3px_3px_0px_0px_\#000000\],
+html.dark .shadow-\[3px_3px_0px_0px_\#000000\] {
+  box-shadow: 3px 3px 0px 0px rgba(0, 0, 0, 0.7) !important;
+}
+
+html[data-theme="dark"] .shadow-\[4px_4px_0px_0px_\#000000\],
+html.dark .shadow-\[4px_4px_0px_0px_\#000000\],
+html[data-theme="dark"] .shadow-\[4px_0_0_0_\#000000\],
+html.dark .shadow-\[4px_0_0_0_\#000000\] {
+  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.7) !important;
+}
+
+html[data-theme="dark"] .shadow-\[6px_6px_0px_0px_\#000000\],
+html.dark .shadow-\[6px_6px_0px_0px_\#000000\],
+html[data-theme="dark"] .shadow-\[8px_8px_0px_0px_\#000000\],
+html.dark .shadow-\[8px_8px_0px_0px_\#000000\] {
+  box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Inputs in Dark Theme */
+html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+html.dark input:not([type="checkbox"]):not([type="radio"]),
+html[data-theme="dark"] textarea,
+html.dark textarea,
+html[data-theme="dark"] select,
+html.dark select {
+  background-color: var(--cyber-input) !important;
+  color: var(--dl-text) !important;
+  border-color: #2e334a !important;
+}
+
+html[data-theme="dark"] input::placeholder,
+html.dark input::placeholder,
+html[data-theme="dark"] textarea::placeholder,
+html.dark textarea::placeholder {
+  color: var(--dl-text-muted) !important;
+}
+
+/* Modals & Command Palette (⌘K) in Dark Theme */
+html[data-theme="dark"] .dl-cmd-window,
+html.dark .dl-cmd-window {
+  background: #12131d !important;
+  border: 2px solid #2e334a !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9) !important;
+}
+
+html[data-theme="dark"] .dl-cmd-item:hover,
+html.dark .dl-cmd-item:hover,
+html[data-theme="dark"] .dl-cmd-item[aria-selected="true"],
+html.dark .dl-cmd-item[aria-selected="true"] {
+  background: #1c1e2e !important;
+}
+
+/* ==========================================================================
+   Sidebar Navigation Selection System (Guaranteed High-Contrast Precision)
+   ========================================================================== */
+.sidebar-nav-item-active {
+  background-color: #09090b !important;
+  color: #ffffff !important;
+  border: 1px solid #09090b !important;
+}
+.sidebar-nav-item-active .sidebar-nav-icon,
+.sidebar-nav-item-active .sidebar-nav-label {
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .sidebar-nav-item-active,
+html.dark .sidebar-nav-item-active {
+  background: rgba(56, 189, 248, 0.12) !important;
+  color: #38bdf8 !important;
+  border-color: rgba(56, 189, 248, 0.35) !important;
+  border-left: 3px solid #38bdf8 !important;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.12) !important;
+}
+html[data-theme="dark"] .sidebar-nav-item-active .sidebar-nav-icon,
+html[data-theme="dark"] .sidebar-nav-item-active .sidebar-nav-label,
+html.dark .sidebar-nav-item-active .sidebar-nav-icon,
+html.dark .sidebar-nav-item-active .sidebar-nav-label {
+  color: #38bdf8 !important;
+}
+
+/* Preset repositories active button in sidebar */
+.sidebar-preset-active {
+  background-color: #09090b !important;
+  color: #ffffff !important;
+  border-color: #09090b !important;
+}
+html[data-theme="dark"] .sidebar-preset-active,
+html.dark .sidebar-preset-active {
+  background: rgba(56, 189, 248, 0.15) !important;
+  color: #38bdf8 !important;
+  border-color: rgba(56, 189, 248, 0.5) !important;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2) !important;
+}
+
+/* Sidebar Analyze button */
+.sidebar-btn-analyze {
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+  color: #ffffff !important;
+  border-color: rgba(56, 189, 248, 0.4) !important;
+  box-shadow: 0 0 16px rgba(2, 132, 199, 0.3) !important;
+}
+.sidebar-btn-analyze,
+.sidebar-btn-analyze * {
+  color: #ffffff !important;
+}
+html[data-theme="dark"] .sidebar-btn-analyze,
+html.dark .sidebar-btn-analyze {
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+  color: #ffffff !important;
+  border-color: rgba(56, 189, 248, 0.4) !important;
+  box-shadow: 0 0 18px rgba(2, 132, 199, 0.35) !important;
+}
+html[data-theme="dark"] .sidebar-btn-analyze:hover,
+html.dark .sidebar-btn-analyze:hover {
+  background: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%) !important;
+  box-shadow: 0 0 22px rgba(2, 132, 199, 0.5) !important;
+}
+html[data-theme="dark"] .sidebar-btn-analyze *,
+html.dark .sidebar-btn-analyze * {
+  color: #ffffff !important;
+}
+

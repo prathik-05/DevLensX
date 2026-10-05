@@ -1,0 +1,60 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.class
+*.pyd
+
+# Pytest & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# DevLensX Runtime databases & benchmark caches
+bench_*_db/
+bench_*_db
+fast_db_*
+graph_db_*
+saved_db_*
+test_*_db
+tp_bench_*
+devlensx_graph_db/
+devlensx.db
+*.db-journal
+.devlensx_cache/
+.devlensx-runtime/faiss_index.bin
+.devlensx-runtime/doc_cache/
+
+# Upload and evaluation dumps
+eval2.txt
+eval_output.txt
+pytest_out.txt
+*.zip
+*.log
+
+# Node & Frontend build
+web/node_modules/
+web/dist/
+web/.cache/
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Cloned evaluation / reference repos (large, not source code of this project)
+eval_repos/
+reference_repos/
+complex_repo/
+sample_repo/
+
+# Antigravity / tooling folders
+.gemini/
+
+# Full runtime cache directories
+.devlensx-runtime/

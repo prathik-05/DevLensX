@@ -1,0 +1,2 @@
+# Performance
+Use `devlensx/performance/runner.py` + `perf_baseline.json`. Repos: battleship-python (5 files/25 symbols, parse 620ms, total 3906ms), spring-petclinic (49/435, parse 2521ms, total 2599ms). Metrics: wall/cpu, files/symbols/relationships, memory_peak, parse/graph/wiki/diagram/chat/workspace/incremental. Repeated 2× median/mean. Regression threshold: current ≤ baseline ×1.20. Benchmarks in `tests/performance/`.

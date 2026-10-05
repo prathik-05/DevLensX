@@ -1,0 +1,2 @@
+# Incremental Analysis
+Snapshot A (runA, commitA) immutable → git diff (ADDED/MODIFIED/DELETED/RENAMED) → FileChange → SymbolAnalyzer (URM) → DependencyAnalyzer (Kuzu) → InvalidationEngine (files/symbols/relationships/diagrams/wiki/evidence/vectors) → RepositoryIntelligenceEngine re-analysis → Snapshot B (runB, commitB). Old EvidenceRef resolves old source, new resolves new. `POST /api/analyze/{run}/incremental` with `changed_files` override for tests, validates `..`/`/`/`;` injection. Performance: 1 file incremental << full.

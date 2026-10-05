@@ -1,0 +1,148 @@
+{
+  "eval_repos\\battleship-python": {
+    "repo": "eval_repos\\battleship-python",
+    "files": 0,
+    "symbols": 0,
+    "relationships": 0,
+    "parse": {
+      "wall_clock_ms": 620.34,
+      "cpu_time_ms": 406.25,
+      "files_processed": 5,
+      "symbols_processed": 25,
+      "relationships_processed": 0,
+      "bytes_processed": 0,
+      "memory_peak_mb": 121.13
+    },
+    "graph": {
+      "timings_ms": {
+        "parse_ast_ms": 296.39,
+        "graph_build_ms": 320.52,
+        "retrieval_index_ms": 3.27
+      }
+    },
+    "wiki": {
+      "wall_clock_ms": 3173.35,
+      "cpu_time_ms": 1546.88,
+      "files_processed": 0,
+      "symbols_processed": 0,
+      "relationships_processed": 0,
+      "bytes_processed": 0,
+      "memory_peak_mb": 141.76,
+      "pages_generated": 0
+    },
+    "diagrams": {
+      "wall_clock_ms": 112.37,
+      "cpu_time_ms": 140.62,
+      "files_processed": 0,
+      "symbols_processed": 0,
+      "relationships_processed": 0,
+      "bytes_processed": 0,
+      "memory_peak_mb": 146.01,
+      "diagrams_generated": 1
+    },
+    "chat": {
+      "wall_clock_ms": 0.07,
+      "cpu_time_ms": 0.0,
+      "files_processed": 0,
+      "symbols_processed": 0,
+      "relationships_processed": 0,
+      "bytes_processed": 0,
+      "memory_peak_mb": 146.02
+    },
+    "workspace": {
+      "wall_clock_ms": 0.04,
+      "cpu_time_ms": 0.0,
+      "files_processed": 0,
+      "symbols_processed": 0,
+      "relationships_processed": 0,
+      "bytes_processed": 0,
+      "memory_peak_mb": 146.02
+    },
+    "total": {
+      "wall_clock_ms": 3906.73,
+      "cpu_time_ms": 2093.75,
+      "files_processed": 0,
+      "symbols_processed": 0,
+      "relationships_processed": 0,
+      "bytes_processed": 0,
+      "memory_peak_mb": 146.02,
+      "parse_ms": 620.34,
+      "graph_ms": 320.52,
+      "wiki_ms": 3173.35,
+      "diagram_ms": 112.37
+    }
+  },
+  "eval_repos\\spring-petclinic": {
+    "repo": "eval_repos\\spring-petclinic",
+    "files": 0,
+    "symbols": 0,
+    "relationships": 0,
+    "parse": {
+      "wall_clock_ms": 2521.72,
+      "cpu_time_ms": 1281.25,
+      "files_processed": 49,
+      "symbols_processed": 435,
+      "relationships_processed": 0,
+      "bytes_processed": 0,
+      "memory_peak_mb": 150.65
+    },
+    "graph": {
+      "timings_ms": {
+        "parse_ast_ms": 2286.11,
+        "graph_build_ms": 149.38,
+        "retrieval_index_ms": 86.09
+      }
+    },
+    "wiki": {
+      "wall_clock_ms": 0.07,
+      "cpu_time_ms": 0.0,
+      "files_processed": 0,
+      "symbols_processed": 0,
+      "relationships_processed": 0,
+      "bytes_processed": 0,
+      "memory_peak_mb": 150.65,
+      "pages_generated": 0
+    },
+    "diagrams": {
+      "wall_clock_ms": 76.73,
+      "cpu_time_ms": 0.0,
+      "files_processed": 0,
+      "symbols_processed": 0,
+      "relationships_processed": 0,
+      "bytes_processed": 0,
+      "memory_peak_mb": 154.83,
+      "diagrams_generated": 1
+    },
+    "chat": {
+      "wall_clock_ms": 0.07,
+      "cpu_time_ms": 0.0,
+      "files_processed": 0,
+      "symbols_processed": 0,
+      "relationships_processed": 0,
+      "bytes_processed": 0,
+      "memory_peak_mb": 154.84
+    },
+    "workspace": {
+      "wall_clock_ms": 0.05,
+      "cpu_time_ms": 0.0,
+      "files_processed": 0,
+      "symbols_processed": 0,
+      "relationships_processed": 0,
+      "bytes_processed": 0,
+      "memory_peak_mb": 154.84
+    },
+    "total": {
+      "wall_clock_ms": 2599.08,
+      "cpu_time_ms": 1281.25,
+      "files_processed": 0,
+      "symbols_processed": 0,
+      "relationships_processed": 0,
+      "bytes_processed": 0,
+      "memory_peak_mb": 154.84,
+      "parse_ms": 2521.72,
+      "graph_ms": 149.38,
+      "wiki_ms": 0.07,
+      "diagram_ms": 76.73
+    }
+  }
+}
