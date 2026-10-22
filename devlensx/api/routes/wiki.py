@@ -256,3 +256,43 @@ def trigger_wiki_generation(analysis_run_id: str):
         "generated_pages_count": len(pages),
         "pages": [p.to_dict() for p in pages],
     }
+
+
+class FileExplanationRequest(BaseModel):
+    file_path: str
+    symbol_name: Optional[str] = None
+    depth: Optional[str] = "developer"
+
+
+@router.post("/{analysis_id}/explain")
+def explain_file_or_symbol(analysis_id: str, req: FileExplanationRequest):
+    """
+    P6-C Customer Understanding: Explains a file or symbol adhering strictly
+    to the 7-field contract across 3 depths (beginner, developer, architect).
+    """
+    from devlensx.understanding.file_explainer import FileExplainer
+    from devlensx.api.main import global_state
+
+    repo_model = global_state.get("repo_model") or {}
+    graph_store = global_state.get("graph_store")
+    repo_root = global_state.get("repo_path") or "."
+
+    explainer = FileExplainer(repo_model=repo_model, graph_store=graph_store, repo_root=repo_root)
+    return explainer.explain(
+        file_path=req.file_path,
+        symbol_name=req.symbol_name,
+        depth=req.depth or "developer",
+        snapshot_id=analysis_id,
+    )
+
+
+@router.get("/{analysis_id}/explain")
+def explain_file_or_symbol_get(
+    analysis_id: str,
+    file_path: str,
+    symbol: Optional[str] = None,
+    depth: Optional[str] = "developer"
+):
+    """GET query variant of file/symbol explanation."""
+    req = FileExplanationRequest(file_path=file_path, symbol_name=symbol, depth=depth)
+    return explain_file_or_symbol(analysis_id, req)

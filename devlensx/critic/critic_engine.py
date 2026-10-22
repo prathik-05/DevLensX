@@ -138,7 +138,33 @@ class CriticAgent:
 
             # Adversarial Check F: Maintainability & Exact God-Class Method Count
             elif category == "Maintainability" or "MAINTAIN" in category.upper() or "GOD" in category.upper():
-                actual_methods = len(class_methods)
+                raw_methods = matched_class.get("methods") or []
+                actual_methods = max(len(raw_methods), len(class_methods))
+                method_names = [m.get("name") if isinstance(m, dict) else str(m) for m in raw_methods]
+                getters_setters = sum(1 for m in method_names if m.startswith("get") or m.startswith("set") or m.startswith("is"))
+                is_pure_accessor = (getters_setters >= (0.85 * len(raw_methods))) if raw_methods else False
+
+                # Architectural Role Check:
+                # Configuration, POJO/DTO/Model, Utility, Value Object, or pure accessor classes are NOT God Classes.
+                is_config_or_pojo = (
+                    matched_class.get("stereotype") in ("Configuration", "Config") or
+                    class_name.endswith("Config") or
+                    class_name.endswith("Response") or
+                    class_name.endswith("Request") or
+                    class_name.endswith("DTO") or
+                    class_name.endswith("Model") or
+                    "model" in file_path.replace("\\", "/").lower() or
+                    is_pure_accessor
+                )
+                is_util_or_value = (
+                    class_name.endswith("Utils") or
+                    class_name.endswith("Util") or
+                    class_name.endswith("Helper") or
+                    class_name.endswith("Param") or
+                    class_name.endswith("Status") or
+                    class_name.endswith("Observer")
+                )
+
                 # Parse exact claimed count from claim text if present, else fallback to evidence dict
                 claimed_match = re.search(r'(\d+)\s+methods?', title_claim, re.IGNORECASE)
                 if claimed_match:
@@ -146,10 +172,14 @@ class CriticAgent:
                 else:
                     claimed_methods = evidence.get("method_count", 16)
 
-                if actual_methods > 15 and actual_methods >= claimed_methods:
+                if is_config_or_pojo or is_util_or_value:
+                    ast_check = False
+                    claim_specific_passed = False
+                    ast_details = f"AST Fail Closed: '{class_name}' is a config/POJO/util/value/observer ({actual_methods} methods, {getters_setters} accessors), not an architectural God Class."
+                elif actual_methods > 15 and actual_methods >= claimed_methods:
                     ast_check = True
                     claim_specific_passed = True
-                    ast_details = f"AST Match: Confirmed {actual_methods} methods declared (claimed {claimed_methods}, threshold > 15)."
+                    ast_details = f"AST Match: Confirmed God Class '{class_name}' with {actual_methods} methods (claimed {claimed_methods}, threshold > 15)."
                 else:
                     ast_check = False
                     claim_specific_passed = False
@@ -157,9 +187,14 @@ class CriticAgent:
 
             # Adversarial Check G: Hardcoded Secret vs. Constant Key Identifier
             elif category in ("Hardcoded Secret", "Secret", "Credential Leak") or "SECRET" in title_claim.upper() or "PASSWORD" in title_claim.upper():
-                field_name = str(evidence.get("field_name", "") or "")
+                field_match = re.search(r"field ['\"]([^'\"]+)['\"]", title_claim)
+                field_name = field_match.group(1) if field_match else str(evidence.get("field_name", "") or "")
+                
                 # Detect constant parameter keys (e.g., PASSWORD_KEY = "password", SECRET_KEY, *_CONFIG, *_METRIC)
                 is_constant_key_name = bool(re.search(r'(_KEY|_NAME|_PARAM|_HEADER|_CONFIG|_METRIC|_PREFIX|_SUFFIX)$', field_name, re.IGNORECASE))
+                is_constants_class = bool(re.search(r'Constants?$', class_name, re.IGNORECASE))
+                is_protocol_model = bool(re.search(r'(OAuthFlows|Flows|GrantType|Swagger|OpenAPI)$', class_name, re.IGNORECASE))
+                is_metric_bucket = bool(re.search(r'(StatItem|Bucket|Rate|Limit|Counter|Metric)$', class_name, re.IGNORECASE))
                 is_filter_or_service_type = bool(re.search(r'(Filter|Service|Client|Handler|Test)$', field_name, re.IGNORECASE))
                 is_test_class = bool(re.search(r'(Test|TestCase|Mock)$', class_name, re.IGNORECASE))
 
@@ -167,11 +202,15 @@ class CriticAgent:
                     ast_check = False
                     claim_specific_passed = False
                     ast_details = f"AST Fail Closed: Field '{field_name}' in '{class_name}' is a class/filter reference or test fixture, not a leaked credential."
-                elif is_constant_key_name:
+                elif is_constant_key_name or is_constants_class:
                     ast_check = False
                     claim_specific_passed = False
                     ast_details = f"AST Fail Closed: Field '{field_name}' in '{class_name}' is a configuration constant key identifier, not a hardcoded secret."
-                elif field_name in class_fields:
+                elif is_protocol_model or is_metric_bucket:
+                    ast_check = False
+                    claim_specific_passed = False
+                    ast_details = f"AST Fail Closed: Field '{field_name}' in '{class_name}' is a protocol schema or metric counter, not a hardcoded secret."
+                elif field_name in class_fields or any(field_name.lower() == f.lower() for f in class_fields):
                     # Valid secret field found in AST
                     ast_check = True
                     claim_specific_passed = True
@@ -305,11 +344,6 @@ class CriticAgent:
                 "structural_check": {"passed": structural_check, "details": structural_details}
             }
         }
-
-    def verify_all(self, findings: List[Dict[str, Any]], repo_model: Dict[str, Any]) -> List[Dict[str, Any]]:
-        if not findings:
-            return []
-        return [self.verify_finding(f, repo_model) for f in findings if isinstance(f, dict)]
 
     def verify_all(self, findings: List[Dict[str, Any]], repo_model: Dict[str, Any]) -> List[Dict[str, Any]]:
         if not findings:

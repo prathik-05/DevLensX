@@ -3,7 +3,8 @@ import { GlassPanel } from './GlassPanel';
 import { Badge } from './Badge';
 import { useAppStore } from '../store';
 import { Skeleton } from './Skeleton';
-import { Activity, AlertTriangle, Clock, Layers, Shield, ShieldCheck, Zap, TrendingUp, Info } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Activity, AlertTriangle, Clock, Layers, Shield, ShieldCheck, Zap, TrendingUp, Info, BookOpen, FileCode, GitPullRequest, Compass } from 'lucide-react';
 
 interface OverviewViewProps {
   data?: any;
@@ -66,6 +67,7 @@ const getSubScoreStyle = (key: string, val: number) => {
 };
 
 export const OverviewView: React.FC<OverviewViewProps> = ({ data: propData }) => {
+  const navigate = useNavigate();
   const storeData = useAppStore(s => s.analysisData);
   const isAnalyzing = useAppStore(s => s.isAnalyzing);
   const analysisError = useAppStore(s => s.analysisError);
@@ -261,6 +263,89 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data: propData }) =>
           </div>
         </div>
       </GlassPanel>
+
+      {/* P6-D: 4 Primary Customer Starting Actions */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div
+          onClick={() => navigate('/wiki')}
+          className="group p-4 bg-white dark:bg-[#11131a] border-2 border-black dark:border-neutral-800 hover:border-[#0284c7] transition-all cursor-pointer shadow-[3px_3px_0px_0px_#000000] dark:shadow-none hover:-translate-y-0.5"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-8 h-8 rounded-sm bg-[#0284c7]/15 border border-[#0284c7]/30 flex items-center justify-center text-[#0284c7]">
+              <BookOpen className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#0284c7] group-hover:translate-x-0.5 transition-transform">
+              EXPLORE →
+            </span>
+          </div>
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-[#0284c7] transition-colors">
+            1. Understand Project
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Executive brief & answers to the 6 practical questions (role, parts, core logic, run/test).
+          </p>
+        </div>
+
+        <div
+          onClick={() => navigate('/wiki')}
+          className="group p-4 bg-white dark:bg-[#11131a] border-2 border-black dark:border-neutral-800 hover:border-[#10b981] transition-all cursor-pointer shadow-[3px_3px_0px_0px_#000000] dark:shadow-none hover:-translate-y-0.5"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-8 h-8 rounded-sm bg-[#10b981]/15 border border-[#10b981]/30 flex items-center justify-center text-[#10b981]">
+              <FileCode className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#10b981] group-hover:translate-x-0.5 transition-transform">
+              EXPLAIN →
+            </span>
+          </div>
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-[#10b981] transition-colors">
+            2. Explain File/Symbol
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            7-field breakdown (simple terms, how it works, code, blast radius) at 3 user depths.
+          </p>
+        </div>
+
+        <div
+          onClick={() => navigate('/codemap')}
+          className="group p-4 bg-white dark:bg-[#11131a] border-2 border-black dark:border-neutral-800 hover:border-[#f59e0b] transition-all cursor-pointer shadow-[3px_3px_0px_0px_#000000] dark:shadow-none hover:-translate-y-0.5"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-8 h-8 rounded-sm bg-[#f59e0b]/15 border border-[#f59e0b]/30 flex items-center justify-center text-[#f59e0b]">
+              <Compass className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#f59e0b] group-hover:translate-x-0.5 transition-transform">
+              TRACE →
+            </span>
+          </div>
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-[#f59e0b] transition-colors">
+            3. Trace a Workflow
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Follow execution lifecycles, route dispatching & blast-radius ranked tour stops.
+          </p>
+        </div>
+
+        <div
+          onClick={() => navigate('/code-turtle')}
+          className="group p-4 bg-white dark:bg-[#11131a] border-2 border-black dark:border-neutral-800 hover:border-[#c026d3] transition-all cursor-pointer shadow-[3px_3px_0px_0px_#000000] dark:shadow-none hover:-translate-y-0.5"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-8 h-8 rounded-sm bg-[#c026d3]/15 border border-[#c026d3]/30 flex items-center justify-center text-[#c026d3]">
+              <GitPullRequest className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#c026d3] group-hover:translate-x-0.5 transition-transform">
+              REVIEW →
+            </span>
+          </div>
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-[#c026d3] transition-colors">
+            4. Review a Change
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            CodeTurtle senior PR review with AST-grounded citations and 1-click suggested diffs.
+          </p>
+        </div>
+      </div>
 
       {/* Key Metrics — with honest deltas and vibrant accent cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

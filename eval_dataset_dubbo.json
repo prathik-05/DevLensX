@@ -34,10 +34,29 @@
       "file": "dubbo-common\\src\\main\\java\\org\\apache\\dubbo\\config\\ProviderConfig.java",
       "severity": "HIGH",
       "claim": "ProviderConfig contains 57 methods, violating single responsibility principles.",
-      "critic_verdict": "VERIFIED",
-      "evidence_coverage_score": 50.0,
-      "evidence_ratio": "2/4",
-      "manual_ground_truth_label": "FP"
+      "critic_verdict": "REJECTED",
+      "evidence_coverage_score": 25.0,
+      "evidence_ratio": "1/4",
+      "manual_ground_truth_label": "FP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": false,
+          "details": "AST Fail Closed: 'ProviderConfig' is a config/POJO/util/value/observer (57 methods, 57 accessors), not an architectural God Class."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-common/src/main/java/org/apache/dubbo/config/ProviderConfig.java' matches class 'ProviderConfig'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-002",
@@ -49,9 +68,28 @@
       "severity": "HIGH",
       "claim": "AbstractNettyConnectionClient contains 25 methods, violating single responsibility principles.",
       "critic_verdict": "VERIFIED",
-      "evidence_coverage_score": 75.0,
-      "evidence_ratio": "3/4",
-      "manual_ground_truth_label": "TP"
+      "evidence_coverage_score": 50.0,
+      "evidence_ratio": "2/4",
+      "manual_ground_truth_label": "TP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": true,
+          "details": "AST Match: Confirmed God Class 'AbstractNettyConnectionClient' with 25 methods (claimed 25, threshold > 15)."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-remoting/dubbo-remoting-netty4/src/main/java/org/apache/dubbo/remoting/transport/netty4/AbstractNettyConnectionClient.java' matches class 'AbstractNettyConnectionClient'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-003",
@@ -62,10 +100,29 @@
       "file": "dubbo-rpc\\dubbo-rpc-triple\\src\\main\\java\\org\\apache\\dubbo\\rpc\\TriRpcStatus.java",
       "severity": "HIGH",
       "claim": "TriRpcStatus contains 20 methods, violating single responsibility principles.",
-      "critic_verdict": "VERIFIED",
-      "evidence_coverage_score": 75.0,
-      "evidence_ratio": "3/4",
-      "manual_ground_truth_label": "FP"
+      "critic_verdict": "REJECTED",
+      "evidence_coverage_score": 25.0,
+      "evidence_ratio": "1/4",
+      "manual_ground_truth_label": "FP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": false,
+          "details": "AST Fail Closed: 'TriRpcStatus' is a config/POJO/util/value/observer (20 methods, 3 accessors), not an architectural God Class."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-rpc/dubbo-rpc-triple/src/main/java/org/apache/dubbo/rpc/TriRpcStatus.java' matches class 'TriRpcStatus'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-004",
@@ -79,7 +136,26 @@
       "critic_verdict": "VERIFIED",
       "evidence_coverage_score": 50.0,
       "evidence_ratio": "2/4",
-      "manual_ground_truth_label": "TP"
+      "manual_ground_truth_label": "TP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": true,
+          "details": "AST Match: Confirmed God Class 'ExecutorRepository' with 23 methods (claimed 23, threshold > 15)."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-common/src/main/java/org/apache/dubbo/common/threadpool/manager/ExecutorRepository.java' matches class 'ExecutorRepository'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-005",
@@ -90,10 +166,29 @@
       "file": "dubbo-plugin\\dubbo-rest-openapi\\src\\main\\java\\org\\apache\\dubbo\\rpc\\protocol\\tri\\rest\\openapi\\model\\ApiResponse.java",
       "severity": "HIGH",
       "claim": "ApiResponse contains 17 methods, violating single responsibility principles.",
-      "critic_verdict": "VERIFIED",
-      "evidence_coverage_score": 50.0,
-      "evidence_ratio": "2/4",
-      "manual_ground_truth_label": "FP"
+      "critic_verdict": "REJECTED",
+      "evidence_coverage_score": 25.0,
+      "evidence_ratio": "1/4",
+      "manual_ground_truth_label": "FP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": false,
+          "details": "AST Fail Closed: 'ApiResponse' is a config/POJO/util/value/observer (17 methods, 11 accessors), not an architectural God Class."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-plugin/dubbo-rest-openapi/src/main/java/org/apache/dubbo/rpc/protocol/tri/rest/openapi/model/ApiResponse.java' matches class 'ApiResponse'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-006",
@@ -107,7 +202,26 @@
       "critic_verdict": "VERIFIED",
       "evidence_coverage_score": 50.0,
       "evidence_ratio": "2/4",
-      "manual_ground_truth_label": "TP"
+      "manual_ground_truth_label": "TP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": true,
+          "details": "AST Match: Confirmed God Class 'AbstractRegistry' with 24 methods (claimed 24, threshold > 15)."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-registry/dubbo-registry-api/src/main/java/org/apache/dubbo/registry/support/AbstractRegistry.java' matches class 'AbstractRegistry'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-007",
@@ -121,7 +235,26 @@
       "critic_verdict": "VERIFIED",
       "evidence_coverage_score": 50.0,
       "evidence_ratio": "2/4",
-      "manual_ground_truth_label": "TP"
+      "manual_ground_truth_label": "TP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": true,
+          "details": "AST Match: Confirmed God Class 'AbstractServiceDiscovery' with 27 methods (claimed 27, threshold > 15)."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-registry/dubbo-registry-api/src/main/java/org/apache/dubbo/registry/client/AbstractServiceDiscovery.java' matches class 'AbstractServiceDiscovery'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-008",
@@ -132,10 +265,29 @@
       "file": "dubbo-remoting\\dubbo-remoting-http12\\src\\main\\java\\org\\apache\\dubbo\\remoting\\http12\\h2\\Http2ServerChannelObserver.java",
       "severity": "HIGH",
       "claim": "Http2ServerChannelObserver contains 21 methods, violating single responsibility principles.",
-      "critic_verdict": "VERIFIED",
-      "evidence_coverage_score": 50.0,
-      "evidence_ratio": "2/4",
-      "manual_ground_truth_label": "FP"
+      "critic_verdict": "REJECTED",
+      "evidence_coverage_score": 25.0,
+      "evidence_ratio": "1/4",
+      "manual_ground_truth_label": "FP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": false,
+          "details": "AST Fail Closed: 'Http2ServerChannelObserver' is a config/POJO/util/value/observer (21 methods, 9 accessors), not an architectural God Class."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-remoting/dubbo-remoting-http12/src/main/java/org/apache/dubbo/remoting/http12/h2/Http2ServerChannelObserver.java' matches class 'Http2ServerChannelObserver'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-009",
@@ -146,10 +298,29 @@
       "file": "dubbo-common\\src\\main\\java\\org\\apache\\dubbo\\common\\url\\component\\URLParam.java",
       "severity": "HIGH",
       "claim": "URLParam contains 33 methods, violating single responsibility principles.",
-      "critic_verdict": "VERIFIED",
-      "evidence_coverage_score": 75.0,
-      "evidence_ratio": "3/4",
-      "manual_ground_truth_label": "FP"
+      "critic_verdict": "REJECTED",
+      "evidence_coverage_score": 25.0,
+      "evidence_ratio": "1/4",
+      "manual_ground_truth_label": "FP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": false,
+          "details": "AST Fail Closed: 'URLParam' is a config/POJO/util/value/observer (33 methods, 9 accessors), not an architectural God Class."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-common/src/main/java/org/apache/dubbo/common/url/component/URLParam.java' matches class 'URLParam'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-010",
@@ -160,10 +331,29 @@
       "file": "dubbo-rpc\\dubbo-rpc-api\\src\\main\\java\\org\\apache\\dubbo\\rpc\\support\\RpcUtils.java",
       "severity": "HIGH",
       "claim": "RpcUtils contains 21 methods, violating single responsibility principles.",
-      "critic_verdict": "VERIFIED",
-      "evidence_coverage_score": 50.0,
-      "evidence_ratio": "2/4",
-      "manual_ground_truth_label": "FP"
+      "critic_verdict": "REJECTED",
+      "evidence_coverage_score": 25.0,
+      "evidence_ratio": "1/4",
+      "manual_ground_truth_label": "FP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": false,
+          "details": "AST Fail Closed: 'RpcUtils' is a config/POJO/util/value/observer (21 methods, 17 accessors), not an architectural God Class."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-rpc/dubbo-rpc-api/src/main/java/org/apache/dubbo/rpc/support/RpcUtils.java' matches class 'RpcUtils'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-011",
@@ -174,10 +364,29 @@
       "file": "dubbo-plugin\\dubbo-rest-openapi\\src\\main\\java\\org\\apache\\dubbo\\rpc\\protocol\\tri\\rest\\openapi\\model\\OAuthFlows.java",
       "severity": "HIGH",
       "claim": "Class OAuthFlows contains field 'password' which matches secret naming patterns.",
-      "critic_verdict": "VERIFIED",
-      "evidence_coverage_score": 50.0,
-      "evidence_ratio": "2/4",
-      "manual_ground_truth_label": "FP"
+      "critic_verdict": "REJECTED",
+      "evidence_coverage_score": 25.0,
+      "evidence_ratio": "1/4",
+      "manual_ground_truth_label": "FP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": false,
+          "details": "AST Fail Closed: Field 'password' in 'OAuthFlows' is a protocol schema or metric counter, not a hardcoded secret."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-plugin/dubbo-rest-openapi/src/main/java/org/apache/dubbo/rpc/protocol/tri/rest/openapi/model/OAuthFlows.java' matches class 'OAuthFlows'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-012",
@@ -191,7 +400,26 @@
       "critic_verdict": "VERIFIED",
       "evidence_coverage_score": 50.0,
       "evidence_ratio": "2/4",
-      "manual_ground_truth_label": "TP"
+      "manual_ground_truth_label": "TP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": true,
+          "details": "AST Match: Verified sensitive credential field 'clientKeyPassword' declared in 'SslConfig'."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-common/src/main/java/org/apache/dubbo/config/SslConfig.java' matches class 'SslConfig'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-013",
@@ -202,10 +430,29 @@
       "file": "dubbo-rpc\\dubbo-rpc-api\\src\\main\\java\\org\\apache\\dubbo\\rpc\\filter\\tps\\StatItem.java",
       "severity": "HIGH",
       "claim": "Class StatItem contains field 'token' which matches secret naming patterns.",
-      "critic_verdict": "VERIFIED",
-      "evidence_coverage_score": 75.0,
-      "evidence_ratio": "3/4",
-      "manual_ground_truth_label": "FP"
+      "critic_verdict": "REJECTED",
+      "evidence_coverage_score": 25.0,
+      "evidence_ratio": "1/4",
+      "manual_ground_truth_label": "FP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": false,
+          "details": "AST Fail Closed: Field 'token' in 'StatItem' is a protocol schema or metric counter, not a hardcoded secret."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-rpc/dubbo-rpc-api/src/main/java/org/apache/dubbo/rpc/filter/tps/StatItem.java' matches class 'StatItem'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-014",
@@ -216,10 +463,29 @@
       "file": "dubbo-rpc\\dubbo-rpc-api\\src\\test\\java\\org\\apache\\dubbo\\rpc\\filter\\TokenFilterTest.java",
       "severity": "HIGH",
       "claim": "Class TokenFilterTest contains field 'tokenFilter' which matches secret naming patterns.",
-      "critic_verdict": "VERIFIED",
-      "evidence_coverage_score": 50.0,
-      "evidence_ratio": "2/4",
-      "manual_ground_truth_label": "FP"
+      "critic_verdict": "REJECTED",
+      "evidence_coverage_score": 25.0,
+      "evidence_ratio": "1/4",
+      "manual_ground_truth_label": "FP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": false,
+          "details": "AST Fail Closed: Field 'tokenFilter' in 'TokenFilterTest' is a class/filter reference or test fixture, not a leaked credential."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-rpc/dubbo-rpc-api/src/test/java/org/apache/dubbo/rpc/filter/TokenFilterTest.java' matches class 'TokenFilterTest'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-015",
@@ -233,7 +499,26 @@
       "critic_verdict": "REJECTED",
       "evidence_coverage_score": 25.0,
       "evidence_ratio": "1/4",
-      "manual_ground_truth_label": "FP"
+      "manual_ground_truth_label": "FP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": false,
+          "details": "AST Fail Closed: Field 'PROMETHEUS_PUSHGATEWAY_PASSWORD_KEY' in 'MetricsConstants' is a configuration constant key identifier, not a hardcoded secret."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-common/src/main/java/org/apache/dubbo/common/constants/MetricsConstants.java' matches class 'MetricsConstants'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-016",
@@ -247,7 +532,26 @@
       "critic_verdict": "REJECTED",
       "evidence_coverage_score": 25.0,
       "evidence_ratio": "1/4",
-      "manual_ground_truth_label": "FP"
+      "manual_ground_truth_label": "FP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": false,
+          "details": "AST Fail Closed: Field 'PASSWORD_KEY' in 'Constants' is a configuration constant key identifier, not a hardcoded secret."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-plugin/dubbo-auth/src/main/java/org/apache/dubbo/auth/Constants.java' matches class 'Constants'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-017",
@@ -261,7 +565,26 @@
       "critic_verdict": "REJECTED",
       "evidence_coverage_score": 25.0,
       "evidence_ratio": "1/4",
-      "manual_ground_truth_label": "FP"
+      "manual_ground_truth_label": "FP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": false,
+          "details": "AST Fail Closed: Field 'SECRET_ACCESS_KEY_KEY' in 'Constants' is a configuration constant key identifier, not a hardcoded secret."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-plugin/dubbo-auth/src/main/java/org/apache/dubbo/auth/Constants.java' matches class 'Constants'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-018",
@@ -275,7 +598,26 @@
       "critic_verdict": "VERIFIED",
       "evidence_coverage_score": 50.0,
       "evidence_ratio": "2/4",
-      "manual_ground_truth_label": "TP"
+      "manual_ground_truth_label": "TP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": true,
+          "details": "AST Match: Verified sensitive credential field 'password' declared in 'URLBuilder'."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-common/src/main/java/org/apache/dubbo/common/URLBuilder.java' matches class 'URLBuilder'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-019",
@@ -289,7 +631,26 @@
       "critic_verdict": "VERIFIED",
       "evidence_coverage_score": 50.0,
       "evidence_ratio": "2/4",
-      "manual_ground_truth_label": "TP"
+      "manual_ground_truth_label": "TP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": true,
+          "details": "AST Match: Verified sensitive credential field 'password' declared in 'MetadataReportConfig'."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-common/src/main/java/org/apache/dubbo/config/MetadataReportConfig.java' matches class 'MetadataReportConfig'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-020",
@@ -300,10 +661,29 @@
       "file": "dubbo-common\\src\\main\\java\\org\\apache\\dubbo\\common\\constants\\CommonConstants.java",
       "severity": "HIGH",
       "claim": "Class CommonConstants contains field 'PASSWORD_KEY' which matches secret naming patterns.",
-      "critic_verdict": "VERIFIED",
-      "evidence_coverage_score": 50.0,
-      "evidence_ratio": "2/4",
-      "manual_ground_truth_label": "FP"
+      "critic_verdict": "REJECTED",
+      "evidence_coverage_score": 25.0,
+      "evidence_ratio": "1/4",
+      "manual_ground_truth_label": "FP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": false,
+          "details": "No graph evidence."
+        },
+        "ast_check": {
+          "passed": false,
+          "details": "AST Fail Closed: Field 'PASSWORD_KEY' in 'CommonConstants' is a configuration constant key identifier, not a hardcoded secret."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-common/src/main/java/org/apache/dubbo/common/constants/CommonConstants.java' matches class 'CommonConstants'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-021",
@@ -317,7 +697,26 @@
       "critic_verdict": "VERIFIED",
       "evidence_coverage_score": 75.0,
       "evidence_ratio": "3/4",
-      "manual_ground_truth_label": "TP"
+      "manual_ground_truth_label": "TP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": true,
+          "details": "Verified in Graph: Found 41 reverse dependency edges for ChannelHandler."
+        },
+        "ast_check": {
+          "passed": true,
+          "details": "Graph Match: Confirmed 41 dependents for 'ChannelHandler' (claimed 41)."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/ChannelHandler.java' matches class 'ChannelHandler'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-022",
@@ -331,7 +730,26 @@
       "critic_verdict": "VERIFIED",
       "evidence_coverage_score": 75.0,
       "evidence_ratio": "3/4",
-      "manual_ground_truth_label": "TP"
+      "manual_ground_truth_label": "TP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": true,
+          "details": "Verified in Graph: Found 158 reverse dependency edges for FrameworkModel."
+        },
+        "ast_check": {
+          "passed": true,
+          "details": "Graph Match: Confirmed 158 dependents for 'FrameworkModel' (claimed 158)."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-common/src/main/java/org/apache/dubbo/rpc/model/FrameworkModel.java' matches class 'FrameworkModel'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-023",
@@ -345,7 +763,26 @@
       "critic_verdict": "VERIFIED",
       "evidence_coverage_score": 75.0,
       "evidence_ratio": "3/4",
-      "manual_ground_truth_label": "TP"
+      "manual_ground_truth_label": "TP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": true,
+          "details": "Verified in Graph: Found 118 reverse dependency edges for ApplicationModel."
+        },
+        "ast_check": {
+          "passed": true,
+          "details": "Graph Match: Confirmed 118 dependents for 'ApplicationModel' (claimed 118)."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-common/src/main/java/org/apache/dubbo/rpc/model/ApplicationModel.java' matches class 'ApplicationModel'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-024",
@@ -359,7 +796,26 @@
       "critic_verdict": "VERIFIED",
       "evidence_coverage_score": 75.0,
       "evidence_ratio": "3/4",
-      "manual_ground_truth_label": "TP"
+      "manual_ground_truth_label": "TP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": true,
+          "details": "Verified in Graph: Found 44 reverse dependency edges for ModuleModel."
+        },
+        "ast_check": {
+          "passed": true,
+          "details": "Graph Match: Confirmed 44 dependents for 'ModuleModel' (claimed 44)."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-common/src/main/java/org/apache/dubbo/rpc/model/ModuleModel.java' matches class 'ModuleModel'."
+        }
+      }
     },
     {
       "finding_id": "FINDING-025",
@@ -373,7 +829,26 @@
       "critic_verdict": "VERIFIED",
       "evidence_coverage_score": 75.0,
       "evidence_ratio": "3/4",
-      "manual_ground_truth_label": "TP"
+      "manual_ground_truth_label": "TP",
+      "evidence_trail": {
+        "graph_check": {
+          "passed": true,
+          "details": "Verified in Graph: Found 193 reverse dependency edges for URL."
+        },
+        "ast_check": {
+          "passed": true,
+          "details": "Graph Match: Confirmed 193 dependents for 'URL' (claimed 193)."
+        },
+        "semgrep_check": {
+          "passed": false,
+          "status": "NOT_INSTALLED",
+          "details": "Semgrep binary not installed on host."
+        },
+        "structural_check": {
+          "passed": true,
+          "details": "Structural Match: File path 'dubbo-compatible/src/main/java/com/alibaba/dubbo/common/URL.java' matches class 'URL'."
+        }
+      }
     }
   ]
 }
