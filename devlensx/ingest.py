@@ -304,7 +304,7 @@ def clone_repository(
 
     cmd = ["git", "clone", "--depth", "1", "--single-branch"]
     if submodules:
-        cmd.append("--recurse-submodules")
+        cmd.extend(["--recurse-submodules", "--shallow-submodules"])
     if branch:
         cmd.extend(["--branch", branch])
     cmd.extend([final_url, str(target_dir)])
@@ -667,8 +667,19 @@ def ingest_repository_sync(
                 cached_cloned_dir = str(cache_hold)
 
         finally:
-            # Guarantee cleanup of clone temporary directory
-            temp_dir_obj.cleanup()
+            # Guarantee resilient cleanup of clone temporary directory across Windows read-only git locks
+            try:
+                temp_dir_obj.cleanup()
+            except Exception:
+                def _handle_readonly(func, path, exc):
+                    import stat
+                    try:
+                        os.chmod(path, stat.S_IWRITE)
+                        func(path)
+                    except Exception:
+                        pass
+                if temp_path.exists():
+                    shutil.rmtree(temp_path, onerror=_handle_readonly)
 
     full_digest = _format_digest(tree_str, files)
     total_tokens = estimate_tokens(full_digest)

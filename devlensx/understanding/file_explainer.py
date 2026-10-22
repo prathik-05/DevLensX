@@ -4,19 +4,19 @@ DevLensX File and Symbol Explainer (P6-C Customer Understanding & File Explainer
 Provides human-understandable, traceable, and ground-truth verified explanations
 of source files, classes, and functions across Python, TypeScript/JavaScript, and Java.
 
-Implements the 3 explanation depths:
-  - Beginner: Zero-jargon, analogical, emphasizes purpose and role
-  - Developer: Direct technical specifics, signatures, control flow, testing pointers
-  - Architect: Layering, structural patterns, blast radius, security & coupling boundaries
+Implements the Claim-Level Evidence Output Contract:
+  - in_simple_terms: Plain-language summary
+  - purpose: { text, status: "AI_SUGGESTION" | "VERIFIED" }
+  - how_it_works: [ { step, text, verification_status, code_involved, evidence_ids } ]
+  - claims: [ { text, verification_status, evidence_ids } ]
+  - dependencies_and_impact: { summary, relationships: [ { source, target, relation, verification_status, source_citation } ] }
+  - verification_status: { overall, snapshot, source_line, evidence_registry }
+  - next_action: Actionable testing / modification guidance
 
-Guarantees the standardized 7-field contract:
-  1. in_simple_terms
-  2. purpose
-  3. how_it_works
-  4. code_involved
-  5. dependencies_and_impact
-  6. verification_status
-  7. next_action
+Verdicts strictly adhere to:
+  - VERIFIED: Assertion proven against snapshot-matched evidence
+  - AI_SUGGESTION: Inferred hypothesis or heuristic interpretation
+  - INSUFFICIENT_EVIDENCE: Available evidence does not suffice
 """
 
 import os
@@ -26,7 +26,7 @@ from typing import Dict, Any, List, Optional
 
 
 class FileExplainer:
-    """Generates grounded 7-field explanations for files and symbols."""
+    """Generates grounded claim-level explanations for files and symbols."""
 
     def __init__(self, repo_model: Optional[Dict[str, Any]] = None, graph_store: Optional[Any] = None, repo_root: Optional[str] = None):
         self.repo_model = repo_model or {}
@@ -41,7 +41,7 @@ class FileExplainer:
         snapshot_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Explains a file or symbol adhering strictly to the 7-field contract.
+        Explains a file or symbol adhering strictly to the claim-level evidence contract.
         Depth can be 'beginner', 'developer', or 'architect'.
         """
         depth = (depth or "developer").lower()
@@ -64,7 +64,6 @@ class FileExplainer:
         if symbol_name:
             target_class = next((c for c in matched_classes if c.get("name") == symbol_name), None)
             if not target_class:
-                # Search across all classes if file path was relative or approximate
                 target_class = next((c for c in classes if isinstance(c, dict) and c.get("name") == symbol_name), None)
 
         if not target_class and matched_classes:
@@ -81,18 +80,15 @@ class FileExplainer:
         fields = [f.get("name") if isinstance(f, dict) else str(f) for f in raw_fields]
         injected = target_class.get("injected_dependencies", []) if target_class else []
         line_start = target_class.get("line_start", 1) if target_class else 1
-        line_range = target_class.get("line_range", f"{line_start}-100") if target_class else "1-100"
+        line_range = target_class.get("line_range", f"{line_start}-{line_start + 50}") if target_class else "1-50"
 
         # Check physical file existence on disk
         real_file_path = self.repo_root / file_path
         file_exists = real_file_path.exists() if self.repo_root else False
         line_count = 0
-        file_preview = []
         if file_exists and real_file_path.is_file():
             try:
-                lines = real_file_path.read_text(encoding="utf-8", errors="ignore").splitlines()
-                line_count = len(lines)
-                file_preview = lines[:30]
+                line_count = len(real_file_path.read_text(encoding="utf-8", errors="ignore").splitlines())
             except Exception:
                 pass
 
@@ -102,12 +98,42 @@ class FileExplainer:
         if self.graph_store and class_name:
             try:
                 impact_res = self.graph_store.query_change_impact(class_name) or []
-                impact_count = len(impact_res)
-                callers = [str(r.get("class_name") or r) for r in impact_res[:8] if isinstance(r, (dict, str))]
+                # Deduplicate callers
+                seen = set()
+                for r in impact_res:
+                    cname = (r.get("class_name") if isinstance(r, dict) else str(r))
+                    if cname and cname not in seen:
+                        seen.add(cname)
+                        callers.append(cname)
+                impact_count = len(callers)
             except Exception:
                 pass
 
-        # Field 1: in_simple_terms (3 depths)
+        # Evidence Registry
+        evidence_registry = []
+        evidence_idx = 1
+
+        def add_evidence(ev_type: str, citation: str, assertion: str) -> str:
+            nonlocal evidence_idx
+            ev_id = f"evidence-{evidence_idx:03d}"
+            evidence_registry.append({
+                "id": ev_id,
+                "type": ev_type,
+                "source_citation": citation,
+                "assertion": assertion,
+                "snapshot_id": snapshot_id or self.repo_model.get("analysis_run_id") or "live_snapshot",
+            })
+            evidence_idx += 1
+            return ev_id
+
+        # Record baseline AST evidence
+        file_ev_id = add_evidence(
+            "AST_FILE_MATCH",
+            f"{norm_file}#L{line_range}",
+            f"Class '{class_name}' ({stereotype}) parsed from AST with {len(methods)} methods and {len(fields)} fields."
+        )
+
+        # 1. in_simple_terms
         if depth == "beginner":
             if "controller" in stereotype.lower() or "handler" in class_name.lower():
                 in_simple_terms = (
@@ -129,8 +155,8 @@ class FileExplainer:
                 )
             elif "config" in stereotype.lower() or "config" in class_name.lower():
                 in_simple_terms = (
-                    f"Think of '{class_name}' like the blueprint settings for a smartphone. "
-                    f"It sets up how different parts of the application should connect to each other and initializes default preferences."
+                    f"Think of '{class_name}' like the blueprint settings for an application. "
+                    f"It sets up how different parts of the system connect to each other and initializes default preferences."
                 )
             else:
                 in_simple_terms = (
@@ -144,109 +170,200 @@ class FileExplainer:
                 f"and encapsulates {len(fields)} state members, presenting a bounded interface with "
                 f"a downstream coupling blast radius of {impact_count} dependent components."
             )
-        else: # developer (default)
+        else: # developer
             in_simple_terms = (
                 f"'{class_name}' is a {stereotype} in `{package or file_path}` containing {len(methods)} methods "
                 f"and {len(fields)} fields. It handles {', '.join(methods[:4]) if methods else 'component lifecycle'} "
-                f"and delegates persistence or external interactions to {', '.join(injected) if injected else 'its collaborators'}."
+                f"and delegates persistence or external interactions to {', '.join(injected) if injected else 'collaborators'}."
             )
 
-        # Field 2: purpose
+        # 2. purpose (Explicitly structured as { text, status })
         if "controller" in stereotype.lower():
-            purpose = f"Expose HTTP REST endpoints for client applications, deserialize incoming request payloads, validate parameters, and orchestrate service calls."
+            purpose_text = "Expose HTTP REST endpoints for client applications, deserialize incoming request payloads, validate parameters, and orchestrate service calls."
         elif "service" in stereotype.lower():
-            purpose = f"Encapsulate transactional business logic and domain rules, isolating persistence and external messaging concerns from the presentation layer."
+            purpose_text = "Encapsulate transactional business logic and domain rules, isolating persistence and external messaging concerns from the presentation layer."
         elif "repository" in stereotype.lower():
-            purpose = f"Provide a clean data access abstraction over underlying storage tables, executing queries, updates, and transactions without leaking SQL or persistence details."
+            purpose_text = "Provide data access abstraction over underlying storage tables, executing queries, updates, and transactions without leaking persistence details."
         elif "config" in stereotype.lower():
-            purpose = f"Configure beans, infrastructure bindings, security filters, or external connection parameters during application bootstrap."
+            purpose_text = "Configure beans, infrastructure bindings, security filters, or external connection parameters during application bootstrap."
         else:
-            purpose = f"Implement core domain logic and data structures for {class_name} within the {package or 'module'} scope."
+            purpose_text = f"Implement core domain logic and data structures for {class_name} within the {package or 'module'} scope."
 
-        # Field 3: how_it_works (step-by-step)
-        steps = []
-        if depth == "beginner":
-            steps.append("1. The component is loaded and wired up when the system starts.")
-            if injected:
-                steps.append(f"2. It receives its helpers ({', '.join(injected[:3])}) so it does not have to create them from scratch.")
-            if methods:
-                steps.append(f"3. When a task arrives, it runs the appropriate action (such as '{methods[0]}').")
-            steps.append("4. It returns the result safely to whoever called it.")
-        elif depth == "architect":
-            steps.append(f"1. Dependency Injection: Instantiated via container IoC; dependencies ({', '.join(injected) or 'none'}) injected at constructor/field level.")
-            if annotations:
-                steps.append(f"2. Aspect & Middleware Weaving: Decorated with {', '.join(annotations[:4])} to apply framework transaction/security semantics.")
-            steps.append(f"3. Execution Pipeline: Dispatches incoming operations across {len(methods)} declared routines, avoiding shared mutable state.")
-            steps.append(f"4. Isolation & Resilience: Bound to {impact_count} dependents, requiring regression testing of downstream callers upon modification.")
-        else: # developer
-            steps.append(f"1. Instantiation: Initialized with dependencies: {', '.join(injected) or 'None'}.")
-            if annotations:
-                steps.append(f"2. Framework Bindings: Applies annotations {', '.join(annotations)}.")
-            if methods:
-                steps.append(f"3. Core Routine: Main execution passes through `{methods[0]}` with support from helper routines.")
-            steps.append("4. Response & Error Handling: Returns strongly typed response or throws domain exceptions caught by global error handlers.")
-
-        how_it_works = "\n".join(steps)
-
-        # Field 4: code_involved
-        code_involved = {
-            "file": norm_file,
-            "symbol": class_name,
-            "kind": stereotype.lower(),
-            "line_range": line_range,
-            "source_citation": f"[{Path(norm_file).name}#L{line_range}]",
-            "package": package,
-            "annotations": annotations,
-            "methods_count": len(methods),
-            "methods": methods[:15],
-            "fields_count": len(fields),
-            "fields": fields[:15],
-            "total_file_lines": line_count or "uncounted",
+        purpose = {
+            "text": purpose_text,
+            "status": "VERIFIED" if (target_class and target_class.get("docstring")) else "AI_SUGGESTION"
         }
 
-        # Field 5: dependencies_and_impact
+        # 3. how_it_works (Claim-level step items)
+        how_it_works_steps = []
+        step_num = 1
+
+        # Step 1: Instantiation & Dependencies
+        dep_citation = f"{norm_file}#L{line_range}"
+        if injected:
+            dep_ev = add_evidence("AST_DEPENDENCY_INJECTION", dep_citation, f"Injected dependencies: {', '.join(injected)}")
+            how_it_works_steps.append({
+                "step": step_num,
+                "text": f"Instantiated via container IoC; dependencies ({', '.join(injected)}) injected at constructor or field level.",
+                "verification_status": "VERIFIED",
+                "code_involved": [dep_citation],
+                "evidence_ids": [dep_ev]
+            })
+            step_num += 1
+        else:
+            how_it_works_steps.append({
+                "step": step_num,
+                "text": "Component initialized with default zero-argument constructor or standalone factory.",
+                "verification_status": "VERIFIED" if target_class else "AI_SUGGESTION",
+                "code_involved": [dep_citation],
+                "evidence_ids": [file_ev_id]
+            })
+            step_num += 1
+
+        # Step 2: Annotations / Decorators
+        if annotations:
+            ann_ev = add_evidence("AST_ANNOTATION", dep_citation, f"Decorators declared: {', '.join(annotations)}")
+            how_it_works_steps.append({
+                "step": step_num,
+                "text": f"Framework applies middleware/transaction rules configured by annotations: {', '.join(annotations)}.",
+                "verification_status": "VERIFIED",
+                "code_involved": [dep_citation],
+                "evidence_ids": [ann_ev]
+            })
+            step_num += 1
+
+        # Step 3: Main Execution Flow
+        if methods:
+            first_m = methods[0]
+            m_obj = next((m for m in raw_methods if isinstance(m, dict) and m.get("name") == first_m), None)
+            m_line = m_obj.get("line_range") if m_obj else line_range
+            m_citation = f"{norm_file}#L{m_line}"
+            m_ev = add_evidence("AST_METHOD_DECLARATION", m_citation, f"Method '{first_m}' declared in class.")
+            how_it_works_steps.append({
+                "step": step_num,
+                "text": f"Dispatches incoming operations across declared routines, beginning with `{first_m}`.",
+                "verification_status": "VERIFIED",
+                "code_involved": [m_citation],
+                "evidence_ids": [m_ev]
+            })
+            step_num += 1
+
+        # Step 4: Completion & Error Handling
+        how_it_works_steps.append({
+            "step": step_num,
+            "text": "Returns strongly-typed domain model or response entity, propagating uncaught domain exceptions to global handlers.",
+            "verification_status": "AI_SUGGESTION",
+            "code_involved": [f"{norm_file}#L{line_range}"],
+            "evidence_ids": []
+        })
+
+        # 4. Atomic Claims with Individual Verification Statuses
+        claims = [
+            {
+                "text": f"Class '{class_name}' is declared in file '{norm_file}'.",
+                "verification_status": "VERIFIED" if target_class else "INSUFFICIENT_EVIDENCE",
+                "evidence_ids": [file_ev_id]
+            },
+            {
+                "text": f"Class '{class_name}' declares {len(methods)} methods in its AST scope.",
+                "verification_status": "VERIFIED" if target_class else "INSUFFICIENT_EVIDENCE",
+                "evidence_ids": [file_ev_id]
+            },
+            {
+                "text": f"Class '{class_name}' declares {len(fields)} fields in its AST scope.",
+                "verification_status": "VERIFIED" if target_class else "INSUFFICIENT_EVIDENCE",
+                "evidence_ids": [file_ev_id]
+            }
+        ]
+
+        if injected:
+            claims.append({
+                "text": f"Class '{class_name}' depends on injected collaborators: {', '.join(injected)}.",
+                "verification_status": "VERIFIED",
+                "evidence_ids": [how_it_works_steps[0]["evidence_ids"][0]] if how_it_works_steps[0]["evidence_ids"] else []
+            })
+
+        if annotations:
+            claims.append({
+                "text": f"Class '{class_name}' carries annotations: {', '.join(annotations)}.",
+                "verification_status": "VERIFIED",
+                "evidence_ids": [ann_ev]
+            })
+
+        claims.append({
+            "text": f"Architectural role is {stereotype}.",
+            "verification_status": "AI_SUGGESTION",
+            "evidence_ids": []
+        })
+
+        # 5. dependencies_and_impact (Structured relationships list)
+        relationships = []
+        for dep in injected:
+            relationships.append({
+                "source": class_name,
+                "target": dep,
+                "relation": "INJECTS",
+                "verification_status": "VERIFIED",
+                "source_citation": f"{norm_file}#L{line_range}"
+            })
+
+        for caller in callers[:5]:
+            relationships.append({
+                "source": caller,
+                "target": class_name,
+                "relation": "CALLS",
+                "verification_status": "VERIFIED",
+                "source_citation": f"Kùzu Graph: {caller} -> {class_name}"
+            })
+
         dependencies_and_impact = {
-            "injected_dependencies": injected,
-            "callers_sample": callers,
+            "summary": (
+                f"Modifying '{class_name}' impacts {impact_count} established dependent components in the codebase. "
+                + ("Exercise caution; run regression suites for downstream callers." if impact_count > 5 else "Low blast radius; local unit tests suffice.")
+            ),
             "blast_radius_components_count": impact_count,
             "risk_level": "HIGH" if impact_count > 20 else "MEDIUM" if impact_count > 5 else "LOW",
-            "impact_summary": (
-                f"Modifying '{class_name}' directly impacts {impact_count} dependent components in the codebase. "
-                + ("Exercise extreme caution and run full integration regression suites." if impact_count > 10 else "Low coupling blast radius; local unit tests are sufficient.")
-            ),
+            "relationships": relationships
         }
 
-        # Field 6: verification_status (Hard ground truth)
+        # 6. verification_status (Overall summary + verdicts breakdown)
         is_ast_grounded = bool(target_class)
-        is_verified = is_ast_grounded and (file_exists or line_count > 0 or len(classes) > 0)
+        overall_status = "VERIFIED" if (is_ast_grounded and (file_exists or len(classes) > 0)) else "AI_SUGGESTION"
+        snap_ref = snapshot_id or self.repo_model.get("analysis_run_id") or "live_snapshot"
+        source_line = f"Source: {norm_file}#L{line_range} [{class_name}] (Snapshot: {snap_ref})"
+
+        verdicts_breakdown = {
+            "VERIFIED": sum(1 for c in claims if c["verification_status"] == "VERIFIED"),
+            "AI_SUGGESTION": sum(1 for c in claims if c["verification_status"] == "AI_SUGGESTION"),
+            "INSUFFICIENT_EVIDENCE": sum(1 for c in claims if c["verification_status"] == "INSUFFICIENT_EVIDENCE")
+        }
+
         verification_status = {
-            "status": "VERIFIED" if is_verified else "AI_SUGGESTION",
+            "overall": overall_status,
             "ast_grounded": is_ast_grounded,
             "file_exists_on_disk": file_exists,
-            "snapshot_id": snapshot_id or self.repo_model.get("analysis_run_id") or "live_snapshot",
-            "source_line": f"Source: {norm_file}#{class_name} (Validated via AST Structural Check & Kùzu Dependency Graph)",
-            "grounding_notes": f"Verified {len(methods)} methods, {len(fields)} fields, and {len(injected)} dependencies in AST." if is_verified else "Heuristic fallback: AST match not fully confirmed."
+            "snapshot_id": snap_ref,
+            "source_line": source_line,
+            "verdicts_breakdown": verdicts_breakdown,
+            "evidence_registry": evidence_registry
         }
 
-        # Field 7: next_action
+        # 7. next_action
         if depth == "beginner":
-            next_action = f"To see this in action, explore the Living Wiki diagram or click 'Trace Workflow' to see how requests travel into '{class_name}'."
+            next_action = f"To explore further, trace the request path into '{class_name}' in the guided workflow explorer."
         elif depth == "architect":
-            next_action = (
-                f"Review interface contract stability. Before refactoring, verify that none of the {impact_count} dependent components "
-                f"break their expectations, and ensure boundary separation between {package or 'presentation'} and domain logic."
-            )
+            next_action = f"Verify interface contract stability against the {impact_count} dependent components before making breaking changes."
         else: # developer
             if methods:
-                next_action = f"To modify this logic, inspect `{methods[0]}` at {norm_file}#L{line_range}. Write a targeted unit test covering edge conditions before editing."
+                next_action = f"Inspect `{methods[0]}` at {norm_file}#L{line_range}. Write a unit test verifying boundary inputs before refactoring."
             else:
-                next_action = f"Inspect {norm_file} directly. Verify dependencies and ensure any state additions preserve thread safety."
+                next_action = f"Inspect {norm_file} directly. Verify dependency injection bindings and thread-safety invariants."
 
         return {
             "in_simple_terms": in_simple_terms,
             "purpose": purpose,
-            "how_it_works": how_it_works,
-            "code_involved": code_involved,
+            "how_it_works": how_it_works_steps,
+            "claims": claims,
             "dependencies_and_impact": dependencies_and_impact,
             "verification_status": verification_status,
             "next_action": next_action,

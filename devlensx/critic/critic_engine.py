@@ -144,8 +144,6 @@ class CriticAgent:
                 getters_setters = sum(1 for m in method_names if m.startswith("get") or m.startswith("set") or m.startswith("is"))
                 is_pure_accessor = (getters_setters >= (0.85 * len(raw_methods))) if raw_methods else False
 
-                # Architectural Role Check:
-                # Configuration, POJO/DTO/Model, Utility, Value Object, or pure accessor classes are NOT God Classes.
                 is_config_or_pojo = (
                     matched_class.get("stereotype") in ("Configuration", "Config") or
                     class_name.endswith("Config") or
@@ -165,62 +163,94 @@ class CriticAgent:
                     class_name.endswith("Observer")
                 )
 
-                # Parse exact claimed count from claim text if present, else fallback to evidence dict
                 claimed_match = re.search(r'(\d+)\s+methods?', title_claim, re.IGNORECASE)
-                if claimed_match:
-                    claimed_methods = int(claimed_match.group(1))
-                else:
-                    claimed_methods = evidence.get("method_count", 16)
-
-                if is_config_or_pojo or is_util_or_value:
+                if not claimed_match and not evidence.get("method_count"):
                     ast_check = False
                     claim_specific_passed = False
-                    ast_details = f"AST Fail Closed: '{class_name}' is a config/POJO/util/value/observer ({actual_methods} methods, {getters_setters} accessors), not an architectural God Class."
-                elif actual_methods > 15 and actual_methods >= claimed_methods:
-                    ast_check = True
-                    claim_specific_passed = True
-                    ast_details = f"AST Match: Confirmed God Class '{class_name}' with {actual_methods} methods (claimed {claimed_methods}, threshold > 15)."
+                    ast_details = f"INSUFFICIENT_EVIDENCE: Claim asserts God Class on '{class_name}' but specifies no exact verifiable method count."
                 else:
-                    ast_check = False
-                    claim_specific_passed = False
-                    ast_details = f"AST Check Failed: Class '{class_name}' has {actual_methods} methods (claimed {claimed_methods}, threshold > 15)."
+                    claimed_methods = int(claimed_match.group(1)) if claimed_match else int(evidence.get("method_count"))
+                    if is_config_or_pojo or is_util_or_value:
+                        ast_check = False
+                        claim_specific_passed = False
+                        ast_details = f"AST Fail Closed: '{class_name}' is a config/POJO/util/value/observer ({actual_methods} methods, {getters_setters} accessors), not an architectural God Class."
+                    elif actual_methods > 15 and actual_methods >= claimed_methods:
+                        ast_check = True
+                        claim_specific_passed = True
+                        ast_details = f"AST Match: Confirmed God Class '{class_name}' with {actual_methods} methods (claimed {claimed_methods}, threshold > 15)."
+                    else:
+                        ast_check = False
+                        claim_specific_passed = False
+                        ast_details = f"AST Check Failed: Class '{class_name}' has {actual_methods} methods (claimed {claimed_methods}, threshold > 15)."
 
-            # Adversarial Check G: Hardcoded Secret vs. Constant Key Identifier
+            # Adversarial Check G: Hardcoded Secret vs. Constant Key Identifier with Value Inspection & Redaction
             elif category in ("Hardcoded Secret", "Secret", "Credential Leak") or "SECRET" in title_claim.upper() or "PASSWORD" in title_claim.upper():
                 field_match = re.search(r"field ['\"]([^'\"]+)['\"]", title_claim)
                 field_name = field_match.group(1) if field_match else str(evidence.get("field_name", "") or "")
                 
-                # Detect constant parameter keys (e.g., PASSWORD_KEY = "password", SECRET_KEY, *_CONFIG, *_METRIC)
-                is_constant_key_name = bool(re.search(r'(_KEY|_NAME|_PARAM|_HEADER|_CONFIG|_METRIC|_PREFIX|_SUFFIX)$', field_name, re.IGNORECASE))
-                is_constants_class = bool(re.search(r'Constants?$', class_name, re.IGNORECASE))
-                is_protocol_model = bool(re.search(r'(OAuthFlows|Flows|GrantType|Swagger|OpenAPI)$', class_name, re.IGNORECASE))
-                is_metric_bucket = bool(re.search(r'(StatItem|Bucket|Rate|Limit|Counter|Metric)$', class_name, re.IGNORECASE))
-                is_filter_or_service_type = bool(re.search(r'(Filter|Service|Client|Handler|Test)$', field_name, re.IGNORECASE))
-                is_test_class = bool(re.search(r'(Test|TestCase|Mock)$', class_name, re.IGNORECASE))
+                matched_field_obj = next((f for f in (matched_class.get("fields") or []) if isinstance(f, dict) and f.get("name") == field_name), None)
+                field_initializer = str((matched_field_obj.get("initializer") if matched_field_obj else "") or evidence.get("value") or evidence.get("initializer") or "").strip()
 
-                if is_filter_or_service_type or is_test_class:
-                    ast_check = False
-                    claim_specific_passed = False
-                    ast_details = f"AST Fail Closed: Field '{field_name}' in '{class_name}' is a class/filter reference or test fixture, not a leaked credential."
-                elif is_constant_key_name or is_constants_class:
-                    ast_check = False
-                    claim_specific_passed = False
-                    ast_details = f"AST Fail Closed: Field '{field_name}' in '{class_name}' is a configuration constant key identifier, not a hardcoded secret."
-                elif is_protocol_model or is_metric_bucket:
-                    ast_check = False
-                    claim_specific_passed = False
-                    ast_details = f"AST Fail Closed: Field '{field_name}' in '{class_name}' is a protocol schema or metric counter, not a hardcoded secret."
-                elif field_name in class_fields or any(field_name.lower() == f.lower() for f in class_fields):
-                    # Valid secret field found in AST
+                CREDENTIAL_LITERAL_REGEX = re.compile(
+                    r'(AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|AIza[0-9A-Za-z-_]{35}|xox[baprs]-[a-zA-Z0-9-]+|-----BEGIN [A-Z ]*PRIVATE KEY-----)',
+                    re.IGNORECASE
+                )
+                has_credential_literal = bool(CREDENTIAL_LITERAL_REGEX.search(field_initializer) or CREDENTIAL_LITERAL_REGEX.search(title_claim))
+                
+                is_hex_or_b64_secret = False
+                if len(field_initializer) >= 20 and re.match(r'^[0-9a-zA-Z+/=_-]+$', field_initializer):
+                    if not ('.' in field_initializer or '-' in field_initializer or field_initializer.lower() in field_name.lower()):
+                        is_hex_or_b64_secret = True
+
+                is_real_secret_literal = has_credential_literal or is_hex_or_b64_secret
+
+                def redact_value(val: str) -> str:
+                    if not val or len(val) <= 6:
+                        return "[REDACTED]"
+                    return f"{val[:4]}...{val[-4:]} [REDACTED]"
+
+                # If an actual credential literal is found, it is ALWAYS a true credential leak regardless of suffix!
+                if is_real_secret_literal:
                     ast_check = True
                     claim_specific_passed = True
-                    ast_details = f"AST Match: Verified sensitive credential field '{field_name}' declared in '{class_name}'."
+                    redacted = redact_value(field_initializer or title_claim)
+                    ast_details = f"AST Match: Confirmed hardcoded secret credential literal '{redacted}' in field '{field_name}' ({class_name})."
                 else:
-                    ast_check = False
-                    claim_specific_passed = False
-                    ast_details = f"AST Fail Closed: Secret field '{field_name}' not found in '{class_name}'."
+                    is_test_class = bool(re.search(r'(Test|TestCase|Mock)$', class_name, re.IGNORECASE))
+                    is_filter_or_service_type = bool(re.search(r'(Filter|Service|Client|Handler|Test)$', field_name, re.IGNORECASE))
+                    is_protocol_model = bool(re.search(r'(OAuthFlows|Flows|GrantType|Swagger|OpenAPI)$', class_name, re.IGNORECASE))
+                    is_metric_bucket = bool(re.search(r'(StatItem|Bucket|Rate|Limit|Counter|Metric)$', class_name, re.IGNORECASE))
+                    
+                    is_constant_key_name = bool(re.search(r'(_KEY|_NAME|_PARAM|_HEADER|_CONFIG|_METRIC|_PREFIX|_SUFFIX)$', field_name, re.IGNORECASE))
+                    is_constants_class = bool(re.search(r'Constants?$', class_name, re.IGNORECASE))
+                    is_property_name_literal = bool(field_initializer and (
+                        field_initializer.lower() == field_name.lower() or
+                        field_initializer.lower() in ("password", "secret", "token", "apikey") or
+                        '.' in field_initializer or '-' in field_initializer
+                    ))
 
-            # Adversarial Check H: API Security & Authorization Annotations
+                    if is_filter_or_service_type or is_test_class:
+                        ast_check = False
+                        claim_specific_passed = False
+                        ast_details = f"AST Fail Closed: Field '{field_name}' in '{class_name}' is a class/filter reference or test fixture, not a leaked credential."
+                    elif (is_constant_key_name or is_constants_class) and (not field_initializer or is_property_name_literal):
+                        ast_check = False
+                        claim_specific_passed = False
+                        ast_details = f"AST Fail Closed: Field '{field_name}' in '{class_name}' is a configuration property key identifier (value: '{field_initializer or 'identifier'}'), not a hardcoded secret."
+                    elif is_protocol_model or is_metric_bucket:
+                        ast_check = False
+                        claim_specific_passed = False
+                        ast_details = f"AST Fail Closed: Field '{field_name}' in '{class_name}' is a protocol schema or metric counter, not a hardcoded secret."
+                    elif field_name in class_fields or any(field_name.lower() == f.lower() for f in class_fields):
+                        ast_check = True
+                        claim_specific_passed = True
+                        ast_details = f"AST Match: Verified sensitive credential storage field '{field_name}' declared in '{class_name}'."
+                    else:
+                        ast_check = False
+                        claim_specific_passed = False
+                        ast_details = f"AST Fail Closed: Secret field '{field_name}' not found in '{class_name}'."
+
+            # Adversarial Check H: API Security & Authorization Annotations vs Global Configuration
             elif category in ("API Security", "Security") or "UNPROTECTED" in title_claim.upper() or "AUTHORIZATION" in title_claim.upper():
                 class_anns = [str(a).lower() for a in (matched_class.get("annotations") or [])]
                 meta_anns = [str(a).lower() for a in (matched_class.get("metadata", {}).get("annotations") or [])]
@@ -237,39 +267,52 @@ class CriticAgent:
                     for guard in ("preauthorize", "secured", "rolesallowed", "securityrequirement", "authenticated", "authguard", "permitall")
                 )
                 
-                if "unprotected" in title_claim.lower() or "does not specify" in title_claim.lower() or "missing" in title_claim.lower():
-                    if has_security_guard:
-                        # False positive: the class actually HAS security annotations
-                        ast_check = False
-                        claim_specific_passed = False
-                        ast_details = f"AST Fail Closed: Claim asserts missing authorization, but security annotations {sorted(combined_anns)} are declared in '{class_name}'."
-                    else:
-                        ast_check = True
-                        claim_specific_passed = True
-                        ast_details = f"AST Match: Confirmed endpoint handler '{class_name}' exists without security annotations."
+                is_missing_annotation_claim = any(kw in title_claim.lower() for kw in ("annotation not found", "missing annotation", "no annotation", "without annotation"))
+                is_unprotected_claim = any(kw in title_claim.lower() for kw in ("unprotected", "publicly accessible", "unauthenticated", "insecure endpoint"))
+
+                if has_security_guard:
+                    ast_check = False
+                    claim_specific_passed = False
+                    ast_details = f"AST Fail Closed: Claim asserts missing authorization, but security annotations {sorted(combined_anns)} are declared in '{class_name}'."
+                elif is_missing_annotation_claim:
+                    ast_check = True
+                    claim_specific_passed = True
+                    ast_details = f"AST Match: Required authorization annotation not found on handler '{class_name}'. (Note: global SecurityFilterChain/gateway must be inspected for perimeter security)."
+                elif is_unprotected_claim:
+                    ast_check = False
+                    claim_specific_passed = False
+                    ast_details = f"INSUFFICIENT_EVIDENCE: Authorization annotation not found on '{class_name}', but global security filter configuration has not proven the endpoint is unprotected."
                 else:
                     ast_check = True
                     claim_specific_passed = True
                     ast_details = f"AST Match: Verified class '{class_name}' in package '{matched_class.get('package', '')}'."
 
-            # Adversarial Check I: Change Impact / Blast Radius Claim Count
+            # Adversarial Check I: Change Impact / Blast Radius Claim Count (Deduplicated & Scoped)
             elif category in ("Change Impact", "Blast Radius", "Coupling") or "BLAST RADIUS" in title_claim.upper() or "COUPLING" in title_claim.upper():
                 claimed_impact_match = re.search(r'(\d+)\s+dependent', title_claim, re.IGNORECASE)
-                if claimed_impact_match and self.graph_store:
+                if claimed_impact_match:
                     claimed_count = int(claimed_impact_match.group(1))
-                    actual_count = len(impact_res)
+                    deduped_impact = []
+                    seen_nodes = set()
+                    for node in impact_res:
+                        n_name = (node.get("class_name") or node.get("name") or str(node)) if isinstance(node, dict) else str(node)
+                        if n_name and n_name not in seen_nodes:
+                            seen_nodes.add(n_name)
+                            deduped_impact.append(node)
+                    actual_count = len(deduped_impact)
+
                     if actual_count < claimed_count:
                         ast_check = False
                         claim_specific_passed = False
-                        ast_details = f"Graph Fail Closed: Claimed {claimed_count} dependents, but graph confirmed only {actual_count}."
+                        ast_details = f"Graph Fail Closed: Claimed {claimed_count} dependents, but deduplicated graph confirmed only {actual_count}."
                     else:
                         ast_check = True
                         claim_specific_passed = True
-                        ast_details = f"Graph Match: Confirmed {actual_count} dependents for '{class_name}' (claimed {claimed_count})."
+                        ast_details = f"Graph Match: Confirmed {actual_count} deduplicated dependents for '{class_name}' (claimed {claimed_count})."
                 else:
-                    ast_check = True
-                    claim_specific_passed = True
-                    ast_details = f"AST Match: Verified class '{class_name}' for change impact evaluation."
+                    ast_check = False
+                    claim_specific_passed = False
+                    ast_details = "INSUFFICIENT_EVIDENCE: Claim asserts blast-radius impact but lacks a verifiable numerical dependent count."
             else:
                 ast_check = True
                 claim_specific_passed = True
@@ -293,11 +336,11 @@ class CriticAgent:
         structural_check = False
         structural_details = "Structural path mismatch."
         if matched_class and file_path:
-            norm_file = file_path.replace("\\", "/").lstrip("/")
+            norm_file_path = file_path.replace("\\", "/").lstrip("/")
             norm_matched = (matched_class.get("file") or "").replace("\\", "/").lstrip("/")
-            if norm_file == norm_matched or norm_file.endswith(norm_matched) or norm_matched.endswith(norm_file):
+            if norm_file_path == norm_matched or norm_file_path.endswith(norm_matched) or norm_matched.endswith(norm_file_path):
                 structural_check = True
-                structural_details = f"Structural Match: File path '{matched_class['file']}' matches class '{class_name}'."
+                structural_details = f"Structural Match: File path '{matched_class.get('file')}' matches class '{class_name}'."
 
         # Evidence-Coverage Calculation
         verified_sources = sum([graph_check, ast_check, semgrep_check, structural_check])
@@ -307,23 +350,32 @@ class CriticAgent:
         # Hard Verification Gate:
         # VERIFIED requires:
         #   1. evidence_coverage_score >= 50.0%
-        #   2. The claim-specific check MUST pass (cannot verify on existence + path alone!)
-        # AI_SUGGESTION:
-        #   Partial evidence or plausible heuristic that does not meet strict verified threshold
-        # REJECTED:
-        #   Adversarial fail-closed violation, missing symbol, or insufficient evidence
+        #   2. claim_specific_passed is True
+        #   3. ast_check is True
         is_claim_verified = claim_specific_passed or semgrep_check or (graph_check and category in ("Change Impact", "Blast Radius"))
         
         if evidence_coverage_score >= 50.0 and is_claim_verified and ast_check:
             verdict = "VERIFIED"
-        elif evidence_coverage_score >= 25.0 and (ast_check or graph_check) and not ("Fail Closed" in ast_details):
+        elif evidence_coverage_score >= 25.0 and (ast_check or graph_check) and not ("Fail Closed" in ast_details or "INSUFFICIENT" in ast_details or "Failed" in ast_details):
             verdict = "AI_SUGGESTION"
         else:
             verdict = "REJECTED"
 
-        # CodeRabbit-Style Source Line for trust transparency
+        # CodeRabbit-Style Genuinely Line-Level Source Line for trust transparency
         resolved_file = file_path or (matched_class.get("file") if matched_class else "Unknown")
-        source_line = f"Source: {resolved_file}#{class_name or 'Root'} (Validated via AST Structural Check & Dependency Graph)"
+        norm_file = resolved_file.replace("\\", "/").lstrip("/")
+
+        line_ref = ""
+        if matched_class:
+            if matched_class.get("line_range"):
+                line_ref = f"#L{matched_class['line_range']}"
+            elif matched_class.get("line_start"):
+                start = matched_class["line_start"]
+                end = matched_class.get("line_end", start + 25)
+                line_ref = f"#L{start}-L{end}"
+
+        snap_ref = (repo_model or {}).get("analysis_run_id") or "live_snapshot"
+        source_line = f"Source: {norm_file}{line_ref} [{class_name or 'Root'}] (Snapshot: {snap_ref})"
 
         return {
             "title": finding.get("title", f"Finding: {class_name}"),

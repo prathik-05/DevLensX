@@ -235,12 +235,18 @@ def extract_type(node, kind, package, is_test=False):
         is_final = "final" in (f.modifiers or set())
 
         for decl in f.declarators:
+            init = getattr(decl, "initializer", None)
+            init_val = getattr(init, "value", None) if init else None
+            init_str = str(init_val) if init_val is not None else (str(init) if init is not None else "")
+            if init_str.startswith('"') and init_str.endswith('"') and len(init_str) >= 2:
+                init_str = init_str[1:-1]
             fields.append({
                 "name": decl.name,
                 "type": f_type,
                 "annotations": f_annotations,
                 "is_injected": is_autowired,
-                "is_final": is_final
+                "is_final": is_final,
+                "initializer": init_str,
             })
             if is_autowired or (has_lombok_di and is_final):
                 field_injected.append(f_type)
