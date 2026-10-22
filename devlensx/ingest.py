@@ -127,6 +127,8 @@ class IngestRequest(BaseModel):
     exclude_patterns: Optional[Union[str, List[str]]] = None
     max_file_size: Optional[int] = 1024 * 1024  # 1 MB default
     token: Optional[str] = None
+    submodules: Optional[bool] = False
+    compact_tree: Optional[bool] = False
 
 
 @dataclass
@@ -203,7 +205,10 @@ def parse_github_url(url_or_path: str) -> ParsedSource:
             raise HTTPException(status_code=400, detail="Invalid URL or path format. Expected github.com URL or local directory.")
 
     hostname = (parsed.hostname or "").lower()
-    if hostname != "github.com":
+    allowed_enterprise = [
+        h.strip().lower() for h in os.environ.get("GITHUB_ENTERPRISE_HOSTS", "").split(",") if h.strip()
+    ]
+    if hostname != "github.com" and hostname not in allowed_enterprise:
         raise HTTPException(
             status_code=400,
             detail=f"SSRF Protection: Host '{hostname}' is not permitted. Only 'github.com' is allowed.",
@@ -281,6 +286,7 @@ def clone_repository(
     branch: Optional[str] = None,
     token: Optional[str] = None,
     timeout: int = 60,
+    submodules: bool = False,
 ) -> None:
     """
     Clone a repository with single-branch depth 1.
@@ -297,6 +303,8 @@ def clone_repository(
         final_url = f"https://x-access-token:{active_token}@{parsed.netloc}{parsed.path}"
 
     cmd = ["git", "clone", "--depth", "1", "--single-branch"]
+    if submodules:
+        cmd.append("--recurse-submodules")
     if branch:
         cmd.extend(["--branch", branch])
     cmd.extend([final_url, str(target_dir)])
@@ -319,6 +327,28 @@ def clone_repository(
     except Exception as e:
         clean_msg = mask_token(str(e))
         raise HTTPException(status_code=500, detail=f"Git clone error: {clean_msg}")
+
+
+def build_compact_tree(root_name: str, relative_paths: List[str]) -> str:
+    """
+    Constructs a token-efficient compact directory tree format:
+    Collapses single-child hierarchies and groups directory members.
+    """
+    lines = [f"{root_name}/"]
+    grouped: Dict[str, List[str]] = {}
+    for p in sorted(relative_paths):
+        parent = str(Path(p).parent).replace("\\", "/")
+        if parent == ".":
+            parent = ""
+        grouped.setdefault(parent, []).append(Path(p).name)
+
+    for folder, files in sorted(grouped.items()):
+        prefix = f"  {folder}/" if folder else "  "
+        if len(files) <= 6:
+            lines.append(f"{prefix}{{{', '.join(files)}}}")
+        else:
+            lines.append(f"{prefix}({len(files)} files: {', '.join(files[:4])}, ...)")
+    return "\n".join(lines)
 
 
 def build_ascii_tree(root_name: str, relative_paths: List[str]) -> str:
@@ -356,6 +386,7 @@ def _collect_files(
     exclude_patterns: Optional[Union[str, List[str]]] = None,
     max_file_size: int = 1024 * 1024,
     total_cap: int = 50 * 1024 * 1024,
+    compact_tree: bool = False,
 ) -> Tuple[List[IngestFile], str, int]:
     """
     Walk directory, filter according to rules, and collect file contents.
@@ -476,7 +507,10 @@ def _collect_files(
             rel_path_list.append(rel_from_repo)
             total_bytes += file_size
 
-    tree_str = build_ascii_tree(walk_root.name, rel_path_list)
+    if compact_tree:
+        tree_str = build_compact_tree(walk_root.name, rel_path_list)
+    else:
+        tree_str = build_ascii_tree(walk_root.name, rel_path_list)
     return ingest_files, tree_str, total_bytes
 
 
@@ -541,6 +575,8 @@ def ingest_repository_sync(
     token: Optional[str] = None,
     full: bool = False,
     persist_cloned_dir: bool = True,
+    submodules: bool = False,
+    compact_tree: bool = False,
 ) -> IngestResult:
     """
     Synchronous core ingest worker function.
@@ -552,7 +588,7 @@ def ingest_repository_sync(
     file_size_cap = max_file_size or (1024 * 1024)
 
     # Compute cache key from input parameters
-    filter_sig = f"{include_patterns}:{exclude_patterns}:{file_size_cap}:{branch}:{parsed.subpath}"
+    filter_sig = f"{include_patterns}:{exclude_patterns}:{file_size_cap}:{branch}:{parsed.subpath}:{submodules}:{compact_tree}"
     filter_hash = hashlib.sha256(filter_sig.encode()).hexdigest()[:12]
 
     # Persistent holding directory for /api/analyze/from-ingest
@@ -581,6 +617,7 @@ def ingest_repository_sync(
             include_patterns=include_patterns,
             exclude_patterns=exclude_patterns,
             max_file_size=file_size_cap,
+            compact_tree=compact_tree,
         )
     else:
         # Clone into a temporary directory
@@ -593,6 +630,7 @@ def ingest_repository_sync(
                 branch=branch or parsed.branch,
                 token=token,
                 timeout=60,
+                submodules=submodules,
             )
 
             commit_sha = _get_git_commit_sha(temp_path)
@@ -616,6 +654,7 @@ def ingest_repository_sync(
                 include_patterns=include_patterns,
                 exclude_patterns=exclude_patterns,
                 max_file_size=file_size_cap,
+                compact_tree=compact_tree,
             )
 
             if persist_cloned_dir:
@@ -682,6 +721,8 @@ async def ingest_repository(
     token: Optional[str] = None,
     full: bool = False,
     persist_cloned_dir: bool = True,
+    submodules: bool = False,
+    compact_tree: bool = False,
 ) -> IngestResult:
     """
     Streaming-friendly async wrapper that delegates to a threadpool.
@@ -690,15 +731,18 @@ async def ingest_repository(
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
         _THREAD_POOL,
-        ingest_repository_sync,
-        url_or_path,
-        branch,
-        include_patterns,
-        exclude_patterns,
-        max_file_size,
-        token,
-        full,
-        persist_cloned_dir,
+        lambda: ingest_repository_sync(
+            url_or_path=url_or_path,
+            branch=branch,
+            include_patterns=include_patterns,
+            exclude_patterns=exclude_patterns,
+            max_file_size=max_file_size,
+            token=token,
+            full=full,
+            persist_cloned_dir=persist_cloned_dir,
+            submodules=submodules,
+            compact_tree=compact_tree,
+        ),
     )
 
 

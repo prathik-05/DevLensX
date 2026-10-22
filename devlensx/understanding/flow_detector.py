@@ -108,13 +108,24 @@ class FlowDetector:
                 f"4. Executes data operation and returns response payload",
             ]
 
+            flow_clean_name = name.replace('Controller','').replace('Router','').replace('Handler','')
+            ctrl_file = ctrl.get("file") or f"{name}.java"
+            ctrl_line = ctrl.get("line_start", 1)
+
             flows.append({
-                "flow_name": f"Execute {name.replace('Controller','').replace('Router','').replace('Handler','')} Action",
-                "user_action": f"Developer / API Client triggers {method} {route_str}",
+                "flow_name": f"Execute {flow_clean_name} Action",
+                "in_simple_terms": f"Processes {method} requests sent to {route_str} via {name} and {service_name}.",
+                "purpose": f"Handles business logic and data operations for the {flow_clean_name} feature domain.",
+                "how_it_works": steps,
                 "execution_steps": steps,
+                "user_action": f"Developer / API Client triggers {method} {route_str}",
                 "participating_components": [name, service_name],
-                "language": lang_label,
+                "code_involved": [f"{ctrl_file}#L{ctrl_line}"],
+                "dependencies_and_impact": f"{name} delegates to {service_name}; affects downstream persistence layer.",
+                "verification_status": "🟢 VERIFIED BY AST",
                 "evidence_status": "🟢 VERIFIED BY AST",
+                "next_action": f"Inspect {ctrl_file}#L{ctrl_line} or trace related component dependency graph.",
+                "language": lang_label,
             })
 
         return flows

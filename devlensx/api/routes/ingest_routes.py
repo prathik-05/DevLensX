@@ -48,6 +48,8 @@ async def ingest_repo(req: IngestRequest, request: Request, full: bool = False):
         token=req.token,
         full=full,
         persist_cloned_dir=True,
+        submodules=bool(req.submodules),
+        compact_tree=bool(req.compact_tree),
     )
 
 
