@@ -2,18 +2,19 @@
 DevLensX P6 Grounded Workflow & Hard Invariant Tests
 
 Covers:
-1. P6-C Customer Understanding & File Explainer (Claim-Level Evidence Output Contract)
-2. P0 AWS Credential Classification vs Secret Literal vs Documentation Placeholder vs Configuration Reference
-3. P0 Bounded Submodule Ingestion (Count limits, depth 1 non-recursive, host/network access policy)
+1. P6-C Customer Understanding & File Explainer (Claim-Level Evidence Output Contract & JSON Serialized Object)
+2. P0 AWS Credential Classification vs Secret Literal vs Documentation Sample vs Weak Hardcoded Default vs Config Reference
+3. P0 Bounded Submodule Ingestion (Count limits, relative URL resolution, DNS/IP policy, depth 1 non-recursive)
 4. Check H Security Annotation vs Global Config
 5. Check F Maintainability Exact Method Counts & Abstention
 6. Check I Blast Radius Deduplication, Directional Separation & Numerical Proof
 """
 
+import json
 import pytest
 from pathlib import Path
 from fastapi import HTTPException
-from devlensx.understanding.file_explainer import FileExplainer, SimpleTerms
+from devlensx.understanding.file_explainer import FileExplainer
 from devlensx.critic import CriticAgent
 from devlensx.ingest import clone_repository
 
@@ -34,7 +35,8 @@ def test_p6_claim_level_evidence_contract_file_explainer():
     AUDIT TEST:
     Verifies that FileExplainer strictly adheres to the claim-level evidence contract,
     emits smallest relevant line ranges, separates downstream vs upstream impact,
-    and avoids aggregate VERIFIED badges when unverified content exists (PARTIALLY_VERIFIED).
+    avoids aggregate VERIFIED badges when unverified content exists (PARTIALLY_VERIFIED),
+    and proves that in_simple_terms serializes as a real JSON object with claim_ids.
     """
     repo_model = {
         "repository_id": "repo-test-001",
@@ -76,12 +78,20 @@ def test_p6_claim_level_evidence_contract_file_explainer():
     # Developer Depth
     res = explainer.explain("src/main/java/com/app/OrderService.java", symbol_name="OrderService", depth="developer")
 
-    # Contract Field 1: in_simple_terms (String-compatible & Dict-accessible with claim_ids)
-    assert isinstance(res["in_simple_terms"], str)
-    assert "OrderService" in res["in_simple_terms"]
-    assert hasattr(res["in_simple_terms"], "claim_ids")
-    assert len(res["in_simple_terms"].claim_ids) > 0
-    assert res["in_simple_terms"]["text"] == str(res["in_simple_terms"])
+    # Contract Field 1: in_simple_terms (P0 JSON Serialized Contract)
+    assert isinstance(res["in_simple_terms"], dict)
+    assert "text" in res["in_simple_terms"]
+    assert "claim_ids" in res["in_simple_terms"]
+    assert "OrderService" in res["in_simple_terms"]["text"]
+    assert len(res["in_simple_terms"]["claim_ids"]) > 0
+
+    # P0 Audit Fix: Test actual serialized JSON response roundtrip
+    serialized = json.loads(json.dumps(res))
+    assert isinstance(serialized["in_simple_terms"], dict)
+    assert "text" in serialized["in_simple_terms"]
+    assert "claim_ids" in serialized["in_simple_terms"]
+    assert "OrderService" in serialized["in_simple_terms"]["text"]
+    assert len(serialized["in_simple_terms"]["claim_ids"]) > 0
 
     # Contract Field 2: purpose { text, status, claim_ids }
     assert isinstance(res["purpose"], dict)
@@ -110,7 +120,7 @@ def test_p6_claim_level_evidence_contract_file_explainer():
         assert claim["verification_status"] in ("VERIFIED", "AI_SUGGESTION", "INSUFFICIENT_EVIDENCE")
         assert "evidence_ids" in claim
 
-    # Contract Field 5: evidence [ { id, repository_id, analysis_run_id, commit_hash, file, line_start, line_end } ]
+    # Contract Field 5: evidence [ { id, repository_id, analysis_run_id, commit_hash, file, line_start, line_end, resolved } ]
     assert isinstance(res["evidence"], list)
     assert len(res["evidence"]) >= 2
     for ev in res["evidence"]:
@@ -121,6 +131,7 @@ def test_p6_claim_level_evidence_contract_file_explainer():
         assert "file" in ev
         assert "line_start" in ev
         assert "line_end" in ev
+        assert ev.get("resolved") is True
 
     # Contract Field 6: dependencies_and_impact (Strict Directional Separation)
     dep_impact = res["dependencies_and_impact"]
@@ -160,7 +171,7 @@ def test_p6_claim_level_evidence_contract_file_explainer():
 def test_secret_detection_documentation_placeholder_rejected():
     """
     AUDIT TEST:
-    Ensures standard AWS documentation placeholders (e.g., AKIAIOSFODNN7EXAMPLE,
+    Ensures standard AWS documentation samples (e.g., AKIAIOSFODNN7EXAMPLE,
     wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY) are recognized as documentation/sample
     placeholders and fail closed (REJECTED), NOT reported as active leaks.
     """
@@ -192,7 +203,7 @@ def test_secret_detection_documentation_placeholder_rejected():
     }
     res1 = critic.verify_finding(finding_doc_key, repo_model)
     assert res1["verdict"] == "REJECTED"
-    assert "documentation placeholder" in res1["evidence_trail"]["ast_check"]["details"]
+    assert "documentation sample" in res1["evidence_trail"]["ast_check"]["details"]
 
     # Case 2: Documentation Secret Key
     finding_doc_secret = {
@@ -204,7 +215,7 @@ def test_secret_detection_documentation_placeholder_rejected():
     }
     res2 = critic.verify_finding(finding_doc_secret, repo_model)
     assert res2["verdict"] == "REJECTED"
-    assert "documentation placeholder" in res2["evidence_trail"]["ast_check"]["details"]
+    assert "documentation sample" in res2["evidence_trail"]["ast_check"]["details"]
 
 
 def test_secret_detection_aws_access_key_id_classification_and_masking():
@@ -296,6 +307,73 @@ def test_secret_detection_real_secret_token_redaction():
     assert raw_token not in details
 
 
+def test_secret_detection_weak_default_credential_verified():
+    """
+    P1 AUDIT TEST:
+    Ensures that a weak hardcoded password (e.g. '123456' or 'changeme') in an application
+    credential field is NOT dismissed as a placeholder, but verified as an insecure default.
+    """
+    critic = CriticAgent(MockGraphStore())
+    repo_model = {
+        "analysis_run_id": "snap-weak-001",
+        "classes": [
+            {
+                "name": "AppSecurityConfig",
+                "file": "src/main/java/com/app/AppSecurityConfig.java",
+                "line_start": 5,
+                "line_range": "5-25",
+                "methods": [],
+                "fields": [{"name": "defaultPassword", "initializer": "123456"}]
+            }
+        ]
+    }
+
+    finding = {
+        "class_name": "AppSecurityConfig",
+        "file": "src/main/java/com/app/AppSecurityConfig.java",
+        "category": "Hardcoded Secret",
+        "claim": "Class AppSecurityConfig contains field 'defaultPassword' with hardcoded weak default password.",
+        "evidence": {"field_name": "defaultPassword", "value": "123456"}
+    }
+    res = critic.verify_finding(finding, repo_model)
+    assert res["verdict"] == "VERIFIED"
+    details = res["evidence_trail"]["ast_check"]["details"]
+    assert "insecure hardcoded default/weak credential literal" in details
+    assert "[REDACTED]" in details
+
+
+def test_secret_detection_weak_default_in_test_class_rejected():
+    """
+    P1 AUDIT TEST:
+    Ensures that weak passwords in test fixtures or mock classes fail closed as test fixtures.
+    """
+    critic = CriticAgent(MockGraphStore())
+    repo_model = {
+        "analysis_run_id": "snap-weak-002",
+        "classes": [
+            {
+                "name": "AuthServiceTest",
+                "file": "src/test/java/com/app/AuthServiceTest.java",
+                "line_start": 5,
+                "line_range": "5-25",
+                "methods": [],
+                "fields": [{"name": "testPassword", "initializer": "123456"}]
+            }
+        ]
+    }
+
+    finding = {
+        "class_name": "AuthServiceTest",
+        "file": "src/test/java/com/app/AuthServiceTest.java",
+        "category": "Hardcoded Secret",
+        "claim": "Class AuthServiceTest contains field 'testPassword' with hardcoded secret.",
+        "evidence": {"field_name": "testPassword", "value": "123456"}
+    }
+    res = critic.verify_finding(finding, repo_model)
+    assert res["verdict"] == "REJECTED"
+    assert "test fixture credential" in res["evidence_trail"]["ast_check"]["details"]
+
+
 def test_secret_detection_configuration_reference_rejected():
     """
     AUDIT TEST:
@@ -380,8 +458,9 @@ def test_submodule_ingestion_policy_checks(tmp_path):
     AUDIT TEST:
     Verifies that clone_repository enforces:
     1. Maximum submodule count limit (rejects > 5)
-    2. Strict HTTPS requirement (rejects file://, ssh://)
-    3. Disallows local network/IP access
+    2. Strict HTTPS requirement (rejects file://, ssh://, git://)
+    3. Relative submodule URL resolution against parent clone URL
+    4. DNS resolution to prevent private network bypass (rejects loopback, private, link-local IPs)
     """
     fake_target = tmp_path / "target_repo"
     fake_target.mkdir()
@@ -439,6 +518,17 @@ def test_submodule_ingestion_policy_checks(tmp_path):
             )
         assert exc3.value.status_code == 403
         assert "disallowed under network security policy" in exc3.value.detail
+
+        # Case 4: Relative Submodule URL Resolution
+        relative_sub = '[submodule "relative"]\n\tpath = relative\n\turl = ../sibling.git'
+        (fake_target / ".gitmodules").write_text(relative_sub, encoding="utf-8")
+        # Relative to https://github.com/example/main.git resolves to https://github.com/example/sibling.git
+        # Which is a valid HTTPS URL on github.com (passes validation)
+        clone_repository(
+            clone_url="https://github.com/example/main.git",
+            target_dir=fake_target,
+            submodules=True
+        )
     finally:
         subprocess.run = original_run
 

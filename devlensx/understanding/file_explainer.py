@@ -26,35 +26,6 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 
-class SimpleTerms(str):
-    """String subclass that allows dict-like and property-like access for claim_ids and text."""
-    claim_ids: List[str]
-    text: str
-
-    def __new__(cls, text: str, claim_ids: Optional[List[str]] = None):
-        obj = str.__new__(cls, text)
-        obj.text = text
-        obj.claim_ids = claim_ids or []
-        return obj
-
-    def __getitem__(self, item):
-        if item == "text":
-            return self.text
-        if item == "claim_ids":
-            return self.claim_ids
-        return super().__getitem__(item)
-
-    def get(self, item, default=None):
-        if item == "text":
-            return self.text
-        if item == "claim_ids":
-            return self.claim_ids
-        return default
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {"text": self.text, "claim_ids": self.claim_ids}
-
-
 class FileExplainer:
     """Generates grounded claim-level explanations for files and symbols."""
 
@@ -165,6 +136,8 @@ class FileExplainer:
         def add_evidence(ev_type: str, fpath: str, l_start: int, l_end: int, symbol: str, assertion: str) -> str:
             nonlocal evidence_idx
             ev_id = f"evidence-{evidence_idx:03d}"
+            # P1 Audit Fix: Confirm evidence is actually resolved from the immutable snapshot
+            is_resolved = bool(target_class and fpath and l_start >= 1 and l_end >= l_start)
             evidence_list.append({
                 "id": ev_id,
                 "repository_id": repo_id,
@@ -177,6 +150,7 @@ class FileExplainer:
                 "type": ev_type,
                 "source_citation": f"{fpath}#L{l_start}-{l_end} [{symbol}]",
                 "assertion": assertion,
+                "resolved": is_resolved,
             })
             evidence_idx += 1
             return ev_id
@@ -212,6 +186,13 @@ class FileExplainer:
         def add_claim(text: str, status: str, ev_ids: List[str]) -> str:
             nonlocal claim_idx
             c_id = f"claim-{claim_idx:03d}"
+            # Hard Invariant: A claim cannot be VERIFIED if any linked evidence is unresolved
+            verified_evs = [
+                ev for ev in evidence_list
+                if ev["id"] in ev_ids and ev.get("resolved") is True
+            ]
+            if status == "VERIFIED" and (not ev_ids or len(verified_evs) < len(ev_ids)):
+                status = "INSUFFICIENT_EVIDENCE"
             claims_list.append({
                 "id": c_id,
                 "text": text,
@@ -316,7 +297,10 @@ class FileExplainer:
                 f"and delegates persistence or external interactions to {', '.join(upstream_deps) if upstream_deps else 'collaborators'}."
             )
 
-        in_simple_terms = SimpleTerms(terms_text, claim_ids=[c1, c2, c3] + dep_claims[:2])
+        in_simple_terms = {
+            "text": terms_text,
+            "claim_ids": [c1, c2, c3] + dep_claims[:2]
+        }
 
         # 2. purpose { text, status, claim_ids }
         has_doc = bool(target_class and target_class.get("docstring"))

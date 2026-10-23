@@ -19,7 +19,9 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
+import socket
+import ipaddress
 
 import pathspec
 from fastapi import HTTPException
@@ -324,9 +326,15 @@ def clone_repository(
         if submodules:
             gitmodules_path = target_dir / ".gitmodules"
             if gitmodules_path.exists():
-                gitmodules_content = gitmodules_path.read_text(encoding="utf-8", errors="replace")
+                try:
+                    gitmodules_content = gitmodules_path.read_text(encoding="utf-8", errors="replace")
+                except Exception as e:
+                    raise HTTPException(status_code=400, detail=f"Cannot read .gitmodules: {str(e)}")
+
                 submodule_urls = re.findall(r'url\s*=\s*([^\r\n]+)', gitmodules_content)
-                
+                if not submodule_urls and len(gitmodules_content.strip()) > 0 and "[submodule" in gitmodules_content:
+                    raise HTTPException(status_code=400, detail="Malformed or unparseable .gitmodules file.")
+
                 # 1. Submodule Count Limit (Max 5)
                 MAX_SUBMODULES = 5
                 if len(submodule_urls) > MAX_SUBMODULES:
@@ -335,27 +343,54 @@ def clone_repository(
                         detail=f"Repository exceeds maximum allowed submodule count ({len(submodule_urls)} > {MAX_SUBMODULES})."
                     )
 
-                # 2. Host & Network Access Policy Validation
-                ALLOWED_SUBMODULE_HOSTS = ("github.com", "gitlab.com", "bitbucket.org")
-                DISALLOWED_IPS = ("127.", "10.", "192.168.", "169.254.", "0.0.0.0", "localhost")
+                # 2. Host & Network Access Policy Validation for EVERY Submodule
+                DISALLOWED_HOST_NAMES = ("localhost", "127.0.0.1", "::1", "0.0.0.0")
 
                 for raw_s_url in submodule_urls:
                     s_url = raw_s_url.strip()
+                    # Resolve relative submodule URLs (e.g. '../other.git') against parent repository URL
+                    if not re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*://', s_url):
+                        s_url = urljoin(clone_url if clone_url.endswith("/") else clone_url + "/", s_url)
+
                     parsed_s = urlparse(s_url)
-                    
-                    # Strictly require https protocol; reject file://, ssh://, git://
+
+                    # Strictly require https protocol; reject file://, ssh://, git://, http://
                     if parsed_s.scheme != "https":
                         raise HTTPException(
                             status_code=403,
-                            detail=f"Submodule URL '{s_url}' violates network access policy: strictly HTTPS required."
+                            detail=f"Submodule URL '{raw_s_url}' violates network access policy: strictly HTTPS required (got '{parsed_s.scheme}')."
                         )
-                    
-                    # Reject local or private IP addresses
+
                     host = (parsed_s.hostname or "").lower()
-                    if any(host.startswith(bad_ip) or host == bad_ip for bad_ip in DISALLOWED_IPS):
+                    if not host:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Submodule URL '{raw_s_url}' does not specify a valid hostname."
+                        )
+
+                    if host in DISALLOWED_HOST_NAMES:
                         raise HTTPException(
                             status_code=403,
                             detail=f"Submodule host '{host}' is disallowed under network security policy."
+                        )
+
+                    # DNS resolution verification: ensure host does NOT resolve to loopback, private, or link-local IP
+                    try:
+                        resolved_entries = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
+                        for entry in resolved_entries:
+                            ip_str = entry[4][0]
+                            ip = ipaddress.ip_address(ip_str)
+                            is_nat64 = (ip.version == 6 and ip in ipaddress.ip_network("64:ff9b::/96"))
+                            if (ip.is_loopback or ip.is_private or ip.is_link_local or
+                                ip.is_multicast or ip.is_unspecified or (ip.is_reserved and not is_nat64)):
+                                raise HTTPException(
+                                    status_code=403,
+                                    detail=f"Submodule host '{host}' resolves to private/disallowed IP: {ip_str}"
+                                )
+                    except socket.gaierror as ge:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Cannot resolve submodule host '{host}': {str(ge)}"
                         )
 
                 # 3. Explicit Depth 1 Bounded Initialization (Non-Recursive)

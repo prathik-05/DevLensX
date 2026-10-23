@@ -200,27 +200,32 @@ class CriticAgent:
                     masked = clean[:4] + "*" * (len(clean) - 8) + clean[-4:]
                     return f"{masked} [REDACTED]"
 
-                # 1. Check for standard documentation placeholders and harmless sample credentials
-                KNOWN_DOC_PLACEHOLDERS = (
+                # 1. Check for standard documentation samples and explicit illustrative placeholders
+                KNOWN_DOC_SAMPLES = (
                     "AKIAIOSFODNN7EXAMPLE",
                     "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
                     "your_api_key",
                     "your_token_here",
-                    "placeholder",
-                    "dummy_secret",
-                    "changeme",
+                    "enter_key_here",
+                    "replace_me",
+                    "sample_key_here",
                 )
                 raw_clean_val = field_initializer.strip("\"'")
-                is_doc_placeholder = (
-                    any(p.lower() in raw_clean_val.lower() for p in KNOWN_DOC_PLACEHOLDERS) or
+                is_doc_sample = (
+                    any(p.lower() in raw_clean_val.lower() for p in KNOWN_DOC_SAMPLES) or
                     "example" in raw_clean_val.lower() or
                     "placeholder" in raw_clean_val.lower() or
-                    "sample" in raw_clean_val.lower() or
-                    "dummy" in raw_clean_val.lower() or
-                    re.match(r'^(x+|0+|123456+)$', raw_clean_val, re.IGNORECASE) is not None
+                    re.match(r'^(x+|dummy)$', raw_clean_val, re.IGNORECASE) is not None
                 )
 
-                # 2. Check for configuration or environment references
+                # 2. Check for weak or default hardcoded credentials (e.g. 123456, changeme, password)
+                # These must NOT be automatically dismissed as placeholders if assigned to credential fields!
+                is_weak_default_literal = bool(
+                    raw_clean_val.lower() in ("123456", "12345678", "password", "admin", "changeme", "secret", "root", "guest") or
+                    re.match(r'^(123456|000000|111111)$', raw_clean_val)
+                )
+
+                # 3. Check for configuration or environment references
                 is_config_reference = bool(
                     "System.getenv" in field_initializer or
                     "System.getProperty" in field_initializer or
@@ -229,11 +234,11 @@ class CriticAgent:
                     "properties.get" in field_initializer
                 )
 
-                # 3. Check for AWS Access Key ID (AKIA...)
+                # 4. Check for AWS Access Key ID (AKIA...)
                 AWS_ACCESS_KEY_REGEX = re.compile(r'\b(AKIA[0-9A-Z]{16})\b')
                 aws_access_key_match = AWS_ACCESS_KEY_REGEX.search(field_initializer) or AWS_ACCESS_KEY_REGEX.search(title_claim)
 
-                # 4. Check for Secret-like Credential Literal (AWS Secret Key, OpenAI, GitHub PAT, Private Key, Slack, etc.)
+                # 5. Check for Secret-like Credential Literal (AWS Secret Key, OpenAI, GitHub PAT, Private Key, Slack, etc.)
                 SECRET_LITERAL_REGEX = re.compile(
                     r'(sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{50,}|AIza[0-9A-Za-z-_]{35}|xox[baprs]-[a-zA-Z0-9-]+|-----BEGIN [A-Z ]*PRIVATE KEY-----)',
                     re.IGNORECASE
@@ -243,28 +248,46 @@ class CriticAgent:
                 # AWS Secret Access Key: 40 base64 chars
                 is_aws_secret_key = False
                 if len(raw_clean_val) == 40 and re.match(r'^[A-Za-z0-9/+=]{40}$', raw_clean_val):
-                    if not is_doc_placeholder and not raw_clean_val.isalnum():
+                    if not is_doc_sample and not raw_clean_val.isalnum():
                         is_aws_secret_key = True
 
                 is_generic_high_entropy_secret = False
                 if len(raw_clean_val) >= 24 and re.match(r'^[0-9a-zA-Z+/=_-]+$', raw_clean_val):
                     if not ('.' in raw_clean_val or '-' in raw_clean_val or raw_clean_val.lower() in field_name.lower()):
-                        if not is_doc_placeholder:
+                        if not is_doc_sample:
                             is_generic_high_entropy_secret = True
 
                 is_real_secret_literal = bool(secret_literal_match or is_aws_secret_key or is_generic_high_entropy_secret)
 
                 redacted = redact_value(field_initializer or title_claim)
 
+                is_test_class = bool(re.search(r'(Test|TestCase|Mock)$', class_name, re.IGNORECASE))
+                is_constant_key_name = bool(re.search(r'(_KEY|_NAME|_PARAM|_HEADER|_CONFIG|_METRIC|_PREFIX|_SUFFIX)$', field_name, re.IGNORECASE))
+                is_constants_class = bool(re.search(r'Constants?$', class_name, re.IGNORECASE))
+
                 # Evaluation flow:
-                if is_doc_placeholder:
+                if is_doc_sample:
                     ast_check = False
                     claim_specific_passed = False
-                    ast_details = f"AST Fail Closed: Value in field '{field_name}' is a known documentation placeholder or sample credential ('{redacted}'), not an active secret leak."
+                    ast_details = f"AST Fail Closed: Value in field '{field_name}' is a known documentation sample or illustrative placeholder ('{redacted}'), not a live credential."
                 elif is_config_reference:
                     ast_check = False
                     claim_specific_passed = False
                     ast_details = f"AST Fail Closed: Field '{field_name}' in '{class_name}' is a dynamic configuration/environment reference ('{redacted}'), not a hardcoded secret."
+                elif is_weak_default_literal:
+                    # Context-sensitive handling for weak credentials
+                    if is_test_class:
+                        ast_check = False
+                        claim_specific_passed = False
+                        ast_details = f"AST Fail Closed: Field '{field_name}' in '{class_name}' is a test fixture credential, not a production secret."
+                    elif (is_constant_key_name or is_constants_class) and (field_initializer.lower() in field_name.lower() or '.' in field_initializer):
+                        ast_check = False
+                        claim_specific_passed = False
+                        ast_details = f"AST Fail Closed: Field '{field_name}' in '{class_name}' is a configuration property key identifier (value: '{field_initializer}'), not a hardcoded secret."
+                    else:
+                        ast_check = True
+                        claim_specific_passed = True
+                        ast_details = f"AST Match: Confirmed insecure hardcoded default/weak credential literal '{redacted}' in field '{field_name}' ({class_name}). (Note: classified as insecure hardcoded default credential; live account validity not established without external verification)."
                 elif aws_access_key_match:
                     # Distinguish Access Key ID from Secret Key
                     is_secret_key_claim = any(kw in title_claim.lower() for kw in ("secret key", "secret access key", "password", "private key"))

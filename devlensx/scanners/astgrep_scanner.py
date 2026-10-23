@@ -7,7 +7,7 @@ Emits normalized CandidateFinding objects with explicit execution statuses:
   - EXECUTED_NO_MATCH: ast-grep executed with 0 pattern matches
   - NOT_INSTALLED: Binary 'ast-grep' or 'sg' not present on host PATH
   - SKIPPED: Scanner disabled by configuration
-  - ERROR: Subprocess execution failed, timed out, or produced malformed output
+  - ERROR: Subprocess execution failed, timed out, malformed output, or version mismatch
 """
 
 import shutil
@@ -23,9 +23,17 @@ class AstGrepScanner(BaseScanner):
 
     PINNED_VERSION = "0.51.0"
 
-    def __init__(self, enabled: bool = True, timeout_seconds: int = 30):
+    def __init__(
+        self,
+        enabled: bool = True,
+        timeout_seconds: int = 30,
+        pinned_version: str = "0.51.0",
+        strict_version: bool = False
+    ):
         super().__init__(name="ast-grep", enabled=enabled)
         self.timeout_seconds = timeout_seconds
+        self.pinned_version = pinned_version
+        self.strict_version = strict_version
         self._cached_version: Optional[str] = None
 
     def _resolve_binary(self) -> Optional[str]:
@@ -34,13 +42,13 @@ class AstGrepScanner(BaseScanner):
     def is_installed(self) -> bool:
         return self._resolve_binary() is not None
 
-    def get_version(self) -> str:
-        """Returns detected CLI version or fallback pinned version."""
+    def query_actual_version(self) -> Optional[str]:
+        """Obtains the version string directly reported by the ast-grep executable."""
         if self._cached_version:
             return self._cached_version
         bin_path = self._resolve_binary()
         if not bin_path:
-            return self.PINNED_VERSION
+            return None
         try:
             proc = subprocess.run([bin_path, "--version"], capture_output=True, text=True, timeout=5)
             if proc.returncode == 0:
@@ -48,9 +56,12 @@ class AstGrepScanner(BaseScanner):
                 if len(parts) >= 2:
                     self._cached_version = parts[1]
                     return self._cached_version
+                elif len(parts) == 1:
+                    self._cached_version = parts[0]
+                    return self._cached_version
         except Exception:
             pass
-        return self.PINNED_VERSION
+        return None
 
     def scan(
         self,
@@ -60,14 +71,12 @@ class AstGrepScanner(BaseScanner):
         commit_hash: Optional[str] = None,
         rule_config: Optional[str] = None
     ) -> List[CandidateFinding]:
-        version_str = self.get_version()
-
         if not self.enabled:
             return [
                 CandidateFinding(
                     finding_id="ASTGREP-SKIPPED",
                     tool="ast-grep",
-                    tool_version=version_str,
+                    tool_version=None,
                     check_id="astgrep.scanner.skipped",
                     file=repo_path,
                     message="ast-grep scanner execution skipped by configuration.",
@@ -84,11 +93,46 @@ class AstGrepScanner(BaseScanner):
                 CandidateFinding(
                     finding_id="ASTGREP-NOT-INSTALLED",
                     tool="ast-grep",
-                    tool_version=self.PINNED_VERSION,
+                    tool_version=None,
                     check_id="astgrep.binary.not_installed",
                     file=repo_path,
                     message="ast-grep binary not installed on host PATH. Scan omitted.",
                     status=ScannerStatus.NOT_INSTALLED,
+                    repository_id=repository_id,
+                    analysis_run_id=analysis_run_id,
+                    commit_hash=commit_hash,
+                )
+            ]
+
+        # P1 Audit Fix: Query actual runtime executable version
+        actual_version = self.query_actual_version()
+        if not actual_version:
+            return [
+                CandidateFinding(
+                    finding_id="ASTGREP-VERSION-ERROR",
+                    tool="ast-grep",
+                    tool_version="UNKNOWN",
+                    check_id="astgrep.version.query_failed",
+                    file=repo_path,
+                    message="Failed to obtain ast-grep runtime version from executable.",
+                    status=ScannerStatus.ERROR,
+                    repository_id=repository_id,
+                    analysis_run_id=analysis_run_id,
+                    commit_hash=commit_hash,
+                )
+            ]
+
+        # Version Compatibility & Mismatch Check
+        if self.strict_version and actual_version != self.pinned_version:
+            return [
+                CandidateFinding(
+                    finding_id="ASTGREP-VERSION-MISMATCH",
+                    tool="ast-grep",
+                    tool_version=actual_version,
+                    check_id="astgrep.version.mismatch",
+                    file=repo_path,
+                    message=f"Installed ast-grep version '{actual_version}' does not match expected pinned version '{self.pinned_version}'.",
+                    status=ScannerStatus.ERROR,
                     repository_id=repository_id,
                     analysis_run_id=analysis_run_id,
                     commit_hash=commit_hash,
@@ -116,7 +160,7 @@ class AstGrepScanner(BaseScanner):
                         CandidateFinding(
                             finding_id="ASTGREP-MALFORMED-OUTPUT",
                             tool="ast-grep",
-                            tool_version=version_str,
+                            tool_version=actual_version,
                             check_id="astgrep.malformed.output",
                             file=repo_path,
                             message=f"ast-grep emitted malformed non-JSON output: {str(jde)}",
@@ -135,7 +179,7 @@ class AstGrepScanner(BaseScanner):
                         CandidateFinding(
                             finding_id="ASTGREP-CLEAN",
                             tool="ast-grep",
-                            tool_version=version_str,
+                            tool_version=actual_version,
                             check_id="astgrep.scan.clean",
                             file=repo_path,
                             message="ast-grep scan executed: 0 pattern violations detected.",
@@ -152,7 +196,7 @@ class AstGrepScanner(BaseScanner):
                         CandidateFinding(
                             finding_id=f"ASTGREP-{idx:03d}",
                             tool="ast-grep",
-                            tool_version=version_str,
+                            tool_version=actual_version,
                             check_id=m.get("rule_id", "astgrep.pattern"),
                             file=m.get("file", repo_path),
                             line=m.get("range", {}).get("start", {}).get("line"),
@@ -173,7 +217,7 @@ class AstGrepScanner(BaseScanner):
                 CandidateFinding(
                     finding_id="ASTGREP-ERROR",
                     tool="ast-grep",
-                    tool_version=version_str,
+                    tool_version=actual_version,
                     check_id="astgrep.execution.error",
                     file=repo_path,
                     message=f"ast-grep execution exited with code {proc.returncode}: {proc.stderr[:200]}",
@@ -189,7 +233,7 @@ class AstGrepScanner(BaseScanner):
                 CandidateFinding(
                     finding_id="ASTGREP-TIMEOUT",
                     tool="ast-grep",
-                    tool_version=version_str,
+                    tool_version=actual_version,
                     check_id="astgrep.execution.timeout",
                     file=repo_path,
                     message=f"ast-grep execution timed out after {self.timeout_seconds}s.",
@@ -204,7 +248,7 @@ class AstGrepScanner(BaseScanner):
                 CandidateFinding(
                     finding_id="ASTGREP-EXCEPTION",
                     tool="ast-grep",
-                    tool_version=version_str,
+                    tool_version=actual_version,
                     check_id="astgrep.execution.exception",
                     file=repo_path,
                     message=f"ast-grep scanner encountered exception: {str(e)}",
