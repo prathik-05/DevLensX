@@ -252,9 +252,14 @@ class RepositoryProfiler:
         p = Path(repo_path)
         project_name = p.name or "Target Repository"
 
-        all_classes: List[Dict[str, Any]] = list(classes or (repo_model.get("classes", []) if repo_model else []))
-        relationships: List[Dict[str, Any]] = list(repo_model.get("relationships", []) if repo_model else [])
-        endpoints: List[Dict[str, Any]] = list(repo_model.get("endpoints", []) if repo_model else [])
+        if isinstance(repo_model, list):
+            relationships: List[Dict[str, Any]] = list(repo_model)
+            all_classes: List[Dict[str, Any]] = list(classes or [])
+            endpoints: List[Dict[str, Any]] = []
+        else:
+            all_classes: List[Dict[str, Any]] = list(classes or (repo_model.get("classes", []) if repo_model else []))
+            relationships: List[Dict[str, Any]] = list(repo_model.get("relationships", []) if repo_model else [])
+            endpoints: List[Dict[str, Any]] = list(repo_model.get("endpoints", []) if repo_model else [])
 
         # 1. Inspect real manifests on disk
         manifests_found: List[str] = []
@@ -380,7 +385,7 @@ class RepositoryProfiler:
             frameworks_detected.append("YOLO / Vision")
 
         pom_text = (manifest_data.get("pom") or "").lower()
-        if "spring-boot" in pom_text or any(c.get("stereotype") == "Controller" for c in all_classes) or "org.springframework" in all_text_blob:
+        if "spring-boot" in pom_text or "org.springframework" in pom_text or "org.springframework" in all_text_blob:
             frameworks_detected.append("Spring Boot")
         if "mybatis" in pom_text or "mybatis" in all_text_blob:
             frameworks_detected.append("MyBatis")
@@ -401,28 +406,34 @@ class RepositoryProfiler:
             r = ep.get("route", ep.get("path", "/"))
             h = ep.get("handler", "")
             f = ep.get("file", "")
-            entry_points.append({"symbol": f"{m} {r}", "file": f, "type": f"HTTP Route ({h})"})
+            route_str = f"{m} {r}"
+            entry_points.append({"symbol": route_str, "symbol_name": route_str, "file": f, "type": f"HTTP Route ({h})"})
 
         # Check main files
         for fp in all_file_paths:
             base_name = Path(fp).name.lower()
             if base_name in ("main.py", "app.py", "cli.py", "run.py", "index.ts", "index.tsx", "app.tsx", "main.tsx", "main.java", "application.java"):
-                entry_points.append({"file": fp, "type": "Application Execution Target"})
+                stem = Path(fp).stem
+                entry_points.append({"symbol": stem, "symbol_name": stem, "file": fp, "type": "Application Execution Target"})
 
         # Check classes with entrypoint roles
         for ps in prod_symbols:
             if ps["is_entrypoint"] and not any(ep.get("symbol") == ps["name"] for ep in entry_points):
-                entry_points.append({"symbol": ps["name"], "file": ps["file"], "type": "Entrypoint Component"})
+                entry_points.append({"symbol": ps["name"], "symbol_name": ps["name"], "file": ps["file"], "type": "Entrypoint Component"})
 
         # If it's a library with no conventional entrypoint, extract Public API exports
         if not entry_points and prod_symbols:
             for ps in prod_symbols[:4]:
-                entry_points.append({"symbol": ps["name"], "file": ps["file"], "type": "Public Library Interface / Core Module"})
+                entry_points.append({"symbol": ps["name"], "symbol_name": ps["name"], "file": ps["file"], "type": "Public Library Interface / Core Module"})
 
         # Deduplicate
         seen_ep = set()
         unique_entrypoints = []
         for ep in entry_points:
+            sym_name = ep.get("symbol_name") or ep.get("symbol") or (Path(ep.get("file", "")).stem if ep.get("file") else "entrypoint")
+            ep["symbol_name"] = sym_name
+            ep["symbol"] = ep.get("symbol") or sym_name
+            ep["name"] = ep.get("name") or sym_name
             key = ep.get("symbol") or ep.get("file")
             if key and key not in seen_ep:
                 seen_ep.add(key)
@@ -430,18 +441,18 @@ class RepositoryProfiler:
 
         # 6. Architectural Archetype Classification
         has_algo_symbols = any(s["role"] == "CORE_ALGORITHM" for s in prod_symbols)
-        has_routes = bool(endpoints) or any("controller" in s["name"].lower() for s in prod_symbols)
-        has_ui = any(f in frameworks_detected for f in ("React", "Next.js", "Vue", "Vite")) or any(s["role"] == "UI_COMPONENT" for s in prod_symbols)
+        has_routes = bool(endpoints) or any(s.get("stereotype") in ("Route", "Endpoint") or any("mapping" in str(a).lower() for a in s.get("annotations", [])) for s in prod_symbols)
+        has_web_ui = any(f in frameworks_detected for f in ("React", "Next.js", "Vue", "Vite")) or any(str(s.get("file", "")).endswith((".tsx", ".jsx")) for s in prod_symbols)
 
-        if has_ui:
+        if has_algo_symbols and not has_routes:
+            archetype = "ALGORITHMIC_SYSTEM"
+            archetype_rationale = f"Algorithmic decision engine / state system in {primary_language} with core game or solver logic."
+        elif has_web_ui:
             archetype = "FRONTEND_UI"
             archetype_rationale = f"Reactive web UI application ({primary_language}) with layout and component hierarchy."
         elif any(f in frameworks_detected for f in ("PyTorch", "YOLO / Vision")):
             archetype = "DATA_ML_SYSTEM"
             archetype_rationale = f"Machine learning and data processing system in {primary_language}."
-        elif has_algo_symbols and not has_routes:
-            archetype = "ALGORITHMIC_SYSTEM"
-            archetype_rationale = f"Algorithmic decision engine / state system in {primary_language} with core game or solver logic."
         elif any(term in all_text_blob for term in ("cli", "command", "parser", "args")) and not has_routes:
             archetype = "CLI_ENGINE"
             archetype_rationale = f"Command-line execution tool in {primary_language}."
@@ -501,7 +512,9 @@ class RepositoryProfiler:
             "archetype_status": "INFERRED",
             "archetype_rationale": archetype_rationale,
             "entry_points": unique_entrypoints[:8],
+            "entrypoints": unique_entrypoints[:8],
             "production_symbols": prod_symbols,
+            "ranked_production_symbols": prod_symbols,
             "test_symbols": test_symbols,
             "data_flow": data_flow,
             "total_parsed_units": len(all_classes),

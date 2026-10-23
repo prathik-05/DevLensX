@@ -192,61 +192,212 @@ const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
   );
 };
 
-const CrossLinkedText: React.FC<{
-  text: string;
+const renderInlineMarkdown = (
+  text: string,
+  pagesSummary: Record<string, string>,
+  pageTree: WikiPageTreeItem[],
+  onNavigate: (pageId: string) => void
+): React.ReactNode[] => {
+  // Fix literal escaping sequences like \*\* or \* or \_
+  const clean = text.replace(/\\\*/g, '*').replace(/\\_/g, '_');
+  const tokenRegex = /\[([^\]]+)\]\(#([^)]+)\)|\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|\*\*([^*]+)\*\*|\*([^*]+)\*/g;
+  const nodes: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  const titleOf = (id: string) => pageTree.find(p => p.id === id)?.title || id;
+
+  while ((match = tokenRegex.exec(clean)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(<span key={key++}>{clean.slice(lastIndex, match.index)}</span>);
+    }
+    if (match[1] !== undefined && match[2] !== undefined) {
+      const label = match[1];
+      const target = match[2];
+      const blurb = pagesSummary[target] || titleOf(target);
+      nodes.push(
+        <button
+          key={key++}
+          onClick={() => onNavigate(target)}
+          className="underline underline-offset-2 font-medium hover:opacity-80 transition-opacity"
+          style={{ color: 'var(--dl-accent)' }}
+          title={blurb}
+        >
+          {label}
+        </button>
+      );
+    } else if (match[3] !== undefined && match[4] !== undefined) {
+      nodes.push(
+        <a
+          key={key++}
+          href={match[4]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 hover:opacity-80 transition-opacity"
+          style={{ color: 'var(--dl-accent)' }}
+        >
+          {match[3]}
+        </a>
+      );
+    } else if (match[5] !== undefined) {
+      nodes.push(
+        <code
+          key={key++}
+          className="px-1 py-0.5 rounded text-[11px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/60"
+        >
+          {match[5]}
+        </code>
+      );
+    } else if (match[6] !== undefined) {
+      nodes.push(
+        <strong key={key++} className="font-semibold text-slate-900 dark:text-white">
+          {match[6]}
+        </strong>
+      );
+    } else if (match[7] !== undefined) {
+      nodes.push(
+        <em key={key++} className="italic text-slate-700 dark:text-slate-300">
+          {match[7]}
+        </em>
+      );
+    }
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < clean.length) {
+    nodes.push(<span key={key++}>{clean.slice(lastIndex)}</span>);
+  }
+  return nodes;
+};
+
+const MarkdownBlockRenderer: React.FC<{
+  content: string;
   pagesSummary: Record<string, string>;
   pageTree: WikiPageTreeItem[];
   onNavigate: (pageId: string) => void;
-}> = ({ text, pagesSummary, pageTree, onNavigate }) => {
-  const [hover, setHover] = useState<{ label: string; target: string; blurb: string; x: number; y: number } | null>(null);
-  const parts: React.ReactNode[] = [];
-  const re = /\[([^\]]+)\]\(#([^)]+)\)/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  let key = 0;
-  const titleOf = (id: string) => pageTree.find(p => p.id === id)?.title || id;
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) parts.push(<span key={key++}>{text.slice(last, m.index)}</span>);
-    const label = m[1];
-    const target = m[2];
-    const blurb = pagesSummary[target] || titleOf(target);
-    const showPreview = (e: React.SyntheticEvent) => {
-      const r = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-      setHover({ label, target, blurb: blurb.slice(0, 220), x: r.left, y: r.bottom + 6 });
-    };
-    parts.push(
-      <button
-        key={key++}
-        onClick={() => onNavigate(target)}
-        onMouseEnter={showPreview}
-        onMouseLeave={() => setHover(null)}
-        onFocus={showPreview}
-        onBlur={() => setHover(null)}
-        className="underline underline-offset-2"
-        style={{ color: 'var(--dl-accent)' }}
-        title={titleOf(target)}
-      >
-        {label}
-      </button>
-    );
-    last = m.index + m[0].length;
+}> = ({ content, pagesSummary, pageTree, onNavigate }) => {
+  if (!content) return null;
+
+  const raw = content.replace(/\\\*/g, '*').replace(/\\_/g, '_');
+  const lines = raw.split('\n');
+  const blocks: React.ReactNode[] = [];
+  let blockKey = 0;
+
+  let currentList: { ordered: boolean; items: string[] } | null = null;
+  let currentParagraph: string[] = [];
+
+  const flushParagraph = () => {
+    if (currentParagraph.length > 0) {
+      const pText = currentParagraph.join(' ').trim();
+      if (pText) {
+        blocks.push(
+          <p key={blockKey++} className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
+            {renderInlineMarkdown(pText, pagesSummary, pageTree, onNavigate)}
+          </p>
+        );
+      }
+      currentParagraph = [];
+    }
+  };
+
+  const flushList = () => {
+    if (currentList && currentList.items.length > 0) {
+      const items = currentList.items.map((item, idx) => (
+        <li key={idx} className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
+          {renderInlineMarkdown(item, pagesSummary, pageTree, onNavigate)}
+        </li>
+      ));
+      if (currentList.ordered) {
+        blocks.push(
+          <ol key={blockKey++} className="list-decimal list-inside space-y-1 my-2">
+            {items}
+          </ol>
+        );
+      } else {
+        blocks.push(
+          <ul key={blockKey++} className="list-disc list-inside space-y-1 my-2">
+            {items}
+          </ul>
+        );
+      }
+      currentList = null;
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+    if (trimmed.startsWith('### ')) {
+      flushParagraph();
+      flushList();
+      blocks.push(
+        <h4 key={blockKey++} className="text-[14px] font-semibold text-slate-900 dark:text-white mt-3 mb-1">
+          {renderInlineMarkdown(trimmed.slice(4), pagesSummary, pageTree, onNavigate)}
+        </h4>
+      );
+      continue;
+    }
+    if (trimmed.startsWith('## ')) {
+      flushParagraph();
+      flushList();
+      blocks.push(
+        <h3 key={blockKey++} className="text-[15px] font-semibold text-slate-900 dark:text-white mt-4 mb-1.5">
+          {renderInlineMarkdown(trimmed.slice(3), pagesSummary, pageTree, onNavigate)}
+        </h3>
+      );
+      continue;
+    }
+    if (trimmed.startsWith('# ')) {
+      flushParagraph();
+      flushList();
+      blocks.push(
+        <h2 key={blockKey++} className="text-[16px] font-bold text-slate-900 dark:text-white mt-4 mb-2">
+          {renderInlineMarkdown(trimmed.slice(2), pagesSummary, pageTree, onNavigate)}
+        </h2>
+      );
+      continue;
+    }
+
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      flushParagraph();
+      const itemText = trimmed.slice(2);
+      if (!currentList || currentList.ordered) {
+        flushList();
+        currentList = { ordered: false, items: [itemText] };
+      } else {
+        currentList.items.push(itemText);
+      }
+      continue;
+    }
+
+    const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+    if (numMatch) {
+      flushParagraph();
+      const itemText = numMatch[2];
+      if (!currentList || !currentList.ordered) {
+        flushList();
+        currentList = { ordered: true, items: [itemText] };
+      } else {
+        currentList.items.push(itemText);
+      }
+      continue;
+    }
+
+    flushList();
+    currentParagraph.push(trimmed);
   }
-  if (last < text.length) parts.push(<span key={key++}>{text.slice(last)}</span>);
-  return (
-    <span className="relative">
-      {parts}
-      {hover && (
-        <span
-          className="fixed z-50 w-64 p-3 rounded-sm text-left"
-          style={{ left: Math.min(hover.x, window.innerWidth - 280), top: hover.y, background: 'var(--dl-panel)', border: '1px solid var(--dl-panel-border)', boxShadow: '0 16px 48px -16px rgba(0,0,0,0.8)' }}
-        >
-          <span className="block text-xs font-bold font-mono text-black dark:text-white">{hover.label}</span>
-          <span className="block text-[11px] mt-1 leading-relaxed" style={{ color: 'var(--dl-text-dim)' }}>{hover.blurb}</span>
-          <span className="block text-[10px] font-mono mt-1.5" style={{ color: 'var(--dl-accent)' }}>→ {titleOf(hover.target)} (click to open)</span>
-        </span>
-      )}
-    </span>
-  );
+
+  flushParagraph();
+  flushList();
+
+  return <div className="space-y-3">{blocks}</div>;
 };
 
 interface SectionViewProps {
@@ -274,7 +425,7 @@ const SectionView: React.FC<SectionViewProps> = ({ section, idx, pagesSummary, p
       </div>
 
       <div className="space-y-4">
-        <CrossLinkedText text={String(section.content || '')} pagesSummary={pagesSummary} pageTree={pageTree} onNavigate={onNavigate} />
+        <MarkdownBlockRenderer content={String(section.content || '')} pagesSummary={pagesSummary} pageTree={pageTree} onNavigate={onNavigate} />
 
         {hasMermaid && (
           <div className="space-y-2">

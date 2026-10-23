@@ -65,6 +65,7 @@ class DocumentationSection:
     evidence_refs: List[EvidenceRef] = field(default_factory=list)
     diagram_ids: List[str] = field(default_factory=list)
     verdict: str = "VERIFIED"  # "VERIFIED" | "AI_SUGGESTION" | "INSUFFICIENT_EVIDENCE"
+    mermaid: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -85,6 +86,7 @@ class DocumentationSection:
             ],
             "evidence_refs": [r.to_dict() for r in self.evidence_refs],
             "diagram_ids": self.diagram_ids,
+            "mermaid": self.mermaid,
         }
 
 
@@ -161,9 +163,11 @@ class DocumentationPage:
             m = re.search(r"```mermaid\s*\n(.*?)\n```", s.content, re.DOTALL)
             if m:
                 sd["mermaid"] = m.group(1).strip()
-            elif s.diagram_ids:
+            elif not sd.get("mermaid") and s.diagram_ids:
                 for did in s.diagram_ids:
                     diag = store.get(self.analysis_run_id, did)
+                    if not diag and "_" in did:
+                        diag = store.get(self.analysis_run_id, did.rsplit("_", 1)[-1])
                     if not diag and "_" in did:
                         diag = store.get(self.analysis_run_id, did.split("_", 1)[1])
                     if diag and diag.mermaid_source:

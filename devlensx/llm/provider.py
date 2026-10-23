@@ -455,10 +455,13 @@ class OllamaProvider(_ChatCompletionsProvider):
     def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None, **_: Any):
         # OLLAMA_BASE_URL is an alias for OLLAMA_URL (common in other tooling)
         _url = base_url or os.environ.get("OLLAMA_URL") or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+        _url = _url.rstrip("/").removesuffix("/chat/completions")
+        if not _url.endswith("/v1"):
+            _url = _url + "/v1"
         super().__init__(
             api_key="ollama",
-            model=model or os.environ.get("OLLAMA_MODEL", "llama3"),
-            base_url=_url.rstrip("/").removesuffix("/chat/completions"),
+            model=model or os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:1.5b"),
+            base_url=_url,
             timeout=60,
         )
 
@@ -653,6 +656,14 @@ def get_llm_provider(provider_name: str = "auto", api_key: Optional[str] = None)
             return OpenRouterProvider(api_key=api_key)
         if os.environ.get("OLLAMA_URL") or os.environ.get("OLLAMA_BASE_URL"):
             return OllamaProvider()
+        # Probe local Ollama if no cloud keys configured (zero-cost development default)
+        try:
+            _probe_req = urllib.request.Request("http://localhost:11434/api/tags")
+            with urllib.request.urlopen(_probe_req, timeout=0.8) as _probe_resp:
+                if _probe_resp.status == 200:
+                    return OllamaProvider()
+        except Exception:
+            pass
 
     # Legacy fallback: any ambient key wins (preserves pre-P1-D behavior)
     if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):

@@ -74,7 +74,13 @@ def is_prod_component(c: Dict[str, Any]) -> bool:
 
     Language-aware: TS/React top-level functions ARE components (no parent),
     but kind=function nodes WITH a parent_class link are methods.
+    Strictly excludes test fixtures across all conventions without substring false positives.
     """
+    from devlensx.understanding.profiling.repository_profiler import is_test_file_or_symbol
+    file_path = str(c.get("file", "") or "")
+    name = str(c.get("name", "") or "")
+    if is_test_file_or_symbol(file_path, name):
+        return False
     if c.get("is_test"):
         return False
     if c.get("stereotype") in _NON_COMPONENT_STEREOTYPES:
@@ -83,7 +89,6 @@ def is_prod_component(c: Dict[str, Any]) -> bool:
         return False
     if c.get("kind") == "function" and _has_parent(c.get("metadata") or {}):
         return False
-    name = c.get("name", "")
     if name.startswith("__") and name.endswith("__"):
         return False
     if name.endswith("Test") or name.endswith("Tests"):
@@ -322,11 +327,25 @@ class DeepReasoningEngine:
         return (behavioral + types)[:10]
 
     def _trace_request_flows(self) -> List[List[str]]:
-        """Trace realistic request paths through the architecture."""
+        """Trace realistic request paths through the architecture across any archetype."""
         flows = []
-        controllers = [c for c in self.classes if c.get("stereotype") == "Controller" and not c.get("is_test")]
+        prod_classes = [c for c in self.classes if is_prod_component(c)]
 
-        for ctrl in controllers[:3]:  # Top 3 controllers
+        # 1. Primary: Web/API controllers if present
+        controllers = [c for c in prod_classes if c.get("stereotype") in ("Controller", "Route", "Handler")]
+
+        # 2. Secondary: Entrypoint symbols discovered by profiler / heuristics
+        if not controllers:
+            entry_points = [
+                c for c in prod_classes
+                if "main" in str(c.get("methods", [])).lower()
+                or "application" in c.get("name", "").lower()
+                or c.get("name") in ("App", "Application", "Main", "Game", "RootLayout")
+                or any(m.get("name") == "main" for m in c.get("methods", []))
+            ]
+            controllers = entry_points[:3] if entry_points else prod_classes[:2]
+
+        for ctrl in controllers[:3]:  # Top 3 entrypoints/controllers
             path = [ctrl["name"]]
             # Follow dependencies
             current = ctrl["name"]
@@ -336,11 +355,11 @@ class DeepReasoningEngine:
                     src = simple_name(r.get("source", ""))
                     tgt = simple_name(r.get("target", ""))
                     if (src == current or current in str(r.get("source", ""))) and tgt and tgt not in path:
-                        downstreams.append(tgt)
+                        if any(c["name"] == tgt for c in prod_classes):
+                            downstreams.append(tgt)
                 if downstreams:
-                    # Prefer Service -> Repository
-                    services = [d for d in downstreams if any(c["name"]==d and c.get("stereotype")=="Service" for c in self.classes)]
-                    repos = [d for d in downstreams if any(c["name"]==d and c.get("stereotype")=="Repository" for c in self.classes)]
+                    services = [d for d in downstreams if any(c["name"]==d and c.get("stereotype")=="Service" for c in prod_classes)]
+                    repos = [d for d in downstreams if any(c["name"]==d and c.get("stereotype") in ("Repository", "DAO") for c in prod_classes)]
                     next_node = (services + repos + downstreams)[0]
                     path.append(next_node)
                     current = next_node
@@ -846,8 +865,17 @@ Explain step-by-step how data enters the system, which components handle validat
         lines = []
         for i, flow in enumerate(ctx.request_flows[:3], 1):
             lines.append(f"**Flow {i}:** {' → '.join(flow)}")
-            if len(flow) >= 3:
-                lines.append(f"Controller **{flow[0]}** receives request, delegates to **{flow[1]}** for business logic, which uses **{flow[2]}** for data access.")
+            if len(flow) >= 2:
+                c0 = next((c for c in self.classes if c.get("name") == flow[0]), {})
+                c1 = next((c for c in self.classes if c.get("name") == flow[1]), {})
+                st0 = c0.get("stereotype") or "Entrypoint"
+                st1 = c1.get("stereotype") or "Core Logic"
+                if len(flow) >= 3:
+                    c2 = next((c for c in self.classes if c.get("name") == flow[2]), {})
+                    st2 = c2.get("stereotype") or "Downstream / State"
+                    lines.append(f"Component **{flow[0]}** ({st0}) dispatches execution to **{flow[1]}** ({st1}), which coordinates with **{flow[2]}** ({st2}).")
+                else:
+                    lines.append(f"Component **{flow[0]}** ({st0}) directly delegates to **{flow[1]}** ({st1}).")
         return "\n\n".join(lines)
 
     def _generate_tech_rationale(self, ctx: ReasoningContext, use_llm: bool) -> str:

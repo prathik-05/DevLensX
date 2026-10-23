@@ -159,10 +159,37 @@ def render_sequence_diagram(
     classes: List[Dict[str, Any]],
     relationships: List[Dict[str, Any]],
 ) -> Optional[str]:
-    """Endpoint -> handler -> downstream from call-graph edges; polyglot-aware, skip if no fidelity."""
-    # Check fidelity: need at least one endpoint
+    """Endpoint -> handler -> downstream from call-graph edges; polyglot-aware, fallback to component execution sequence."""
     if not endpoints:
-        return None
+        from devlensx.understanding.profiling.repository_profiler import is_test_file_or_symbol
+        prod = [c for c in classes if not is_test_file_or_symbol(c.get("file", ""), c.get("name", ""))]
+        if len(prod) < 2:
+            return None
+        entry = prod[0]["name"]
+        downstreams = []
+        for r in relationships:
+            src = str(r.get("source", "")).split(".")[-1]
+            tgt = str(r.get("target", "")).split(".")[-1]
+            if src == entry and tgt and tgt != entry and any(c["name"] == tgt for c in prod):
+                if tgt not in downstreams:
+                    downstreams.append(tgt)
+        if not downstreams and len(prod) >= 2:
+            downstreams = [p["name"] for p in prod[1:3]]
+
+        lines = ["sequenceDiagram", "    autonumber"]
+        lines.append("    participant Client")
+        lines.append(f"    participant {entry}")
+        for d in downstreams[:2]:
+            lines.append(f"    participant {d}")
+        lines.append(f"    Client->>+{entry}: invoke()")
+        if downstreams:
+            lines.append(f"    {entry}->>+{downstreams[0]}: execute()")
+            if len(downstreams) > 1:
+                lines.append(f"    {downstreams[0]}->>+{downstreams[1]}: evaluate()")
+                lines.append(f"    {downstreams[1]}-->>-{downstreams[0]}: result")
+            lines.append(f"    {downstreams[0]}-->>-{entry}: result")
+        lines.append(f"    {entry}-->>-Client: response")
+        return "\n".join(lines)
     class_names = {c["name"] for c in classes}
     # Primary: Spring-style stereotypes (Java)
     controllers = {c["name"] for c in classes if c.get("stereotype") == "Controller" and c["name"] in class_names}
@@ -666,29 +693,37 @@ def _build_overview_page(model: Dict[str, Any], repo_id: str, graph_store: Optio
     lang_raw = repo_summary.get("language", model.get("primary_language", "Unknown"))
     lang_label = _mixed_language_label(lang_raw)
     framework = repo_summary.get("framework", "")
-    total_classes = repo_summary.get("total_classes", len(classes))
+    from devlensx.understanding.profiling.repository_profiler import RepositoryProfiler, is_test_file_or_symbol
+    profile = RepositoryProfiler.profile_repository(root_path, classes=classes, repo_model=model)
+    archetype = profile.get("archetype", "MODULAR_APPLICATION")
+    archetype_rat = profile.get("archetype_rationale", "")
+    ranked_prod = profile.get("ranked_production_symbols", [])
+    prod_classes = [c for c in classes if not is_test_file_or_symbol(c.get("file", ""), c.get("name", ""))]
 
-    controllers = [c for c in classes if c.get("stereotype") == "Controller" or "controller" in c.get("name", "").lower()]
-    services = [c for c in classes if c.get("stereotype") == "Service" or "service" in c.get("name", "").lower()]
-    repositories = [c for c in classes if c.get("stereotype") == "Repository" or "repository" in c.get("name", "").lower()]
+    lang_raw = profile.get("primary_language") or repo_summary.get("language") or model.get("primary_language", "Unknown")
+    lang_label = _mixed_language_label(lang_raw)
+    framework = repo_summary.get("framework", "")
+    total_classes = len(prod_classes)
+
+    controllers = [c for c in prod_classes if c.get("stereotype") in ("Controller", "Route", "Handler") or "controller" in c.get("name", "").lower()]
+    services = [c for c in prod_classes if c.get("stereotype") in ("Service", "Manager") or "service" in c.get("name", "").lower()]
+    repositories = [c for c in prod_classes if c.get("stereotype") in ("Repository", "DAO") or "repository" in c.get("name", "").lower()]
     entities = [
-        c for c in classes
-        if c.get("stereotype") == "Entity"
+        c for c in prod_classes
+        if c.get("stereotype") in ("Entity", "Model", "Schema")
         or "entity" in (c.get("package") or "").lower()
         or "model" in (c.get("package") or "").lower()
         or any("Entity" in str(a) for a in c.get("annotations", []))
     ]
-    entry_points = [
-        c for c in classes
-        if "main" in str(c.get("methods", [])).lower()
-        or "application" in c.get("name", "").lower()
-        or c.get("name") in ("App", "Application", "Main")
-    ]
-    if not entry_points and controllers:
-        entry_points = controllers[:1]
-
-    prod_classes = [c for c in classes if not c.get("is_test") and not c.get("name", "").endswith("Test") and not c.get("name", "").endswith("Tests")]
-    primary_cls = entry_points[0] if entry_points else (controllers[0] if controllers else (prod_classes[0] if prod_classes else (classes[0] if classes else None)))
+    entry_points = profile.get("entrypoints", [])
+    primary_cls = None
+    if entry_points:
+        ep_name = entry_points[0].get("symbol_name") or entry_points[0].get("name")
+        primary_cls = next((c for c in prod_classes if c.get("name") == ep_name), None)
+    if not primary_cls and ranked_prod:
+        primary_cls = next((c for c in prod_classes if c.get("name") == ranked_prod[0].get("name")), None)
+    if not primary_cls:
+        primary_cls = prod_classes[0] if prod_classes else (classes[0] if classes else None)
 
     proj_title = readme_info.get("title") or repo_id
     proj_desc = readme_info.get("description")
@@ -697,23 +732,50 @@ def _build_overview_page(model: Dict[str, Any], repo_id: str, graph_store: Optio
     entity_names = [e["name"] for e in entities[:6]]
     entity_str = ", ".join(f"`{en}`" for en in entity_names) if entity_names else "core business entities"
 
-    if proj_desc:
-        summary_text = f"**{proj_title}** — {proj_desc[:250]}"
-        if not summary_text.endswith("."):
-            summary_text += "..."
+    # Adapt summary text to actual repository archetype
+    if archetype == "ALGORITHMIC_SYSTEM":
+        core_algo_names = ", ".join(f"`{s['name']}`" for s in ranked_prod[:3] if s.get("role") == "CORE_ALGORITHM") or "core decision algorithms"
+        entry_name = (entry_points[0].get("symbol_name") if entry_points else "main")
+        summary_text = f"**{repo_id}** is an algorithmic decision system in {lang_label}. It implements {core_algo_names} across {len(prod_classes)} production components."
+        if proj_desc:
+            p1_content = f"### {proj_title}\n\n{proj_desc}\n\n**Core Domain Scope:** An algorithmic decision system implementing {core_algo_names} with state representation and deterministic evaluations."
+        else:
+            p1_content = f"**{repo_id}** is an algorithmic decision system in {lang_label}. It implements {core_algo_names} coordinated through `{entry_name}`."
+    elif archetype == "CLI_ENGINE":
+        core_names = ", ".join(f"`{s['name']}`" for s in ranked_prod[:3]) or "CLI game components"
+        entry_name = (entry_points[0].get("symbol_name") if entry_points else "__main__")
+        summary_text = f"**{repo_id}** is a command-line application in {lang_label} organizing {len(prod_classes)} components around {core_names}."
+        if proj_desc:
+            p1_content = f"### {proj_title}\n\n{proj_desc}\n\n**Core Domain Scope:** A command-line system managing user interaction, command dispatch, and application state ({core_names})."
+        else:
+            p1_content = f"**{repo_id}** is a command-line application in {lang_label}. It coordinates user interaction, command dispatch, and domain state through {core_names}."
+    elif archetype == "FRONTEND_UI":
+        comp_names = ", ".join(f"`{s['name']}`" for s in ranked_prod[:4] if s.get("role") == "UI_COMPONENT") or "UI components"
+        summary_text = f"**{repo_id}** is an interactive frontend web application in {lang_label} organizing {len(prod_classes)} components around {comp_names}."
+        if proj_desc:
+            p1_content = f"### {proj_title}\n\n{proj_desc}\n\n**Core Domain Scope:** Interactive frontend application built with {lang_label}{(' on ' + framework) if framework else ''}, composing UI views and client state ({comp_names})."
+        else:
+            p1_content = f"**{repo_id}** is an interactive frontend application in {lang_label}{(' using ' + framework) if framework else ''}. It organizes UI views, component trees ({comp_names}), and client state."
+    elif archetype == "FRAMEWORK_LIBRARY":
+        lib_names = ", ".join(f"`{s['name']}`" for s in ranked_prod[:4]) or "exported modules"
+        summary_text = f"**{repo_id}** is a {lang_label} library providing modular interfaces across {len(prod_classes)} components."
+        if proj_desc:
+            p1_content = f"### {proj_title}\n\n{proj_desc}\n\n**Core Domain Scope:** Reusable software library in {lang_label} exposing public APIs and utilities ({lib_names})."
+        else:
+            p1_content = f"**{repo_id}** is a reusable {lang_label} library. It exposes public API interfaces and utilities ({lib_names}) for downstream consumers."
     else:
         fw_str = f" {framework}" if framework else ""
-        summary_text = f"**{repo_id}** is a {lang_label}{fw_str} application organizing {len(prod_classes)} components around {entity_str}."
+        if endpoints:
+            summary_text = f"**{repo_id}** is a {lang_label}{fw_str} backend service organizing {len(prod_classes)} components around {entity_str}."
+            p1_content = f"**{repo_id}** provides an end-to-end {lang_label}{fw_str} backend service. It manages {entity_str} with {len(controllers)} controllers, {len(services)} services, and {len(repositories)} repositories."
+        else:
+            summary_text = f"**{repo_id}** is a {lang_label}{fw_str} application structured across {len(prod_classes)} verified components."
+            p1_content = f"**{repo_id}** is structured across {len(prod_classes)} verified components in {lang_label}."
 
     sections: List[Dict[str, Any]] = []
     citations: List[Dict[str, Any]] = []
 
     # 1. What This Project Does
-    if proj_desc:
-        p1_content = f"### {proj_title}\n\n{proj_desc}\n\n**Core Domain Scope:** The application manages domain operations for {entity_str} across {len(endpoints)} HTTP REST endpoints with structured transactional persistence."
-    else:
-        p1_content = f"**{repo_id}** provides an end-to-end {lang_label}{(' ' + framework) if framework else ''} backend service. It manages {entity_str} with {len(controllers)} controllers, {len(services)} services, and {len(repositories)} repositories."
-
     sections.append({
         "heading": _heading_sanitize("What This Project Does", 200),
         "content": _wiki_sanitize(p1_content, 3000),
@@ -727,17 +789,38 @@ def _build_overview_page(model: Dict[str, Any], repo_id: str, graph_store: Optio
     if features:
         feat_lines = [f"- **{f}**" if any(sep in f for sep in (":", "—", "-")) else f"- {f}" for f in features]
         feat_content = "Core architectural and business capabilities:\n\n" + "\n".join(feat_lines)
+    elif archetype in ("ALGORITHMIC_SYSTEM", "CLI_ENGINE"):
+        core_algo_names = ", ".join(f"`{s['name']}`" for s in ranked_prod[:3] if s.get("role") == "CORE_ALGORITHM") or "Core decision algorithms"
+        feat_content = (
+            f"- **Core Algorithm Engine:** Decision and evaluation algorithms implemented in {core_algo_names}\n"
+            f"- **State & Rules Engine:** Domain state tracking, move validation, and game loop orchestration\n"
+            f"- **Deterministic Execution:** Predictable, self-contained domain logic without external server dependencies\n"
+            f"- **Test & Verification Suite:** {len(profile.get('test_symbols', []))} test fixtures validating correctness and invariants"
+        )
+    elif archetype == "FRONTEND_UI":
+        comp_names = ", ".join(f"`{s['name']}`" for s in ranked_prod[:4] if s.get("role") == "UI_COMPONENT") or "UI components"
+        feat_content = (
+            f"- **Component Tree Architecture:** Declarative UI layout composed of {comp_names}\n"
+            f"- **Client State & Reactivity:** Reactive user event handling and client-side presentation state\n"
+            f"- **Modern Build Pipeline:** Bundled and optimized via {framework or 'modern web bundler'}"
+        )
+    elif archetype == "FRAMEWORK_LIBRARY":
+        lib_names = ", ".join(f"`{s['name']}`" for s in ranked_prod[:4]) or "Public modules"
+        feat_content = (
+            f"- **Public API Contract:** Modular interface exports ({lib_names}) for consumer integration\n"
+            f"- **Domain Utilities:** Reusable utility helpers and algorithms\n"
+            f"- **Zero-Server Footprint:** Lightweight embeddable library structure"
+        )
     else:
         ep_samples = [f"`{e.get('method', 'GET')} {e.get('route') or e.get('path') or '/'}`" for e in endpoints[:5]]
         ep_txt = f" ({', '.join(ep_samples)})" if ep_samples else ""
         svc_names_str = ", ".join(f"`{s['name']}`" for s in services[:4]) or "modular services"
         repo_names_str = ", ".join(f"`{r['name']}`" for r in repositories[:4]) or "data repositories"
         feat_content = (
-            f"- **REST API Lifecycle:** Exposes {len(endpoints)} HTTP endpoints{ep_txt}\n"
+            f"- **API Surface:** Exposes {len(endpoints)} HTTP endpoints{ep_txt}\n"
             f"- **Business Domain Logic:** Orchestrated via {svc_names_str}\n"
             f"- **Persistence Abstraction:** Transactional operations through {repo_names_str}\n"
-            f"- **Domain Entity Model:** Strongly-typed entity schema managing {entity_str}\n"
-            f"- **Validation & Error Handling:** Centralized request validation and structured HTTP error responses"
+            f"- **Domain Entity Model:** Strongly-typed entity schema managing {entity_str}"
         )
     sections.append({
         "heading": _heading_sanitize("Key Features & Capabilities", 200),
@@ -747,20 +830,34 @@ def _build_overview_page(model: Dict[str, Any], repo_id: str, graph_store: Optio
 
     # 3. Architecture & System Design
     arch_lines = [
-        "The application enforces strict separation of concerns across layered architectural tiers:\n"
+        f"The application enforces architectural boundaries structured around an **{archetype}** pattern:\n"
     ]
-    if controllers:
-        ctrl_str = ", ".join(f"`{c['name']}`" for c in controllers[:4])
-        arch_lines.append(f"- **Presentation Layer (Controllers):** {ctrl_str} — parses incoming HTTP requests, validates request bodies (`@Valid`), enforces HTTP status codes, and returns structured DTOs.")
-    if services:
-        svc_str = ", ".join(f"`{s['name']}`" for s in services[:4])
-        arch_lines.append(f"- **Business Logic Layer (Services):** {svc_str} — coordinates business rules, transactional boundaries (`@Transactional`), duplicate checks, and entity-DTO mappings.")
-    if repositories:
-        repo_str = ", ".join(f"`{r['name']}`" for r in repositories[:4])
-        arch_lines.append(f"- **Persistence Layer (Repositories):** {repo_str} — provides typed database queries and Spring Data / ORM derived queries against the underlying database.")
-    if entities:
-        ent_str = ", ".join(f"`{e['name']}`" for e in entities[:4])
-        arch_lines.append(f"- **Domain Entity Layer:** {ent_str} — encapsulates core persistent schema models, database tables, and relationship integrity.")
+    if archetype == "ALGORITHMIC_SYSTEM":
+        arch_lines.append(f"- **Execution Ingress:** `{entry_points[0]['symbol_name'] if entry_points else 'Main'}` — handles user/system inputs and starts the execution loop.")
+        arch_lines.append(f"- **Decision Engine:** {core_algo_names} — computes optimal transitions and evaluates state space.")
+        arch_lines.append(f"- **Domain Representation:** In-memory state and validation rules ensuring deterministic transitions.")
+    elif archetype == "CLI_ENGINE":
+        arch_lines.append(f"- **Command Ingress:** `{entry_points[0]['symbol_name'] if entry_points else '__main__'}` — command-line parsing and action dispatch.")
+        arch_lines.append(f"- **Game / Engine Logic:** {core_names} — simulation steps, AI opponent logic, and game rules.")
+    elif archetype == "FRONTEND_UI":
+        arch_lines.append(f"- **View & Layout Layer:** Page entrypoints and navigational containers.")
+        arch_lines.append(f"- **Component Tree:** Declarative presentation elements ({comp_names}).")
+    elif archetype == "FRAMEWORK_LIBRARY":
+        arch_lines.append(f"- **Exported Interfaces:** Public API contracts for consumer integration.")
+        arch_lines.append(f"- **Core Implementations:** Internal engine logic and shared utilities.")
+    else:
+        if controllers:
+            ctrl_str = ", ".join(f"`{c['name']}`" for c in controllers[:4])
+            arch_lines.append(f"- **Presentation Layer (Controllers):** {ctrl_str} — parses incoming HTTP requests, validates request bodies (`@Valid`), enforces HTTP status codes, and returns structured DTOs.")
+        if services:
+            svc_str = ", ".join(f"`{s['name']}`" for s in services[:4])
+            arch_lines.append(f"- **Business Logic Layer (Services):** {svc_str} — coordinates business rules, transactional boundaries (`@Transactional`), duplicate checks, and entity-DTO mappings.")
+        if repositories:
+            repo_str = ", ".join(f"`{r['name']}`" for r in repositories[:4])
+            arch_lines.append(f"- **Persistence Layer (Repositories):** {repo_str} — provides typed database queries and Spring Data / ORM derived queries against the underlying database.")
+        if entities:
+            ent_str = ", ".join(f"`{e['name']}`" for e in entities[:4])
+            arch_lines.append(f"- **Domain Entity Layer:** {ent_str} — encapsulates core persistent schema models, database tables, and relationship integrity.")
 
     sections.append({
         "heading": _heading_sanitize("Architecture & System Design", 200),
@@ -819,7 +916,8 @@ def _build_overview_page(model: Dict[str, Any], repo_id: str, graph_store: Optio
     entry_items = []
     if entry_points:
         for ep_c in entry_points[:2]:
-            entry_items.append(f"- **Application Entry:** `{ep_c['name']}` at `{ep_c.get('file', '')}`")
+            ep_name = ep_c.get("name") or ep_c.get("symbol_name") or ep_c.get("symbol") or "Main"
+            entry_items.append(f"- **Application Entry:** `{ep_name}` at `{ep_c.get('file', '')}`")
             citations.append(_make_ast_citation(ep_c, model))
     if controllers:
         c = controllers[0]
@@ -851,7 +949,7 @@ def _build_overview_page(model: Dict[str, Any], repo_id: str, graph_store: Optio
         summary=_wiki_sanitize(summary_text, 2000),
         mermaid=None,
         sections=sections,
-        badges=[{"section": s["heading"], "verdict": "Verified"} for s in sections],
+        badges=[{"section": s["heading"], "verdict": s.get("verdict", "Unverified")} for s in sections],
         citations=citations[:10],
     )
 
@@ -914,7 +1012,7 @@ def _build_getting_started_page(model: Dict[str, Any], repo_id: str) -> WikiPage
         summary=_wiki_sanitize(f"Quickstart, installation, build, and execution directives for {repo_id}.", 2000),
         mermaid=None,
         sections=sections,
-        badges=[{"section": s["heading"], "verdict": "Verified"} for s in sections],
+        badges=[{"section": s["heading"], "verdict": s.get("verdict", "Unverified")} for s in sections],
         citations=citations,
     )
 
@@ -975,7 +1073,7 @@ def _build_components_page(model: Dict[str, Any], graph_store: Optional[Any]) ->
             content_lines.append(f"- **Key Methods:** {', '.join(m_strs)}")
         l_start = c.get('line_start') or c.get('start_line') or 1
         l_end = c.get('line_end') or c.get('end_line') or 1
-        content_lines.append(f"- **Source:** `[{file_path}#L{l_start}-L{l_end}]()`")
+        content_lines.append(f"- **Source:** `{file_path}#L{l_start}-L{l_end}`")
         
         sections.append({
             "heading": _heading_sanitize(f"{name} ({st})", 200),
@@ -1000,7 +1098,7 @@ def _build_components_page(model: Dict[str, Any], graph_store: Optional[Any]) ->
         summary=_wiki_sanitize("Catalog of key architectural components with responsibilities, callers, dependencies, and methods.", 2000),
         mermaid=None,
         sections=sections,
-        badges=[{"section": s["heading"], "verdict": "Verified"} for s in sections],
+        badges=[{"section": s["heading"], "verdict": s.get("verdict", "Unverified")} for s in sections],
         citations=citations,
     )
 
@@ -1058,7 +1156,7 @@ def _build_data_model_page(model: Dict[str, Any]) -> WikiPage:
         summary=_wiki_sanitize(f"Domain entities, schema, and persistence repositories ({len(entities)} entities, {len(repos)} repositories).", 2000),
         mermaid=er_mermaid,
         sections=sections,
-        badges=[{"section": s["heading"], "verdict": "Verified"} for s in sections],
+        badges=[{"section": s["heading"], "verdict": s.get("verdict", "Unverified")} for s in sections],
         citations=citations,
     )
 
@@ -1093,7 +1191,7 @@ def _build_configuration_page(model: Dict[str, Any], repo_id: str) -> WikiPage:
         summary=_wiki_sanitize(f"Configuration manifests, environment variables, and programmatic beans for {repo_id}.", 2000),
         mermaid=None,
         sections=sections,
-        badges=[{"section": s["heading"], "verdict": "Verified"} for s in sections],
+        badges=[{"section": s["heading"], "verdict": s.get("verdict", "Unverified")} for s in sections],
         citations=citations,
     )
 
@@ -1125,7 +1223,7 @@ def _build_references_page(model: Dict[str, Any]) -> WikiPage:
         summary=_wiki_sanitize(f"Source code citations and verified line-level provenance across {len(prod_classes)} production components.", 2000),
         mermaid=None,
         sections=sections,
-        badges=[{"section": s["heading"], "verdict": "Verified"} for s in sections],
+        badges=[{"section": s["heading"], "verdict": s.get("verdict", "Unverified")} for s in sections],
         citations=citations[:15],
     )
 
@@ -1144,7 +1242,11 @@ def generate_wiki_pages(
     relationships = model.get("relationships", [])
     endpoints = model.get("endpoints", [])
     repo_summary = model.get("repo_summary", {})
-    lang_raw = repo_summary.get("language", model.get("primary_language", "Unknown"))
+    root_path = model.get("root_path") or model.get("repo_path") or model.get("repo") or "."
+    from devlensx.understanding.profiling.repository_profiler import RepositoryProfiler
+    profile = RepositoryProfiler.profile_repository(root_path, classes=classes, repo_model=model)
+    archetype = profile.get("archetype", "MODULAR_APPLICATION")
+    lang_raw = profile.get("primary_language") or repo_summary.get("language") or model.get("primary_language", "Unknown")
     lang_label = _mixed_language_label(lang_raw)
     framework = repo_summary.get("framework", "")
     # deterministic hash for cache invalidation check
@@ -1269,8 +1371,8 @@ def generate_wiki_pages(
         })
     if not api_sections:
         api_sections.append({
-            "heading": "No Controllers",
-            "content": "No API controllers detected in this repository.",
+            "heading": "API Surface & Module Interfaces",
+            "content": f"No HTTP REST controllers or endpoints detected in this repository. Categorized as an {archetype}; communication executes via direct in-process interface calls.",
             "verdict": "Unverified",
         })
     pages.append(WikiPage(
@@ -1280,8 +1382,8 @@ def generate_wiki_pages(
         summary=f"API Reference grouped by controller ({len(controllers)} controllers, {len(endpoints)} endpoints).",
         mermaid=None,
         sections=api_sections,
-        badges=[{"section": s["heading"], "verdict": s.get("verdict","Verified")} for s in api_sections],
-        citations=[_make_ast_citation(c, model) for c in controllers[:6]] if controllers else [_make_ast_citation(c, model) for c in prod_classes[:3]]
+        badges=[{"section": s["heading"], "verdict": s.get("verdict","Unverified")} for s in api_sections],
+        citations=[_make_ast_citation(c, model) for c in controllers[:6]] if controllers else []
     ))
 
     # 5. Change Impact notes (passthrough) — sanitize heading/content via html.escape, use findingId = evidence_ref or symbol_id, drop Unverified hallucinations

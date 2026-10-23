@@ -58,32 +58,52 @@ class DocumentationPageGenerator:
         lang = repo_summary.get("language", "Polyglot")
         fw = repo_summary.get("framework", "")
 
-        controllers = [c for c in self.classes if c.get("stereotype") in ("Controller", "Route", "Handler") or "controller" in c.get("name", "").lower()]
-        services = [c for c in self.classes if c.get("stereotype") in ("Service", "Manager") or "service" in c.get("name", "").lower()]
-        repos = [c for c in self.classes if c.get("stereotype") in ("Repository", "DAO") or "repository" in c.get("name", "").lower() or "dao" in c.get("name", "").lower()]
-        entities = [c for c in self.classes if c.get("stereotype") in ("Entity", "Model", "Schema") or "entity" in c.get("name", "").lower() or "model" in c.get("name", "").lower()]
+        repo_dir = self.snapshot.repo_path or "."
+        from devlensx.understanding.profiling.repository_profiler import RepositoryProfiler, is_test_file_or_symbol
+        from devlensx.diagrams.generator import DiagramGenerator
+
+        profile = RepositoryProfiler.profile_repository(repo_dir, self.classes, self.relationships)
+        archetype = profile.get("archetype", "MODULAR_APPLICATION")
+        ranked_prod = profile.get("ranked_production_symbols", [])
+        prod_classes = [c for c in self.classes if not is_test_file_or_symbol(c.get("file", ""), c.get("name", ""))]
+
+        controllers = [c for c in prod_classes if c.get("stereotype") in ("Controller", "Route", "Handler") or "controller" in c.get("name", "").lower()]
+        services = [c for c in prod_classes if c.get("stereotype") in ("Service", "Manager") or "service" in c.get("name", "").lower()]
+        repos = [c for c in prod_classes if c.get("stereotype") in ("Repository", "DAO") or "repository" in c.get("name", "").lower() or "dao" in c.get("name", "").lower()]
+        entities = [c for c in prod_classes if c.get("stereotype") in ("Entity", "Model", "Schema") or "entity" in c.get("name", "").lower() or "model" in c.get("name", "").lower()]
+
+        section_mermaid = None
+        diag_gen = None
+        if self.snapshot:
+            try:
+                diag_gen = DiagramGenerator(self.snapshot, self.model)
+            except Exception:
+                diag_gen = None
 
         # 1. Natural Repository Description Section
         if page_id == "overview":
-            # Infer domain identity from entities and controllers
-            entity_names = [e["name"] for e in entities[:5]]
-            ctrl_names = [c["name"] for c in controllers[:4]]
-
-            domain_desc = ""
-            if any("pet" in n.lower() or "vet" in n.lower() or "owner" in n.lower() for n in entity_names + ctrl_names):
-                domain_desc = "a veterinary clinic management platform designed to track pet patients, medical visit histories, owners, and attending veterinarians."
-            elif any("order" in n.lower() or "product" in n.lower() or "cart" in n.lower() for n in entity_names + ctrl_names):
-                domain_desc = "an e-commerce service handling catalog browsing, customer carts, orders, and checkout processing."
-            elif any("auth" in n.lower() or "user" in n.lower() or "token" in n.lower() for n in entity_names + ctrl_names):
-                domain_desc = "an authentication and identity management service providing secure credential handling, sessions, and role-based access control."
+            if archetype == "ALGORITHMIC_SYSTEM":
+                core_algo_names = ", ".join(f"`{s['name']}`" for s in ranked_prod[:3] if s.get("role") == "CORE_ALGORITHM") or "core evaluation algorithms"
+                entry_names = ", ".join(e.get("symbol_name") or e.get("symbol") or Path(e.get("file", "")).stem for e in profile.get("entrypoints", [])) or "main entrypoint"
+                domain_desc = f"an algorithmic decision system in {lang}. It implements {core_algo_names} with state representation and deterministic evaluations coordinated through `{entry_names}`."
+            elif archetype == "CLI_ENGINE":
+                core_names = ", ".join(f"`{s['name']}`" for s in ranked_prod[:3]) or "CLI game components"
+                entry_names = ", ".join(e.get("symbol_name") or e.get("symbol") or Path(e.get("file", "")).stem for e in profile.get("entrypoints", [])) or "__main__"
+                domain_desc = f"a command-line system in {lang}. It manages interactive command dispatch, application state, and execution through `{entry_names}` and {core_names}."
+            elif archetype == "FRONTEND_UI":
+                comp_names = ", ".join(f"`{s['name']}`" for s in ranked_prod[:4] if s.get("role") == "UI_COMPONENT") or "UI components"
+                domain_desc = f"an interactive frontend web application built with {lang}{(' on ' + fw) if fw else ''}. It organizes view layouts, reactive state, and component trees ({comp_names})."
+            elif archetype == "FRAMEWORK_LIBRARY":
+                lib_names = ", ".join(f"`{s['name']}`" for s in ranked_prod[:4]) or "exported public API modules"
+                domain_desc = f"a reusable {lang} software library providing modular interfaces and utilities ({lib_names}) for downstream consumers."
             else:
-                domain_desc = f"a {lang}{(' ' + fw) if fw else ''} software application structured across {len(self.classes)} verified components."
+                domain_desc = f"a {lang}{(' ' + fw) if fw else ''} software application structured across {len(prod_classes)} verified production components."
 
             overview_content = (
                 f"**{repo_name}** is {domain_desc}\n\n"
-                f"The system is built on **{lang}**{(' using the **' + fw + '** framework') if fw else ''}. "
-                f"It coordinates {len(controllers)} controllers/API endpoints, {len(services)} business services, "
-                f"{len(repos)} data repositories, and {len(entities)} core domain models."
+                f"**System Archetype:** `{archetype}`\n\n"
+                f"{profile.get('archetype_rationale', '')}\n\n"
+                f"The codebase coordinates {len(prod_classes)} production component(s) across detected manifests ({', '.join(profile.get('manifests', [])) or 'repository root'})."
             )
             heading1 = "What This Repository Does"
         elif page_id == "getting_started":
@@ -109,37 +129,71 @@ class DocumentationPageGenerator:
             heading1 = "Quickstart & Run Instructions"
         elif page_id in ("core_architecture", "architecture"):
             heading1 = "System Architecture & Tier Decomposition"
-            layer_desc = []
-            if controllers:
-                layer_desc.append(f"- **Presentation Layer:** {len(controllers)} controllers/handlers ({', '.join(c['name'] for c in controllers[:4])})")
-            if services:
-                layer_desc.append(f"- **Business Logic Layer:** {len(services)} services/engines ({', '.join(s['name'] for s in services[:4])})")
-            if repos:
-                layer_desc.append(f"- **Persistence Layer:** {len(repos)} repositories/data access components ({', '.join(r['name'] for r in repos[:4])})")
-            if entities:
-                layer_desc.append(f"- **Domain Models:** {len(entities)} entities/schemas ({', '.join(e['name'] for e in entities[:4])})")
+            if archetype == "ALGORITHMIC_SYSTEM":
+                layer_desc = [
+                    f"- **Ingress & Execution:** {', '.join(e['symbol_name'] for e in profile.get('entrypoints', [])) or 'Main CLI / Script'}",
+                    f"- **Decision Engine:** {', '.join(s['name'] for s in ranked_prod if s.get('role') == 'CORE_ALGORITHM') or 'Core algorithms'}",
+                    f"- **Domain State & Models:** {', '.join(s['name'] for s in ranked_prod if s.get('role') in ('DOMAIN_MODEL', 'STORAGE_PERSISTENCE')) or 'In-memory state'}",
+                ]
+            elif archetype == "FRONTEND_UI":
+                layer_desc = [
+                    f"- **View Routes:** {', '.join(e['symbol_name'] for e in profile.get('entrypoints', [])) or 'Page / Layout'}",
+                    f"- **UI Components:** {', '.join(s['name'] for s in ranked_prod if s.get('role') == 'UI_COMPONENT') or 'Declarative components'}",
+                    f"- **Domain State:** {', '.join(s['name'] for s in ranked_prod if s.get('role') in ('DOMAIN_MODEL', 'DOMAIN_SERVICE')) or 'State Context'}",
+                ]
+            elif archetype == "CLI_ENGINE":
+                layer_desc = [
+                    f"- **CLI Entrypoint:** {', '.join(e['symbol_name'] for e in profile.get('entrypoints', [])) or '__main__'}",
+                    f"- **Game / Engine Logic:** {', '.join(s['name'] for s in ranked_prod if s.get('role') == 'CORE_ALGORITHM') or 'Game Coordinator'}",
+                    f"- **Simulation State:** {', '.join(s['name'] for s in ranked_prod if s.get('role') in ('DOMAIN_MODEL', 'STORAGE_PERSISTENCE')) or 'In-memory state'}",
+                ]
+            else:
+                layer_desc = []
+                if controllers:
+                    layer_desc.append(f"- **Presentation Layer:** {len(controllers)} controllers/handlers ({', '.join(c['name'] for c in controllers[:4])})")
+                if services:
+                    layer_desc.append(f"- **Business Logic Layer:** {len(services)} services/engines ({', '.join(s['name'] for s in services[:4])})")
+                if repos:
+                    layer_desc.append(f"- **Persistence Layer:** {len(repos)} repositories/data access components ({', '.join(r['name'] for r in repos[:4])})")
+                if entities:
+                    layer_desc.append(f"- **Domain Models:** {len(entities)} entities/schemas ({', '.join(e['name'] for e in entities[:4])})")
+
             overview_content = (
-                f"**{repo_name}** employs a layered architectural style based on verified static AST structures.\n\n"
+                f"**{repo_name}** is organized around an **{archetype}** pattern verified from static AST structures.\n\n"
                 f"**Architectural Tiers:**\n" + ("\n".join(layer_desc) if layer_desc else "- Modular component structure.") + "\n\n"
-                f"Dependencies flow downward from presentation and service coordinators to data access components, preserving separation of concerns."
+                f"Dependencies preserve clear separation of concerns across verified component boundaries."
             )
+            if diag_gen:
+                try:
+                    section_mermaid = diag_gen.generate_architecture_diagram().mermaid_code
+                except Exception:
+                    section_mermaid = None
             if not scope.diagram_ids:
                 scope.diagram_ids.append(f"{self.snapshot.analysis_run_id}_architecture")
         elif page_id in ("runtime_flow", "workflows"):
             heading1 = "Execution Workflows & Call Flow"
+            df = profile.get("data_flow", [])
             flow_steps = []
-            if controllers and services:
+            if df:
+                for step in df:
+                    flow_steps.append(f"- {step}")
+            elif controllers and services:
                 flow_steps.append(f"1. **Request Ingestion:** HTTP requests reach `{controllers[0]['name']}`.")
                 flow_steps.append(f"2. **Business Dispatch:** Controller delegates to `{services[0]['name']}` for domain rule processing.")
                 if repos:
                     flow_steps.append(f"3. **Persistence Query:** Service queries `{repos[0]['name']}` for entity state retrieval or mutation.")
                 flow_steps.append("4. **Response Serialization:** Results are serialized back to caller.")
             else:
-                flow_steps.append(f"1. Input dispatched to primary components ({', '.join(s['name'] for s in scope.symbols[:3]) if scope.symbols else 'entrypoint'}).")
+                flow_steps.append(f"1. Input dispatched to primary components ({', '.join(s['name'] for s in ranked_prod[:3]) if ranked_prod else 'entrypoint'}).")
                 flow_steps.append("2. Coordinated execution through static dependency calls.")
             overview_content = (
                 f"Verified runtime execution pathways in **{repo_name}**:\n\n" + "\n".join(flow_steps)
             )
+            if diag_gen:
+                try:
+                    section_mermaid = diag_gen.generate_data_flow_diagram().mermaid_code
+                except Exception:
+                    section_mermaid = None
             if not scope.diagram_ids:
                 scope.diagram_ids.append(f"{self.snapshot.analysis_run_id}_sequence")
         elif page_id in ("api_routes", "api"):
@@ -158,7 +212,11 @@ class DocumentationPageGenerator:
                     "\n".join(ep_lines)
                 )
             else:
-                overview_content = "No HTTP routes or REST API endpoints were declared or detected in this repository."
+                overview_content = (
+                    f"No HTTP routes or REST API endpoints were detected in **{repo_name}**.\n\n"
+                    f"This codebase is categorized as an `{archetype}`. Internal module interaction occurs via "
+                    f"direct functional invocation and class interfaces rather than network HTTP endpoints."
+                )
         elif page_id in ("data_layer", "persistence"):
             heading1 = "Data Models & Persistence Layer"
             if repos or entities:
@@ -171,12 +229,19 @@ class DocumentationPageGenerator:
                     parts.append("**Repositories & Data Access Objects:**\n" + "\n".join(repo_lines))
                 overview_content = f"Data architecture and state storage for **{repo_name}**:\n\n" + "\n\n".join(parts)
             else:
-                overview_content = "No database entities or dedicated persistence repositories were detected in this codebase."
+                data_mods = [s for s in ranked_prod if s.get("role") in ("DOMAIN_MODEL", "STORAGE_PERSISTENCE")]
+                if data_mods:
+                    overview_content = (
+                        f"State management for **{repo_name}** is handled via in-memory data models:\n\n" +
+                        "\n".join(f"- `{m['name']}` &mdash; `{m.get('file', '')}` (Lines {m.get('line_start')}-{m.get('line_end')})" for m in data_mods[:6])
+                    )
+                else:
+                    overview_content = "No database entities or dedicated persistence repositories were detected in this codebase. State is maintained transiently in execution structures."
             if not scope.diagram_ids:
                 scope.diagram_ids.append(f"{self.snapshot.analysis_run_id}_data_flow")
         elif page_id == "security":
             heading1 = "Security Architecture & Policy Boundaries"
-            sec_classes = [c for c in self.classes if any(kw in c["name"].lower() for kw in ("security", "auth", "token", "jwt", "crypto"))]
+            sec_classes = [c for c in prod_classes if any(kw in c["name"].lower() for kw in ("security", "auth", "token", "jwt", "crypto"))]
             lines = []
             if sec_classes:
                 lines.append("**Authentication & Security Handlers:**\n" + "\n".join(f"- `{c['name']}` &mdash; `{c.get('file', '')}`" for c in sec_classes[:5]))
@@ -212,6 +277,7 @@ class DocumentationPageGenerator:
             claims=sec1_claims,
             evidence_refs=scope.evidence_refs[:2],
             diagram_ids=scope.diagram_ids[:1],
+            mermaid=section_mermaid,
         ))
 
         # 2. Key Components

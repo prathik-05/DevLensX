@@ -96,13 +96,17 @@ class PageVerifier:
                 sub_name = sub_class["name"]
                 obj_name = obj_class["name"] if obj_class else claim.object
 
-                # Relationship verification
-                is_rel_verified = (
-                    (sub_name, obj_name) in rel_set
-                    or obj_class is not None
-                    or claim.predicate.lower() in ("is", "acts as", "stereotype")
-                    or not claim.object
-                )
+                # Strict factual verification:
+                # 1. Classification / Stereotype claims: predicate in ("is", "acts as", "stereotype", "role")
+                #    Verify against actual AST stereotype, kind, or role.
+                # 2. Relationship claims: verify an actual edge exists in rel_set (never assume connection merely because obj_class exists).
+                is_st_pred = claim.predicate.lower() in ("is", "acts as", "stereotype", "role")
+                if is_st_pred:
+                    expected_st = str(sub_class.get("stereotype") or sub_class.get("kind") or sub_class.get("role") or "").lower()
+                    obj_target = str(claim.object or "").lower()
+                    is_rel_verified = (not obj_target) or (obj_target in expected_st) or (expected_st in obj_target)
+                else:
+                    is_rel_verified = (sub_name, obj_name) in rel_set
 
                 if is_rel_verified:
                     claim.verdict = ClaimVerdict.VERIFIED
@@ -112,7 +116,7 @@ class PageVerifier:
                     has_verified = True
                 else:
                     claim.verdict = ClaimVerdict.UNSUPPORTED
-                    claim.evidence_source = "Missing relationship proof"
+                    claim.evidence_source = "Missing relationship proof in AST dependency graph" if not is_st_pred else f"Stereotype mismatch: symbol is '{sub_class.get('stereotype') or 'Component'}'"
                     has_insufficient = True
             else:
                 # Subject does not exist in repository AST
@@ -131,8 +135,10 @@ class PageVerifier:
             section_verdict = "AI_SUGGESTION"
         elif has_suggestions and has_verified:
             section_verdict = "VERIFIED_WITH_SUGGESTIONS"
-        else:
+        elif has_verified:
             section_verdict = "VERIFIED"
+        else:
+            section_verdict = "INSUFFICIENT_EVIDENCE"
 
         return verified_claims, section_evidence_refs, section_verdict
 
