@@ -1776,9 +1776,8 @@ export interface IngestRequestParams {
 }
 
 export async function ingestRepoApi(params: IngestRequestParams, full: boolean = true): Promise<IngestResult> {
-  const url = new URL(`${API_BASE}/api/ingest`);
-  if (full) url.searchParams.set('full', 'true');
-  const res = await fetch(url.toString(), {
+  const qs = full ? '?full=true' : '';
+  const res = await fetch(`${API_BASE}/api/ingest${qs}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),

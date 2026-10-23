@@ -93,7 +93,20 @@ def _extract_manifest_and_stack_evidence(files_list, repo_model: Optional[Dict[s
     key_symbols = []
     controllers, services, repos = [], [], []
     if repo_model and repo_model.get("classes"):
-        for c in repo_model["classes"][:15]:
+        def _is_test_class(name: str, file_path: str) -> bool:
+            nl = name.lower()
+            fl = file_path.lower().replace("\\", "/")
+            return (
+                nl.startswith("test") or nl.endswith("test") or nl.endswith("tests")
+                or "test" in fl or "/tests/" in fl or "spec" in fl or nl.endswith("spec")
+            )
+
+        all_classes = repo_model["classes"]
+        # Sort: production classes first, test classes at end; cap at 15 total, ≤2 test
+        prod = [c for c in all_classes if not _is_test_class(c.get("name", ""), c.get("file", ""))]
+        test_cls = [c for c in all_classes if _is_test_class(c.get("name", ""), c.get("file", ""))]
+        ranked = (prod + test_cls[:2])[:15]
+        for c in ranked:
             st = c.get("stereotype") or c.get("kind") or "Component"
             nm = c.get("name", "")
             fl = c.get("file", "")
@@ -168,11 +181,13 @@ def _run_ingest(
 
         manifest_section = "\n".join(f"- {m}" for m in evidence["manifests"]) if evidence["manifests"] else "- None detected"
         entry_section = "\n".join(f"- {e}" for e in evidence["entrypoints"]) if evidence["entrypoints"] else "- None detected"
-        symbols_section = "\n".join(evidence["key_symbols"]) if evidence["key_symbols"] else "- AST index pending"
+        symbols_section = "\n".join(evidence["key_symbols"]) if evidence["key_symbols"] else "- Insufficient source analysis data — no class structure was extracted"
         flow_section = "\n".join(f"- {df}" for df in evidence["data_flow"]) if evidence["data_flow"] else "- Direct modular execution"
 
         prompt_digest = (
             f"# CODEBASE DIGEST & ARCHITECTURE CONTEXT\n\n"
+            f"> NOTE FOR AI: Focus on production entry points, domain logic, and service classes. "
+            f"Do not describe test classes or test methods as the primary application components.\n\n"
             f"## 1. Executive Overview\n"
             f"- **Repository:** {res.summary.repo_name}\n"
             f"- **Commit:** {res.summary.commit_sha[:10]} | **Branch:** {res.summary.branch}\n"

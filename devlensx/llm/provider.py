@@ -453,10 +453,12 @@ class OllamaProvider(_ChatCompletionsProvider):
     _name = "OllamaProvider"
 
     def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None, **_: Any):
+        # OLLAMA_BASE_URL is an alias for OLLAMA_URL (common in other tooling)
+        _url = base_url or os.environ.get("OLLAMA_URL") or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
         super().__init__(
             api_key="ollama",
             model=model or os.environ.get("OLLAMA_MODEL", "llama3"),
-            base_url=base_url or os.environ.get("OLLAMA_URL", "http://localhost:11434/v1").rstrip("/").removesuffix("/chat/completions"),
+            base_url=_url.rstrip("/").removesuffix("/chat/completions"),
             timeout=60,
         )
 
@@ -464,7 +466,14 @@ class OllamaProvider(_ChatCompletionsProvider):
         return False
 
     def health(self) -> Dict[str, Any]:
-        return {"ok": True, "model": self._model, "endpoint": self.base_url, "credentials": "none"}
+        # Probe the Ollama tags endpoint to verify reachability (lazy — only on health requests)
+        tags_url = self.base_url.replace("/v1", "") + "/api/tags"
+        base = {"model": self._model, "endpoint": self.base_url, "credentials": "none"}
+        try:
+            urllib.request.urlopen(urllib.request.Request(tags_url), timeout=3)
+        except Exception:
+            return {**base, "ok": False, "reason": f"Ollama not reachable at {self.base_url}"}
+        return {**base, "ok": True}
 
 
 class AzureOpenAIProvider(LLMProvider):
@@ -601,6 +610,9 @@ def get_llm_provider(provider_name: str = "auto", api_key: Optional[str] = None)
         return OfflineProvider()
 
     if provider_name == "auto":
+        env_provider = os.environ.get("LLM_PROVIDER", "").lower().strip()
+        if env_provider and env_provider != "auto":
+            return get_llm_provider(env_provider, api_key)
         if os.environ.get("AZURE_ENDPOINT") and os.environ.get("AZURE_API_KEY"):
             return AzureOpenAIProvider(api_key=api_key)
         if os.environ.get("GROQ_API_KEY"):
@@ -611,6 +623,8 @@ def get_llm_provider(provider_name: str = "auto", api_key: Optional[str] = None)
             return OpenAIProvider(api_key=api_key)
         if os.environ.get("OPENROUTER_API_KEY"):
             return OpenRouterProvider(api_key=api_key)
+        if os.environ.get("OLLAMA_URL") or os.environ.get("OLLAMA_BASE_URL"):
+            return OllamaProvider()
 
     # Legacy fallback: any ambient key wins (preserves pre-P1-D behavior)
     if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
