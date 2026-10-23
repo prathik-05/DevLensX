@@ -383,7 +383,19 @@ class _EgressProxyHandler(BaseHTTPRequestHandler):
     def do_CONNECT(self):
         address = self.path.split(":")
         host = address[0]
-        port = int(address[1]) if len(address) > 1 else 443
+        try:
+            port = int(address[1]) if len(address) > 1 else 443
+        except ValueError:
+            self.send_error(400, f"Malformed CONNECT destination: {self.path}")
+            return
+
+        # P0/P1 Audit Enforcement: Destination port MUST be strictly 443 (HTTPS)
+        if port != 443:
+            self.send_error(
+                403,
+                f"Egress security policy violation: destination port {port} is prohibited. Strictly port 443 (HTTPS) is permitted."
+            )
+            return
 
         try:
             safe_ip = validate_destination_address(host, port)
@@ -395,6 +407,7 @@ class _EgressProxyHandler(BaseHTTPRequestHandler):
             return
 
         try:
+            # P0 Audit Enforcement: Pin socket directly to safe_ip (IP literal prevents secondary DNS resolution TOCTOU)
             upstream_sock = socket.create_connection((safe_ip, port), timeout=10)
         except Exception as err:
             self.send_error(502, f"Gateway connection error: {err}")

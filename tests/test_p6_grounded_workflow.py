@@ -617,6 +617,100 @@ def test_validating_egress_proxy_blocks_real_git_subprocess(tmp_path):
         assert ("403" in err_out or "tunnel failed" in err_out or "proxy" in err_out or "failed" in err_out)
 
 
+def test_validating_egress_proxy_blocks_non_443_ports():
+    """
+    AUDIT TEST (P1 Destination Port Restriction):
+    Verifies that ValidatingEgressProxy strictly allows port 443 (HTTPS) and rejects
+    any other port (e.g. 22 SSH, 80 HTTP, 8080) with HTTP 403 Forbidden.
+    """
+    import socket
+    with ValidatingEgressProxy() as proxy_url:
+        port = int(proxy_url.split(":")[-1])
+        
+        # Attempt CONNECT on port 22
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(("127.0.0.1", port))
+        sock.sendall(b"CONNECT github.com:22 HTTP/1.1\r\nHost: github.com:22\r\n\r\n")
+        response = sock.recv(1024).decode("utf-8")
+        sock.close()
+        
+        assert "403" in response
+        assert "destination port 22 is prohibited" in response
+
+        # Attempt CONNECT on port 80
+        sock80 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock80.connect(("127.0.0.1", port))
+        sock80.sendall(b"CONNECT github.com:80 HTTP/1.1\r\nHost: github.com:80\r\n\r\n")
+        res80 = sock80.recv(1024).decode("utf-8")
+        sock80.close()
+        
+        assert "403" in res80
+        assert "destination port 80 is prohibited" in res80
+
+
+def test_validating_egress_proxy_pins_ip_and_blocks_rebinding():
+    """
+    AUDIT TEST (P0 IP Pinning & Anti-DNS-Rebinding):
+    Verifies that:
+    1. If a hostname rebinds to a private IP (e.g. 127.0.0.1) at connection time,
+       the proxy's connection-time resolution immediately blocks it with 403.
+    2. When upstream connection succeeds, socket.create_connection receives the pinned IP literal.
+    """
+    import socket
+    orig_getaddrinfo = socket.getaddrinfo
+    orig_create_conn = socket.create_connection
+    connected_destinations = []
+
+    def mock_create_conn(addr, *args, **kwargs):
+        connected_destinations.append(addr)
+        # Return a dummy pair of connected sockets
+        s1, s2 = socket.socketpair()
+        return s1
+
+    # Simulate DNS rebinding: host returns private 127.0.0.1 on connection-time query
+    def mock_rebind_getaddrinfo(h, port, *a, **kw):
+        if h == "rebind.example.com":
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('127.0.0.1', port))]
+        return orig_getaddrinfo(h, port, *a, **kw)
+
+    socket.getaddrinfo = mock_rebind_getaddrinfo
+    socket.create_connection = mock_create_conn
+    try:
+        with ValidatingEgressProxy() as proxy_url:
+            p_port = int(proxy_url.split(":")[-1])
+            
+            # Step 1: Client connects to rebinding host -> must be blocked with 403
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect(("127.0.0.1", p_port))
+            sock.sendall(b"CONNECT rebind.example.com:443 HTTP/1.1\r\nHost: rebind.example.com:443\r\n\r\n")
+            resp = sock.recv(1024).decode("utf-8")
+            sock.close()
+            assert "403" in resp
+            assert "disallowed under network security policy" in resp or "private/disallowed ip" in resp.lower()
+
+            # Step 2: Client connects to valid public host -> verify IP pinning in socket.create_connection
+            def mock_public_getaddrinfo(h, port, *a, **kw):
+                if h == "safe.example.com":
+                    # Valid public IP
+                    return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', port))]
+                return orig_getaddrinfo(h, port, *a, **kw)
+
+            socket.getaddrinfo = mock_public_getaddrinfo
+            sock_safe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock_safe.connect(("127.0.0.1", p_port))
+            sock_safe.sendall(b"CONNECT safe.example.com:443 HTTP/1.1\r\nHost: safe.example.com:443\r\n\r\n")
+            resp_safe = sock_safe.recv(1024).decode("utf-8")
+            sock_safe.close()
+
+            assert "200 Connection Established" in resp_safe
+            # Invariant: socket.create_connection MUST be called with ('93.184.216.34', 443), NEVER the hostname!
+            assert len(connected_destinations) >= 1
+            assert connected_destinations[-1] == ("93.184.216.34", 443)
+    finally:
+        socket.getaddrinfo = orig_getaddrinfo
+        socket.create_connection = orig_create_conn
+
+
 # =========================================================================
 # AUDIT SUITE: Check H Security Annotation vs Global Configuration
 # =========================================================================
