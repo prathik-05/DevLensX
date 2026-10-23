@@ -207,7 +207,8 @@ export const AIAssistantView: React.FC = () => {
     if (!q || isLocating) return;
     setIsLocating(true);
     try {
-      const res = await askWhereToEdit(q);
+      const runId = analysisId || analysisData?.analysis_run_id;
+      const res = await askWhereToEdit(q, runId);
       setEditResult(res);
     } catch (err) {
       console.error(err);
@@ -222,7 +223,8 @@ export const AIAssistantView: React.FC = () => {
     if (!c || isExplaining) return;
     setIsExplaining(true);
     try {
-      const res = await askExplainConcept(c);
+      const runId = analysisId || analysisData?.analysis_run_id;
+      const res = await askExplainConcept(c, runId);
       setConceptResult(res);
     } catch (err) {
       console.error(err);

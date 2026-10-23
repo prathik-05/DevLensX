@@ -70,7 +70,7 @@ export async function analyzeRepo(repoPath: string, injectHallucination: boolean
       headers: getAuthHeaders(),
       body: JSON.stringify({ repo_path: repoPath, inject_hallucination: injectHallucination })
     });
-  } catch (err) {
+  } catch (_err) {
     throw new Error('DevLensX backend is unreachable at ' + API_BASE + '. Start the API server and retry.');
   }
   if (!res.ok) {
@@ -91,7 +91,7 @@ export async function uploadZipRepo(file: File): Promise<ExtendedAnalysisRespons
       method: 'POST',
       body: formData
     });
-  } catch (err) {
+  } catch (_err) {
     throw new Error('DevLensX backend is unreachable at ' + API_BASE + '. Start the API server and retry.');
   }
   if (!res.ok) {
@@ -1559,12 +1559,12 @@ export interface GuidedTourResult {
   verdict: string;
 }
 
-export async function askWhereToEdit(query: string): Promise<WhereToEditResult> {
+export async function askWhereToEdit(query: string, analysisRunId?: string): Promise<WhereToEditResult> {
   try {
     const res = await fetch(`${API_BASE}/api/copilot/where-to-edit`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, analysis_run_id: analysisRunId }),
     });
     if (res.ok) {
       return await res.json();
@@ -1610,12 +1610,12 @@ export async function askWhereToEdit(query: string): Promise<WhereToEditResult> 
   };
 }
 
-export async function askExplainConcept(concept: string): Promise<ConceptExplanationResult> {
+export async function askExplainConcept(concept: string, analysisRunId?: string): Promise<ConceptExplanationResult> {
   try {
     const res = await fetch(`${API_BASE}/api/copilot/explain-concept`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ concept }),
+      body: JSON.stringify({ concept, analysis_run_id: analysisRunId }),
     });
     if (res.ok) {
       return await res.json();

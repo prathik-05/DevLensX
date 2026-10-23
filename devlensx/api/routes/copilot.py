@@ -102,9 +102,20 @@ def where_to_edit(req: dict):
     from devlensx.reasoning.engine import RepositoryReasoningEngine
     engine = RepositoryReasoningEngine()
     query = req.get("query") or req.get("question") or req.get("desired_change") or ""
+    analysis_run_id = req.get("analysis_run_id")
+    repo_model = {}
+    if analysis_run_id:
+        try:
+            from devlensx.chat.orchestrator import _load_model
+            repo_model = _load_model(analysis_run_id)
+        except Exception:
+            repo_model = {}
+    if not repo_model:
+        repo_model = global_state.get("repo_model") or {}
+
     return engine.locate_where_to_edit(
         desired_change=query,
-        repo_model=global_state.get("repo_model") or {},
+        repo_model=repo_model,
         graph_store=global_state.get("graph_store")
     )
 
@@ -116,9 +127,20 @@ def explain_concept(req: dict):
     from devlensx.reasoning.engine import RepositoryReasoningEngine
     engine = RepositoryReasoningEngine()
     concept = req.get("concept") or req.get("query") or ""
+    analysis_run_id = req.get("analysis_run_id")
+    repo_model = {}
+    if analysis_run_id:
+        try:
+            from devlensx.chat.orchestrator import _load_model
+            repo_model = _load_model(analysis_run_id)
+        except Exception:
+            repo_model = {}
+    if not repo_model:
+        repo_model = global_state.get("repo_model") or {}
+
     return engine.explain_concept_in_repo(
         concept=concept,
-        repo_model=global_state.get("repo_model") or {},
+        repo_model=repo_model,
         graph_store=global_state.get("graph_store")
     )
 

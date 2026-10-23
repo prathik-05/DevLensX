@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { GlassPanel } from './GlassPanel';
 import { Badge } from './Badge';
 import { useAppStore } from '../store';
@@ -141,27 +141,16 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data: propData }) =>
     { key: 'recommendation_synthesis_ms', label: 'SYNTH', sub: 'Synthesis', icon: Shield },
   ];
 
-  const bottleneckKey = useMemo(() => {
-    let max = -1;
-    let k = '';
-    for (const s of stages) {
-      const v = timing[s.key] || 0;
-      if (v > max) { max = v; k = s.key; }
-    }
-    return k;
-  }, [timing]);
+  let bottleneckKey = '';
+  let maxTime = -1;
+  for (const s of stages) {
+    const v = timing[s.key] || 0;
+    if (v > maxTime) { maxTime = v; bottleneckKey = s.key; }
+  }
 
-  const weakest = useMemo(() => {
-    const entries = Object.entries(subScores);
-    if (!entries.length) return null;
-    return entries.reduce((a, b) => (a[1] < b[1] ? a : b));
-  }, [subScores]);
-
-  const strongest = useMemo(() => {
-    const entries = Object.entries(subScores);
-    if (!entries.length) return null;
-    return entries.reduce((a, b) => (a[1] > b[1] ? a : b));
-  }, [subScores]);
+  const subScoreEntries = Object.entries(subScores);
+  const weakest = subScoreEntries.length ? subScoreEntries.reduce((a, b) => (a[1] < b[1] ? a : b)) : null;
+  const strongest = subScoreEntries.length ? subScoreEntries.reduce((a, b) => (a[1] > b[1] ? a : b)) : null;
 
   // Heartbeat for empty/unparsable repo
   if (isEmptyRepo || score === null) {
