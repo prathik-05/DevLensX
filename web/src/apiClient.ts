@@ -3,7 +3,7 @@ import type { EvidenceRef, ResolvedEvidence } from './evidence';
 import type { Diagram, DiagramType, DiagramCatalogResponse } from './diagrams';
 import type { WorkspaceContextState } from './workspaceContext';
 
-const API_BASE = 'http://127.0.0.1:8000';
+const API_BASE = '';
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('devlensx_auth_token');
@@ -536,26 +536,61 @@ export async function reviewPRDiff(diffText: string, customPrompt: string = ''):
   };
 }
 
-export async function fetchFileSummary(filePath: string): Promise<import('./types').FileSummaryResponse> {
+export interface FileContentResponse {
+  file_path: string;
+  is_binary: boolean;
+  content: string;
+  lines: string[];
+  total_lines: number;
+}
+
+export async function fetchFileContent(filePath: string, analysisRunId?: string): Promise<FileContentResponse> {
+  const params = new URLSearchParams({ file_path: filePath });
+  if (analysisRunId) params.append('analysis_run_id', analysisRunId);
+  const res = await fetch(`${API_BASE}/api/explorer/file-content?${params.toString()}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to fetch file content' }));
+    throw new Error(err.detail || 'Failed to fetch file content');
+  }
+  return await res.json();
+}
+
+export async function checkBackendHealth(): Promise<{ status: string; active_snapshots: number } | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/health`);
+    if (res.ok) return await res.json();
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export async function fetchFileSummary(filePath: string, analysisRunId?: string): Promise<import('./types').FileSummaryResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/api/explorer/file-summary`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ file_path: filePath, analysis_run_id: analysisRunId }),
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('Backend file summary request failed:', err);
+  }
+
   const baseName = filePath.split('/').pop() || filePath;
-  const isController = baseName.includes('Controller');
-  const isService = baseName.includes('Service');
-  const isRepo = baseName.includes('Repository') || baseName.includes('Mapper');
-
-  let stereotype = 'Entity';
-  if (isController) stereotype = 'Controller';
-  else if (isService) stereotype = 'Service';
-  else if (isRepo) stereotype = 'Repository';
-
   return {
     file_path: filePath,
-    class_name: baseName.replace(/\.(java|py|tsx|js)$/, ''),
-    stereotype: stereotype,
-    purpose: `Production ${stereotype} component handling domain logic in ${filePath}`,
-    used_by_count: isController ? 8 : isService ? 12 : 15,
-    dependencies: isController ? ['ClinicService', 'OwnerRepository'] : ['OwnerRepository', 'PetRepository'],
-    related_files: [filePath.replace(baseName, 'PetController.java'), filePath.replace(baseName, 'Owner.java')],
-    risks: isController ? 'Medium coupling risk' : 'Low risk'
+    class_name: baseName.replace(/\.[^/.]+$/, ''),
+    stereotype: 'Component',
+    purpose: `Component source file: ${filePath}`,
+    used_by_count: 0,
+    dependencies: [],
+    related_files: [],
+    risks: 'Standard'
   };
 }
 

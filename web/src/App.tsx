@@ -119,7 +119,7 @@ export const AppLayout: React.FC = () => {
   }, [repoPath]);
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--dl-bg)', color: 'var(--dl-text)' }}>
+    <div className="h-screen max-h-screen overflow-hidden flex flex-row" style={{ background: 'var(--dl-bg)', color: 'var(--dl-text)' }}>
       <WorkspaceSync />
       <Sidebar
         isCollapsed={sidebarCollapsed}
@@ -128,7 +128,7 @@ export const AppLayout: React.FC = () => {
         onNavigate={handleNavigate}
       />
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         <Header
           activePage={activePage}
           onNavigate={handleNavigate}
@@ -136,7 +136,7 @@ export const AppLayout: React.FC = () => {
           sidebarCollapsed={sidebarCollapsed}
         />
 
-        <main className="flex-1 p-4 overflow-auto" style={{ background: 'var(--dl-bg)' }}>
+        <main className="flex-1 p-4 md:p-6 overflow-y-auto" style={{ background: 'var(--dl-bg)' }}>
           <Suspense fallback={<LoadingFallback />}>
             <PageWrapper pageId={activePage} />
           </Suspense>
@@ -153,20 +153,22 @@ export const AppRoutes: React.FC = () => {
       <Route path="/overview" element={<AppLayout />} />
       <Route path="/ingest" element={<AppLayout />} />
       <Route path="/wiki" element={<AppLayout />} />
-      <Route path="/codemap" element={<AppLayout />} />
       <Route path="/explorer" element={<AppLayout />} />
-      <Route path="/guided-tours" element={<Navigate to="/explorer" replace />} />
-      <Route path="/architecture" element={<AppLayout />} />
-      <Route path="/governance" element={<AppLayout />} />
-      <Route path="/ai-assistant" element={<AppLayout />} />
-      <Route path="/reviews" element={<AppLayout />} />
-      <Route path="/evaluation" element={<AppLayout />} />
-      <Route path="/changelog" element={<AppLayout />} />
       <Route path="/change-impact" element={<AppLayout />} />
+      <Route path="/ai-assistant" element={<AppLayout />} />
       <Route path="/code-turtle" element={<AppLayout />} />
-      <Route path="/code-rabbit" element={<AppLayout />} />
-      <Route path="/debug" element={<AppLayout />} />
       <Route path="/settings" element={<AppLayout />} />
+
+      {/* Clean redirects for consolidated duplicate views */}
+      <Route path="/codemap" element={<Navigate to="/explorer" replace />} />
+      <Route path="/architecture" element={<Navigate to="/wiki" replace />} />
+      <Route path="/changelog" element={<Navigate to="/change-impact" replace />} />
+      <Route path="/reviews" element={<Navigate to="/change-impact" replace />} />
+      <Route path="/governance" element={<Navigate to="/change-impact" replace />} />
+      <Route path="/debug" element={<Navigate to="/change-impact" replace />} />
+      <Route path="/evaluation" element={<Navigate to="/overview" replace />} />
+      <Route path="/code-rabbit" element={<Navigate to="/code-turtle" replace />} />
+      <Route path="/guided-tours" element={<Navigate to="/explorer" replace />} />
       <Route path="*" element={<Navigate to="/overview" replace />} />
     </Routes>
   );

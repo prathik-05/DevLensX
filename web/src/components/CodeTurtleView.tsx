@@ -1197,14 +1197,17 @@ export const CodeTurtleView: React.FC = () => {
           {/* Preset Scenario Selector */}
           <GlassPanel className="p-3">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="dl-panel-label text-slate-900 dark:text-white">SELECT CODE REVIEW SCENARIO:</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/30">
+                  DEMO SCENARIOS (SEEDED EXAMPLES)
+                </span>
                 <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                  (Test real-world PR bugs & apply committable fixes directly into editor)
+                  (Seeded test cases with AST verified findings - distinct from live repository reviews)
                 </span>
               </div>
               <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                Active: <strong className="text-slate-900 dark:text-white">{activeScenario.name}</strong>
+                Active Demo: <strong className="text-slate-900 dark:text-white">{activeScenario.name}</strong>
               </span>
             </div>
 
@@ -1217,16 +1220,16 @@ export const CodeTurtleView: React.FC = () => {
                     onClick={() => handleSelectScenario(scen.id)}
                     className={`px-3 py-1.5 rounded-md text-xs font-mono text-left transition-all border ${
                       isSelected
-                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-slate-900 dark:border-white shadow-sm font-bold'
-                        : 'bg-white dark:bg-[#121319] border-slate-200 dark:border-neutral-800 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-neutral-600'
+                        ? 'bg-slate-900 text-white dark:bg-sky-950/80 dark:text-sky-300 border-slate-900 dark:border-sky-500 shadow-sm font-bold'
+                        : 'bg-slate-100 dark:bg-[#121319] border-slate-300 dark:border-neutral-800 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-neutral-600'
                     }`}
                   >
                     <div className="flex items-center gap-1.5">
                       <span>{scen.name}</span>
-                      <span className={`text-[10px] px-1 py-0.2 rounded font-sans ${
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-sans font-bold ${
                         isSelected
-                          ? 'bg-white/20 text-white dark:bg-black/20 dark:text-slate-900'
-                          : 'bg-slate-100 dark:bg-neutral-800 text-slate-500 dark:text-slate-400'
+                          ? 'bg-white/20 text-white dark:bg-sky-900/60 dark:text-sky-200 border border-sky-400/40'
+                          : 'bg-slate-200 dark:bg-neutral-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-neutral-700'
                       }`}>
                         {scen.fileLang}
                       </span>

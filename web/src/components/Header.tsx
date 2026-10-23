@@ -4,7 +4,7 @@ import { Search, PanelLeft, PanelRight, Layers, FolderGit2, GitBranch } from 'lu
 import { getCommandActions, searchPages } from '../pages/registry';
 import { useAppStore } from '../store';
 import { useWorkspaceContext } from '../workspaceContext';
-import { ThemeToggle } from './ThemeToggle';
+// Dark-only UI: ThemeToggle removed
 
 interface HeaderProps {
   activePage: string;
@@ -35,9 +35,9 @@ export const Header: React.FC<HeaderProps> = ({
   } = useWorkspaceContext();
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-    document.documentElement.style.colorScheme = theme;
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.classList.add('dark');
+    document.documentElement.style.colorScheme = 'dark';
   }, [theme]);
 
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -299,14 +299,20 @@ export const Header: React.FC<HeaderProps> = ({
           <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-bold font-mono bg-neutral-100 dark:bg-zinc-800 text-black dark:text-zinc-300 border border-black dark:border-zinc-700">⌘K</kbd>
         </div>
 
-        {/* Right Status Indicator & Theme Toggle */}
+        {/* Right Status Indicator */}
         <div className="dl-flex-gap-3 items-center ml-auto">
-          {/* Theme Toggle */}
-          <ThemeToggle />
-
-          <div className="flex items-center gap-2 text-[10px] font-sans font-bold uppercase px-2.5 py-1 bg-white dark:bg-[#141519] border border-black dark:border-[#2a2b32] text-black dark:text-zinc-300 shadow-[2px_2px_0px_0px_#000000] dark:shadow-none">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)] animate-pulse" />
-            <span>SYSTEM ONLINE</span>
+          <div className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase px-2.5 py-1 bg-[#141519] border border-[#2a2b32] text-zinc-300">
+            {analysis_run_id ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]" />
+                <span>SNAPSHOT: {analysis_run_id.slice(0, 10)}</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                <span>NO SNAPSHOT LOADED</span>
+              </>
+            )}
           </div>
           <button
             onClick={onToggleSidebar}

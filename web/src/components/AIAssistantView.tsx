@@ -247,7 +247,7 @@ export const AIAssistantView: React.FC = () => {
       {activeTab === 'ask' && (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Main Chat Stream */}
-          <div className="lg:col-span-3 border border-black dark:border-[#26272e] bg-white dark:bg-[#121316] flex flex-col h-[700px] shadow-sm dark:shadow-none rounded-sm">
+          <div className="lg:col-span-3 border border-black dark:border-[#26272e] bg-white dark:bg-[#121316] flex flex-col h-[calc(100vh-220px)] min-h-[520px] shadow-sm dark:shadow-none rounded-sm">
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map(msg => (

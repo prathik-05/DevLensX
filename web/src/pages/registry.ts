@@ -7,19 +7,15 @@ import type { ComponentType } from 'react';
 import {
   Home,
   BookOpen,
-  Map,
   Search,
-  GitBranch,
-  Shield,
   Settings,
   Brain,
-  Terminal,
-  Zap,
   AlertTriangle,
   GitPullRequest,
   Bot,
-  Bug,
-  FileText
+  FileText,
+  Shield,
+  Terminal
 } from 'lucide-react';
 
 export type NavGroup = 'repository' | 'understand' | 'explore' | 'ai-assistant' | 'code-review' | 'config';
@@ -47,54 +43,21 @@ export const pageRegistry: PageRegistryEntry[] = [
     component: () => import('../components/OverviewView').then(m => ({ default: m.OverviewView })),
     group: 'repository',
     description: 'Repository health, metrics & intelligence score',
-    keywords: ['health', 'score', 'metrics', 'intelligence', 'summary', 'setup', 'features'],
+    keywords: ['health', 'score', 'metrics', 'intelligence', 'summary'],
   },
   {
     id: 'ingest',
-    label: 'Repo Ingest',
+    label: 'Repository Ingest',
     icon: FileText,
     path: '/ingest',
     component: () => import('../components/IngestView').then(m => ({ default: m.IngestView })),
     group: 'repository',
-    description: 'GitIngest prompt digest, directory tree, live token count & single-click analysis',
-    keywords: ['ingest', 'gitingest', 'digest', 'prompt', 'llm', 'token', 'context'],
-    badge: 'LLM',
+    description: 'Import Git repository URL or ZIP archive, track parsing & analysis',
+    keywords: ['ingest', 'clone', 'zip', 'upload'],
+    badge: 'CORE',
   },
 
-  // 2. UNDERSTAND
-  {
-    id: 'wiki',
-    label: 'DeepWiki',
-    icon: Brain,
-    path: '/wiki',
-    component: () => import('../components/WikiView').then(m => ({ default: m.WikiView })),
-    group: 'understand',
-    description: 'Human-friendly architecture explanations & deep-dive docs',
-    keywords: ['documentation', 'architecture', 'explanation', 'reasoning', 'deep-dive', 'wiki'],
-    badge: 'DOCS',
-  },
-  {
-    id: 'codemap',
-    label: 'Code Map',
-    icon: Map,
-    path: '/codemap',
-    component: () => import('../components/CodemapView').then(m => ({ default: m.CodemapView })),
-    group: 'understand',
-    description: 'Interactive codebase tour with blast-radius ranking',
-    keywords: ['tour', 'blast-radius', 'ranking', 'components', 'navigation'],
-  },
-  {
-    id: 'architecture',
-    label: 'Architecture',
-    icon: GitBranch,
-    path: '/architecture',
-    component: () => import('../components/ArchitectureView').then(m => ({ default: m.ArchitectureView })),
-    group: 'understand',
-    description: 'System dependency graphs, layer analysis & patterns',
-    keywords: ['dependency', 'graph', 'layers', 'patterns', 'coupling'],
-  },
-
-  // 3. EXPLORE
+  // 2. EXPLORE & INSPECT
   {
     id: 'explorer',
     label: 'Explorer',
@@ -102,10 +65,37 @@ export const pageRegistry: PageRegistryEntry[] = [
     path: '/explorer',
     component: () => import('../components/ExplorerView').then(m => ({ default: m.ExplorerView })),
     group: 'explore',
-    description: 'Browse symbols, files, dependencies & call graphs',
-    keywords: ['symbols', 'files', 'dependencies', 'call-graph', 'browse'],
+    description: 'Real source files, AST symbols, references, callers & line-level evidence',
+    keywords: ['symbols', 'files', 'dependencies', 'call-graph', 'source', 'ast'],
   },
-  // 4. AI ASSISTANT
+
+  // 3. LIVING ARCHITECTURE
+  {
+    id: 'wiki',
+    label: 'DeepWiki',
+    icon: Brain,
+    path: '/wiki',
+    component: () => import('../components/WikiView').then(m => ({ default: m.WikiView })),
+    group: 'understand',
+    description: 'Grounded architectural living documentation & component layer flow',
+    keywords: ['documentation', 'architecture', 'explanation', 'layer', 'wiki'],
+    badge: 'DOCS',
+  },
+
+  // 4. IMPACT & SECURITY
+  {
+    id: 'change-impact',
+    label: 'Impact & Security',
+    icon: AlertTriangle,
+    path: '/change-impact',
+    component: () => import('../components/ChangeImpactView').then(m => ({ default: m.ChangeImpactView })),
+    group: 'code-review',
+    description: 'Dependency change impact blast-radius cascade & verified security findings',
+    keywords: ['impact', 'blast-radius', 'security', 'findings', 'cascade', 'audit'],
+    badge: 'AUDIT',
+  },
+
+  // 5. AI ASSISTANT
   {
     id: 'ai-assistant',
     label: 'AI Assistant',
@@ -113,12 +103,12 @@ export const pageRegistry: PageRegistryEntry[] = [
     path: '/ai-assistant',
     component: () => import('../components/AIAssistantView').then(m => ({ default: m.AIAssistantView })),
     group: 'ai-assistant',
-    description: 'ChatGPT/Claude for repo, Where Should I Edit?, and Concept Explanations',
-    keywords: ['assistant', 'copilot', 'chat', 'where-to-edit', 'concepts', 'gemini', 'gpt'],
+    description: 'Repository-grounded Q&A, Where Should I Edit?, and Concept Explanations',
+    keywords: ['assistant', 'copilot', 'chat', 'where-to-edit', 'concepts'],
     badge: 'AI',
   },
 
-  // 5. CODE REVIEW
+  // 6. CODE TURTLE (PR REVIEW)
   {
     id: 'code-turtle',
     label: 'Code Turtle',
@@ -126,52 +116,12 @@ export const pageRegistry: PageRegistryEntry[] = [
     path: '/code-turtle',
     component: () => import('../components/CodeTurtleView').then(m => ({ default: m.CodeTurtleView })),
     group: 'code-review',
-    description: 'Senior PR code review, live code editor, 1-click committable fixes',
-    keywords: ['review', 'diff', 'pr', 'turtle', 'codeturtle', 'editor', 'security'],
-    badge: 'SENIOR',
-  },
-  {
-    id: 'reviews',
-    label: 'Findings & Audit',
-    icon: Shield,
-    path: '/reviews',
-    component: () => import('../components/ReviewsView').then(m => ({ default: m.ReviewsView })),
-    group: 'code-review',
-    description: 'Security findings, engineering recommendations & PR audit',
-    keywords: ['security', 'findings', 'recommendations', 'audit', 'pr'],
-  },
-  {
-    id: 'changelog',
-    label: 'Change Impact',
-    icon: AlertTriangle,
-    path: '/changelog',
-    component: () => import('../components/ChangeImpactView').then(m => ({ default: m.ChangeImpactView })),
-    group: 'code-review',
-    description: '4-tier blast-radius cascade & verification checklist',
-    keywords: ['blast-radius', 'migration', 'risk', 'impact', 'change', 'cascade'],
-  },
-  {
-    id: 'debug',
-    label: 'Debug Center',
-    icon: Bug,
-    path: '/debug',
-    component: () => import('../components/DebugView').then(m => ({ default: m.DebugView })),
-    group: 'code-review',
-    description: 'Ground stack traces against AST class nodes & Kuzu dependency graph',
-    keywords: ['debug', 'stacktrace', 'exception', 'root-cause', 'error', 'crash'],
+    description: 'Seeded PR bug scenarios & live diff review with proposal safety',
+    keywords: ['review', 'diff', 'pr', 'turtle', 'codeturtle'],
+    badge: 'DEMO/LIVE',
   },
 
-  // CONFIG
-  {
-    id: 'evaluation',
-    label: 'Evaluation Lab',
-    icon: Zap,
-    path: '/evaluation',
-    component: () => import('../components/EvaluationView').then(m => ({ default: m.EvaluationView })),
-    group: 'config',
-    description: 'Golden eval, grounding tests & regression benchmarks',
-    keywords: ['evaluation', 'golden', 'grounding', 'benchmarks', 'regression'],
-  },
+  // SYSTEM
   {
     id: 'settings',
     label: 'Settings',
@@ -179,18 +129,18 @@ export const pageRegistry: PageRegistryEntry[] = [
     path: '/settings',
     component: () => import('../components/SettingsView').then(m => ({ default: m.SettingsView })),
     group: 'config',
-    description: 'Configuration, API keys, analysis options & integrations',
-    keywords: ['config', 'api', 'keys', 'options', 'integrations'],
+    description: 'Configuration, LLM API keys & system options',
+    keywords: ['config', 'api', 'keys', 'options'],
   },
 ];
 
 export const navGroups: { id: NavGroup; label: string; order: number }[] = [
   { id: 'repository', label: '1. REPOSITORY', order: 1 },
-  { id: 'understand', label: '2. UNDERSTAND', order: 2 },
-  { id: 'explore', label: '3. EXPLORE', order: 3 },
-  { id: 'ai-assistant', label: '4. AI ASSISTANT', order: 4 },
-  { id: 'code-review', label: '5. CODE REVIEW', order: 5 },
-  { id: 'config', label: 'SYSTEM / CONFIG', order: 6 },
+  { id: 'explore', label: '2. EXPLORE', order: 2 },
+  { id: 'understand', label: '3. UNDERSTAND', order: 3 },
+  { id: 'code-review', label: '4. IMPACT & AUDIT', order: 4 },
+  { id: 'ai-assistant', label: '5. AI ASSISTANT', order: 5 },
+  { id: 'config', label: 'SYSTEM', order: 6 },
 ];
 
 /**

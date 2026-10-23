@@ -66,10 +66,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Enable CORS for frontend integration
+# Enable CORS for frontend integration with exact allowed origins (W3C credentials compliance)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -603,15 +610,23 @@ async def upload_zip_repository(file: UploadFile = File(...)):
             if len(infolist) > MAX_EXTRACTED_FILES:
                 raise HTTPException(status_code=400, detail=f"Archive contains {len(infolist)} files, exceeding limit of {MAX_EXTRACTED_FILES}.")
 
+            import stat
             for info in infolist:
                 if info.file_size > MAX_SINGLE_FILE_BYTES:
                     raise HTTPException(status_code=400, detail=f"File '{info.filename}' exceeds single file size limit.")
+
+                # Symlink escape protection: Reject symlinks in uploaded repository archives
+                mode = info.external_attr >> 16
+                if mode and stat.S_ISLNK(mode):
+                    raise HTTPException(status_code=403, detail=f"Zip Slip security violation: Symlinks are prohibited in repository archives.")
 
                 # Zip Slip & Path Traversal Canonical Protection
                 if not is_safe_path(str(target_dir), info.filename):
                     raise HTTPException(status_code=403, detail=f"Zip Slip security violation: Path '{info.filename}' escapes workspace root.")
 
             zip_ref.extractall(target_dir)
+    except HTTPException:
+        raise
     except zipfile.BadZipFile:
         raise HTTPException(status_code=400, detail="Invalid or corrupted ZIP archive.")
     except zipfile.LargeZipFile:
@@ -1395,15 +1410,72 @@ def generate_repo_docs(req: DocsGenerateRequest):
 
 
 # ==============================================================================
-# B5: Instant VS Code File Summary Endpoint (AST Component Analysis)
+# B5: Instant VS Code File Summary & Real File Content Endpoints
 # ==============================================================================
 class FileSummaryRequest(BaseModel):
     repo_id: Optional[str] = ""
     file_path: str
+    analysis_run_id: Optional[str] = None
+
+@app.post("/api/explorer/file-content")
+def get_explorer_file_content_post(req: FileSummaryRequest):
+    return get_explorer_file_content(file_path=req.file_path, analysis_run_id=req.analysis_run_id)
+
+@app.get("/api/explorer/file-content")
+def get_explorer_file_content(
+    file_path: str,
+    analysis_run_id: Optional[str] = None
+):
+    """Safely returns the real content of a file within the active repository snapshot."""
+    from devlensx.evidence import get_snapshot_registry
+    from devlensx.evidence.source_reader import SourceReader
+
+    reg = get_snapshot_registry()
+    snap = reg.get(analysis_run_id) if analysis_run_id else None
+    
+    repo_root = snap.repo_path if snap else global_state.get("repo_path") or "."
+    reader = SourceReader(repo_root)
+    target = reader._safe_target(file_path)
+
+    if not target or not target.exists():
+        raise HTTPException(status_code=404, detail=f"File '{file_path}' not found in active snapshot.")
+
+    if not target.is_file():
+        raise HTTPException(status_code=400, detail=f"Path '{file_path}' is not a file.")
+
+    if reader._looks_binary(target):
+        return {
+            "file_path": file_path,
+            "is_binary": True,
+            "content": "",
+            "lines": ["[Binary or non-text file content - structural analysis unsupported]"],
+            "total_lines": 0
+        }
+
+    try:
+        with open(target, "r", encoding="utf-8", errors="replace") as f:
+            lines = [line.rstrip("\r\n") for line in f]
+        return {
+            "file_path": file_path,
+            "is_binary": False,
+            "content": "\n".join(lines),
+            "lines": lines,
+            "total_lines": len(lines)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {e}")
 
 @app.post("/api/explorer/file-summary")
 def get_file_summary(req: FileSummaryRequest):
-    repo_model = global_state.get("repo_model")
+    repo_model = None
+    if req.analysis_run_id:
+        try:
+            from devlensx.chat.orchestrator import _model_store
+            repo_model = _model_store.get(req.analysis_run_id)
+        except Exception:
+            pass
+    if not repo_model:
+        repo_model = global_state.get("repo_model")
     classes = repo_model.get("classes", []) if repo_model else []
     
     file_path_raw = req.file_path or ""

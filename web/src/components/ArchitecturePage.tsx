@@ -3,12 +3,10 @@ import type { AnalysisResponse } from '../types';
 import type { Diagram, DiagramType } from '../diagrams';
 import { fetchDiagram, explainArchitecture } from '../apiClient';
 import { InteractiveDiagram } from './InteractiveDiagram';
-import { KnowledgeGraphView } from './KnowledgeGraphView';
 import { GalaxyConstellationGraph } from './GalaxyConstellationGraph';
 import { ComponentInspectorDrawer } from './ComponentInspectorDrawer';
 import {
   Layers,
-  GitFork,
   Database,
   Server,
   Terminal,
@@ -158,17 +156,7 @@ export const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ data, onNavi
             <Sparkles className="w-4 h-4" />
             <span>Galaxy Constellation</span>
           </button>
-          <button
-            onClick={() => setViewMode('graph')}
-            className={`px-3 py-1.5 flex items-center space-x-1.5 transition-all font-bold rounded-sm ${
-              viewMode === 'graph'
-                ? 'bg-black text-white dark:bg-sky-600 dark:text-white shadow-[2px_2px_0px_0px_#000000] dark:shadow-[0_0_12px_rgba(2,132,199,0.35)]'
-                : 'text-slate-700 dark:text-slate-300 hover:text-black dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80'
-            }`}
-          >
-            <GitFork className="w-4 h-4" />
-            <span>Cypher Flow Canvas</span>
-          </button>
+
           <button
             onClick={() => setViewMode('layered')}
             className={`px-3 py-1.5 flex items-center space-x-1.5 transition-all font-bold rounded-sm ${
@@ -317,38 +305,126 @@ export const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ data, onNavi
         </div>
       )}
 
-      {/* Cypher Flow Canvas */}
-      {viewMode === 'graph' && (
-        <div className="border-2 border-black dark:border-slate-800 bg-white dark:bg-[#12131a] p-4 sm:p-6 space-y-4 shadow-[3px_3px_0px_0px_#000000]">
-          <KnowledgeGraphView data={data} />
-        </div>
-      )}
+
 
       {/* Layer Flow View */}
       {viewMode === 'layered' && (
-        <div className="border-2 border-black dark:border-slate-800 bg-white dark:bg-[#12131a] p-6 sm:p-8 space-y-6 shadow-[3px_3px_0px_0px_#000000]">
-          <h2 className="text-xs font-black text-black dark:text-white uppercase tracking-wider font-sans border-b-2 border-black dark:border-slate-800 pb-3">
-            System Architectural Layers Breakdown
-          </h2>
+        <div className="border-2 border-black dark:border-slate-800 bg-white dark:bg-[#12131a] p-6 space-y-6 shadow-[3px_3px_0px_0px_#000000] dark:shadow-none">
+          <div className="flex flex-wrap items-center justify-between border-b-2 border-black dark:border-slate-800 pb-3 gap-2">
+            <div>
+              <h2 className="text-sm font-black text-black dark:text-white uppercase tracking-wider font-sans">
+                Layer Flow & Component Relationship Map
+              </h2>
+              <p className="text-xs text-slate-600 dark:text-slate-400 font-sans mt-0.5">
+                Displays real component dependencies across architectural layers. Click any component to open grounded AST source evidence.
+              </p>
+            </div>
 
+            {/* Architecture Legend */}
+            <div className="flex flex-wrap items-center gap-2 p-2 bg-slate-50 dark:bg-[#070b14] border border-black/20 dark:border-slate-800 font-mono text-[10px]">
+              <span className="font-bold font-sans uppercase text-slate-500 mr-1">Legend:</span>
+              <span className="flex items-center gap-1 text-[#0284c7] font-bold">
+                <span className="w-2 h-2 rounded-full bg-[#0284c7]" /> Controller / API
+              </span>
+              <span className="flex items-center gap-1 text-[#059669] font-bold">
+                <span className="w-2 h-2 rounded-full bg-[#059669]" /> Service
+              </span>
+              <span className="flex items-center gap-1 text-[#7c3aed] font-bold">
+                <span className="w-2 h-2 rounded-full bg-[#7c3aed]" /> Repository
+              </span>
+              <span className="flex items-center gap-1 text-[#d97706] font-bold">
+                <span className="w-2 h-2 rounded-full bg-[#d97706]" /> Entity / Model
+              </span>
+              <span className="flex items-center gap-1 text-slate-400 font-bold">
+                ➔ INJECTS / CALLS
+              </span>
+            </div>
+          </div>
+
+          {/* Layer Cards Summary */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {layers.map((layer, idx) => {
               const Icon = layer.icon;
               return (
-                <div key={idx} className="bg-slate-50 dark:bg-[#070b14] p-5 border-2 border-black dark:border-slate-800 space-y-3 shadow-[2px_2px_0px_0px_#000000]">
-                  <div className="w-9 h-9 bg-white dark:bg-[#12131a] border-2 border-black dark:border-slate-700 flex items-center justify-center shadow-[1px_1px_0px_0px_#000000]">
-                    <Icon className="w-5 h-5" style={{ color: layer.color }} />
+                <div key={idx} className="bg-slate-50 dark:bg-[#070b14] p-4 border-2 border-black dark:border-slate-800 space-y-2 shadow-[2px_2px_0px_0px_#000000] dark:shadow-none">
+                  <div className="flex items-center justify-between">
+                    <div className="w-8 h-8 bg-white dark:bg-[#12131a] border border-black dark:border-slate-700 flex items-center justify-center">
+                      <Icon className="w-4 h-4" style={{ color: layer.color }} />
+                    </div>
+                    <span className="text-xl font-black text-black dark:text-white font-mono">{layer.count}</span>
                   </div>
                   <div>
                     <div className="text-xs font-black text-black dark:text-white font-sans">{layer.title}</div>
-                    <div className="text-[11px] text-slate-600 dark:text-slate-400 font-medium mt-0.5">{layer.desc}</div>
-                  </div>
-                  <div className="text-2xl font-black text-black dark:text-white font-mono pt-2 border-t-2 border-black/20 dark:border-slate-800">
-                    {layer.count} <span className="text-xs text-slate-500 font-normal">Files</span>
+                    <div className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">{layer.desc}</div>
                   </div>
                 </div>
               );
             })}
+          </div>
+
+          {/* Genuine Component Flow Grid */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-black text-black dark:text-white uppercase tracking-wider font-sans">
+              Observed Component Traversal & Dependencies:
+            </h3>
+
+            {keyComponents.length === 0 ? (
+              <div className="p-8 text-center text-xs font-mono text-slate-500 border border-dashed border-slate-700">
+                No component relationships indexed for this snapshot yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {keyComponents.map((c) => {
+                  const rawComp = ((data as any)?.classes || []).find((rc: any) => rc.name === c.name);
+                  const deps = rawComp?.injected_dependencies || [];
+                  const methods = rawComp?.methods || [];
+
+                  return (
+                    <div
+                      key={c.name}
+                      onClick={() => setInspectedComponent(c.name)}
+                      className="p-3.5 bg-slate-50 dark:bg-[#0d0f17] border-2 border-black dark:border-slate-800 hover:border-sky-500 dark:hover:border-sky-500 transition-all cursor-pointer space-y-2 shadow-[2px_2px_0px_0px_#000000] dark:shadow-none group"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-xs text-black dark:text-white truncate group-hover:text-sky-400 transition-colors">
+                          {c.name}
+                        </span>
+                        <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 border border-black dark:border-slate-700 bg-white dark:bg-[#181a24] text-slate-700 dark:text-slate-300 shrink-0">
+                          {c.stereotype}
+                        </span>
+                      </div>
+
+                      {rawComp?.file && (
+                        <div className="text-[10px] font-mono text-slate-500 truncate">
+                          {rawComp.file}
+                        </div>
+                      )}
+
+                      {deps.length > 0 && (
+                        <div className="pt-2 border-t border-black/10 dark:border-slate-800/80 font-mono text-[10px]">
+                          <span className="text-slate-500 block mb-1">➔ Injected Dependencies ({deps.length}):</span>
+                          <div className="flex flex-wrap gap-1">
+                            {deps.slice(0, 3).map((dep: string) => (
+                              <span key={dep} className="px-1.5 py-0.2 bg-sky-100 dark:bg-sky-950/60 text-sky-900 dark:text-sky-300 border border-sky-300 dark:border-sky-800 rounded-none">
+                                {dep}
+                              </span>
+                            ))}
+                            {deps.length > 3 && (
+                              <span className="text-slate-500">+{deps.length - 3} more</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-1 text-[10px] text-sky-600 dark:text-sky-400 font-bold">
+                        <span>{methods.length} methods declared</span>
+                        <span className="group-hover:translate-x-1 transition-transform">Inspect Evidence ➔</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

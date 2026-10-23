@@ -19,7 +19,7 @@ import mermaid from 'mermaid';
 import { GlassPanel } from './GlassPanel';
 import { Badge } from './Badge';
 import { WikiSectionSkeleton } from './Skeleton';
-import { GitIngestView } from './GitIngestView';
+// GitIngestView consolidated into Repository Ingest
 
 let _wikiMermaidTheme: 'dark' | 'default' | null = null;
 function ensureWikiMermaidTheme() {
@@ -377,7 +377,7 @@ export const WikiView: React.FC = () => {
   const [providerStatus, setProviderStatus] = useState<WikiProviderStatus | null>(null);
   const [showKeyHint, setShowKeyHint] = useState(false);
 
-  const [wikiMode, setWikiMode] = useState<'digest' | 'docs'>('digest');
+  // Digest consolidated into Repository Ingest
 
   const contentRef = useRef<HTMLDivElement>(null);
   const qaScrollRef = useRef<HTMLDivElement>(null);
@@ -473,80 +473,22 @@ export const WikiView: React.FC = () => {
     }
   };
 
-  const renderModeSwitcher = () => (
-    <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-[#11131a] border border-zinc-800">
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setWikiMode('digest')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
-            wikiMode === 'digest'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-slate-400 hover:text-white bg-zinc-800/60'
-          }`}
-        >
-          <Cpu className="w-3.5 h-3.5" />
-          <span>GitIngest Code Context (Prompt Digest)</span>
-        </button>
-        <button
-          onClick={() => setWikiMode('docs')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
-            wikiMode === 'docs'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-slate-400 hover:text-white bg-zinc-800/60'
-          }`}
-        >
-          <BookOpen className="w-3.5 h-3.5" />
-          <span>Architectural Living Wiki Docs</span>
-        </button>
-      </div>
-      <span className="px-2 py-0.5 text-xs font-mono font-bold rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">GitIngest Engine</span>
-    </div>
-  );
-
-  if (wikiMode === 'digest') {
-    return (
-      <div className="space-y-4">
-        {renderModeSwitcher()}
-        <GitIngestView />
-      </div>
-    );
-  }
-
   if (!effectiveId) {
     return (
-      <div className="space-y-4">
-        {renderModeSwitcher()}
-        <div className="dl-flex-center" style={{ minHeight: '40vh' }}>
-          <GlassPanel className="p-6 text-center" style={{ maxWidth: '440px' }}>
-            <BookOpen className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--dl-accent)' }} />
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white mb-1">DeepWiki Repository Living Docs</h2>
-            <p className="text-xs font-mono text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
-              Every wiki page is dynamically generated from AST symbols and Kùzu graph relationships with line-level evidence grounding.
-            </p>
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={() => {
-                  fetch('/api/wiki')
-                    .then(r => r.ok ? r.json() : null)
-                    .then(d => {
-                      if (d?.analysis_run_id) setAnalysisId(d.analysis_run_id);
-                      else setAnalysisId('run_d468fa7f8442');
-                    })
-                    .catch(() => setAnalysisId('run_d468fa7f8442'));
-                }}
-                className="dl-btn-primary px-4 py-2 text-xs font-bold"
-              >
-                Load Repository Living Wiki
-              </button>
-              <button
-                onClick={() => setWikiMode('digest')}
-                className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white bg-zinc-800/50 rounded-lg"
-              >
-                Switch to GitIngest Code Digest
-              </button>
-            </div>
-          </GlassPanel>
-        </div>
+      <div className="dl-flex-center" style={{ minHeight: '50vh' }}>
+        <GlassPanel className="p-8 text-center" style={{ maxWidth: '480px' }}>
+          <BookOpen className="w-12 h-12 mx-auto mb-3 text-sky-400" />
+          <h2 className="text-base font-bold text-slate-900 dark:text-white mb-1.5">No Active Repository Analysis</h2>
+          <p className="text-xs font-mono text-slate-500 dark:text-slate-400 mb-5 leading-relaxed">
+            DeepWiki consumes the successful ingestion snapshot to generate grounded architectural documentation, layer breakdowns, and AST-linked pages.
+          </p>
+          <a
+            href="/ingest"
+            className="dl-btn-primary px-5 py-2.5 text-xs font-bold inline-block"
+          >
+            Go to Repository Ingest
+          </a>
+        </GlassPanel>
       </div>
     );
   }
@@ -590,8 +532,7 @@ export const WikiView: React.FC = () => {
 
   return (
     <div className="space-y-4 dl-fade-in">
-      {renderModeSwitcher()}
-      {/* Sticky breadcrumb + controls */}
+            {/* Sticky breadcrumb + controls */}
       <div className="sticky top-0 z-30 dl-panel p-3 rounded-sm">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="p-1.5 rounded-sm" style={{ background: 'var(--dl-accent-soft)', border: '1px solid var(--dl-accent)' }}>

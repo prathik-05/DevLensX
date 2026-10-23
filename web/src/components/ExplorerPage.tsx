@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { AnalysisResponse, FileSummaryResponse } from '../types';
-import { fetchFileSummary, explainExplorerSymbol } from '../apiClient';
+import { fetchFileSummary, explainExplorerSymbol, fetchFileContent } from '../apiClient';
 import {
   Folder,
   FileCode,
@@ -53,7 +53,6 @@ const AI_ACTIONS = [
 
 export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab }) => {
   const nodes = data.knowledge_graph?.nodes || [];
-  const repoName = data.repository || 'analyzed-repository';
   const rawClasses = data.classes || [];
 
   const detectedLang = (data.repo_summary?.language || '').toLowerCase();
@@ -74,6 +73,9 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
   const [selectedFile, setSelectedFile] = useState<string>(initialFile);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [summary, setSummary] = useState<FileSummaryResponse | null>(null);
+  const [realLines, setRealLines] = useState<string[] | null>(null);
+  const [contentLoading, setContentLoading] = useState<boolean>(false);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   // AI Exploration State
   const [selectedAction, setSelectedAction] = useState<string>('what_does_this_do');
@@ -83,13 +85,30 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
   const [copiedCitation, setCopiedCitation] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadSummary() {
+    async function loadSummaryAndContent() {
       if (!selectedFile) return;
-      const res = await fetchFileSummary(selectedFile);
-      setSummary(res);
+      setContentLoading(true);
+      setFileError(null);
+      try {
+        const [sumRes, contentRes] = await Promise.allSettled([
+          fetchFileSummary(selectedFile, data.analysis_run_id),
+          fetchFileContent(selectedFile, data.analysis_run_id),
+        ]);
+        if (sumRes.status === 'fulfilled') setSummary(sumRes.value);
+        if (contentRes.status === 'fulfilled') {
+          setRealLines(contentRes.value.lines);
+        } else {
+          setRealLines(null);
+          setFileError(contentRes.reason?.message || 'File not available in active snapshot');
+        }
+      } catch (err: any) {
+        setFileError(err.message || 'Failed to load file');
+      } finally {
+        setContentLoading(false);
+      }
     }
-    loadSummary();
-  }, [selectedFile]);
+    loadSummaryAndContent();
+  }, [selectedFile, data.analysis_run_id]);
 
   // Trigger AI explanation when file or action changes
   const runExplanation = async (actionId: string, fileToExplain: string = selectedFile) => {
@@ -136,34 +155,54 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
   );
 
   const baseFileName = selectedFile.split('/').pop() || selectedFile;
+  const ext = baseFileName.split('.').pop()?.toLowerCase();
+  const extToLangMap: Record<string, string> = {
+    ts: 'TypeScript',
+    tsx: 'TypeScript (React)',
+    js: 'JavaScript',
+    jsx: 'JavaScript (React)',
+    py: 'Python',
+    java: 'Java',
+    go: 'Go',
+    rs: 'Rust',
+    cs: 'C#',
+    cpp: 'C++',
+    c: 'C',
+    json: 'JSON',
+    md: 'Markdown',
+    yml: 'YAML',
+    yaml: 'YAML',
+    html: 'HTML',
+    css: 'CSS',
+    sql: 'SQL',
+    sh: 'Shell',
+  };
+  const currentFileLang = ext && extToLangMap[ext] ? extToLangMap[ext] : langLabel;
   const activeClass = rawClasses.find((c: any) => c.file === selectedFile || c.name === baseFileName.split('.')[0]);
 
-  // Code preview lines
+  // Genuine source lines: Real content first; if missing, clear honest notification (never synthesize fake code!)
   const codeLines = useMemo(() => {
+    if (realLines !== null && realLines.length > 0) {
+      return realLines;
+    }
     if (activeClass) {
       return [
         `// Component: ${activeClass.name}`,
         `// Stereotype: ${activeClass.stereotype || 'Component'}`,
         `// Package / Path: ${activeClass.package || activeClass.file}`,
         '',
-        `public class ${activeClass.name} {`,
-        `    // Injected Dependencies: ${activeClass.injected_dependencies?.join(', ') || 'None'}`,
-        ...(activeClass.methods || []).map((m: any) => `    public ${m.return_type || 'void'} ${m.name}() { /* Executed in runtime context */ }`),
-        `}`
+        `// Declared methods in AST:`,
+        ...(activeClass.methods || []).map((m: any) => `// - ${m.name}(): ${m.return_type || 'void'}`),
+        '',
+        `// Note: Source lines are indexed in AST model.`
       ];
     }
     return [
-      `# Module: ${baseFileName}`,
-      `# Repository: ${repoName}`,
-      '',
-      `def main():`,
-      `    # Primary entrypoint for ` + repoName,
-      `    print("Executing ${baseFileName}...")`,
-      '',
-      `if __name__ == '__main__':`,
-      `    main()`
+      `// File: ${selectedFile}`,
+      `// Language: ${currentFileLang}`,
+      `// Status: Structural analysis unsupported or content pending inspection.`
     ];
-  }, [activeClass, baseFileName, repoName]);
+  }, [realLines, activeClass, selectedFile, currentFileLang]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -398,16 +437,27 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
                 <Code2 className="w-4 h-4 text-[#0284c7]" />
                 <span className="truncate">{selectedFile}</span>
               </span>
-              <span className="text-slate-600 dark:text-slate-400 font-mono text-[11px]">{langLabel} · {codeLines.length} Lines</span>
+              <span className="text-slate-600 dark:text-slate-400 font-mono text-[11px]">{currentFileLang} · {codeLines.length} Lines</span>
             </div>
 
             <div className="p-3.5 overflow-x-auto max-h-[440px] overflow-y-auto space-y-0.5 bg-slate-50 dark:bg-[#070b14]">
-              {codeLines.map((line, lIdx) => (
-                <div key={lIdx} className="flex items-center space-x-3 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 px-1 transition-colors">
-                  <span className="w-6 text-right text-slate-400 select-none text-[10px]">{lIdx + 1}</span>
-                  <span className="text-slate-900 dark:text-[#f8fafc] whitespace-pre font-medium">{line}</span>
+              {contentLoading ? (
+                <div className="p-8 text-center text-slate-500 font-mono text-xs flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-sky-500" />
+                  <span>Loading source from active snapshot…</span>
                 </div>
-              ))}
+              ) : fileError ? (
+                <div className="p-4 text-rose-400 font-mono text-xs bg-rose-950/20 border border-rose-800/40">
+                  {fileError}
+                </div>
+              ) : (
+                codeLines.map((line, lIdx) => (
+                  <div key={lIdx} className="flex items-center space-x-3 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 px-1 transition-colors">
+                    <span className="w-8 text-right text-slate-500 select-none text-[10px] shrink-0">{lIdx + 1}</span>
+                    <span className="text-slate-900 dark:text-[#f8fafc] whitespace-pre font-medium">{line}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

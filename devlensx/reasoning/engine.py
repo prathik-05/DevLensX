@@ -648,28 +648,25 @@ class RepositoryReasoningEngine:
                     "citations": [f"{w}#L1-L20" for w in concept_res.get("where", [])[:4]],
                     "verdict": "VERIFIED_CONCEPT",
                     "concept_info": concept_res
+                }        # Grounded repo summary based on active snapshot model
+        if "beginner" in q_lower or "what is this repository about" in q_lower or "what does this project do" in q_lower:
+            lang = repo_model.get("language") or repo_model.get("repo_summary", {}).get("language", "Source")
+            total_classes = len(classes)
+            if not classes:
+                return {
+                    "answer": f"INSUFFICIENT_EVIDENCE: Repository '{repo_name}' has no indexed AST symbols in the active snapshot. Ingest or analyze the repository first.",
+                    "citations": [],
+                    "verdict": "INSUFFICIENT_EVIDENCE"
                 }
 
-        # Check for beginner / repo summary requests
-        if "beginner" in q_lower or "what is this repository about" in q_lower or "what does this project do" in q_lower:
-            controllers = [c for c in classes if "controller" in c.get("name", "").lower() or c.get("stereotype") in ("Controller", "Route")]
-            services = [c for c in classes if "service" in c.get("name", "").lower() or c.get("stereotype") in ("Service", "Manager")]
-            repositories = [c for c in classes if "repository" in c.get("name", "").lower() or c.get("stereotype") in ("Repository", "DAO")]
-            
-            summary = (
-                f"### Beginner-Friendly Overview: `{repo_name}`\n\n"
-                f"**What it is:** `{repo_name}` is a full-stack software application built to manage domain resources reliably through a clean layered architecture.\n\n"
-                f"**How it works in 3 simple steps:**\n"
-                f"1. **Entry Points (Controllers):** Handles incoming web requests and user actions through components like `{controllers[0]['name'] if controllers else 'MainController'}`.\n"
-                f"2. **Business Engine (Services):** Applies business rules, validations, and workflow orchestration via `{services[0]['name'] if services else 'ApplicationService'}`.\n"
-                f"3. **Data Storage (Repositories):** Reads and writes persisted records safely using `{repositories[0]['name'] if repositories else 'DataRepository'}`.\n\n"
-                f"**Key files to explore first:**\n" +
-                "\n".join(f"- `{c.get('file', '')}` (`{c.get('name', '')}` - {c.get('stereotype', 'Component')})" for c in (controllers[:1] + services[:1] + repositories[:1]))
-            )
+            top_symbols = [c for c in classes if c.get("file")][:5]
+            nl = chr(10)
+            sym_items = nl.join(f"- `{c.get('file', '')}` ({c.get('name', 'Symbol')} · {c.get('stereotype', 'Component')})" for c in top_symbols)
+            summary = f"### Repository Overview: `{repo_name}`{nl}{nl}- **Primary Detected Language:** {lang}{nl}- **Indexed Components:** {total_classes} declared classes/modules in active snapshot{nl}{nl}**Key components detected in active snapshot:**{nl}{sym_items}"
             return {
                 "answer": summary,
-                "citations": [f"{c.get('file', '')}#L1-L20" for c in (controllers[:1] + services[:1] + repositories[:1]) if c.get("file")],
-                "verdict": "VERIFIED_OVERVIEW"
+                "citations": [f"{c.get('file', '')}#L1-L20" for c in top_symbols if c.get("file")],
+                "verdict": "VERIFIED_FACT" if top_symbols else "INSUFFICIENT_EVIDENCE"
             }
 
         # 1. Retrieve hybrid context
@@ -733,16 +730,23 @@ class RepositoryReasoningEngine:
             except Exception:
                 pass
 
-        # Fallback response
+        # Fallback response with explicit evidence accounting
+        if not vector_facts and not graph_facts:
+            return {
+                "answer": f"INSUFFICIENT_EVIDENCE: No matching AST nodes or graph relationships found for query '{question}' in active snapshot '{repo_name}'.",
+                "citations": [],
+                "verdict": "INSUFFICIENT_EVIDENCE"
+            }
+
         sym_list = ", ".join(v.get("class_name", "") for v in vector_facts[:4] if v.get("class_name"))
         fallback_ans = (
-            f"Based on repository evidence for `{repo_name}`, relevant components include: {sym_list or 'general codebase structure'}. "
-            f"Inspect the Explorer or Wiki for full AST definitions."
+            f"Grounded in active repository snapshot evidence for `{repo_name}`, related components include: {sym_list}. "
+            f"Inspect the Explorer or DeepWiki for source code definitions."
         )
         return {
             "answer": fallback_ans,
             "citations": citations[:4],
-            "verdict": "VERIFIED_EVIDENCE" if citations else "INSUFFICIENT_EVIDENCE"
+            "verdict": "VERIFIED_FACT" if citations else "INSUFFICIENT_EVIDENCE"
         }
 
     # ----------------------------------------------------------------------
