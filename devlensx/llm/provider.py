@@ -466,14 +466,42 @@ class OllamaProvider(_ChatCompletionsProvider):
         return False
 
     def health(self) -> Dict[str, Any]:
-        # Probe the Ollama tags endpoint to verify reachability (lazy — only on health requests)
-        tags_url = self.base_url.replace("/v1", "") + "/api/tags"
+        # Probe the Ollama tags endpoint to verify reachability and model availability (lazy — only on health requests)
+        tags_url = self.base_url.replace("/v1", "").rstrip("/") + "/api/tags"
         base = {"model": self._model, "endpoint": self.base_url, "credentials": "none"}
         try:
-            urllib.request.urlopen(urllib.request.Request(tags_url), timeout=3)
-        except Exception:
-            return {**base, "ok": False, "reason": f"Ollama not reachable at {self.base_url}"}
-        return {**base, "ok": True}
+            req = urllib.request.Request(tags_url)
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                models: List[str] = []
+                try:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    models = [m.get("name", "") for m in data.get("models", [])]
+                except Exception:
+                    pass
+                model_match = any(
+                    self._model == m or self._model == m.split(":")[0] or m == self._model.split(":")[0]
+                    for m in models
+                ) if models else True
+                reason = (
+                    f"Selected model '{self._model}' is available."
+                    if model_match
+                    else f"Model '{self._model}' not found in local Ollama. Available: {models}. Run 'ollama pull {self._model}'."
+                )
+                return {
+                    **base,
+                    "ok": True,
+                    "model_available": model_match,
+                    "available_models": models,
+                    "selected_model": self._model,
+                    "reason": reason,
+                }
+        except Exception as e:
+            return {
+                **base,
+                "ok": False,
+                "model_available": False,
+                "reason": f"Ollama not reachable at {self.base_url}: {type(e).__name__}",
+            }
 
 
 class AzureOpenAIProvider(LLMProvider):

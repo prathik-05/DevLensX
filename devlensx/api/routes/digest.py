@@ -44,8 +44,22 @@ def _estimate_tokens(text: str) -> int:
         return max(1, len(text) // 4)
 
 
-def _extract_manifest_and_stack_evidence(files_list, repo_model: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    manifests = []
+def _extract_manifest_and_stack_evidence(
+    files_list,
+    repo_model: Optional[Dict[str, Any]] = None,
+    source: Optional[str] = None
+) -> Dict[str, Any]:
+    from devlensx.understanding.profiling.repository_profiler import RepositoryProfiler
+
+    classes = (repo_model.get("classes") or []) if repo_model else []
+    resolved_path = source or (repo_model.get("repo_path") if repo_model else "") or ""
+    profile = RepositoryProfiler.profile_repository(
+        repo_path=resolved_path,
+        classes=classes,
+        repo_model=repo_model,
+        files=files_list,
+    )
+
     manifest_names = {
         "package.json": "Node.js / npm",
         "pom.xml": "Java / Maven",
@@ -59,6 +73,9 @@ def _extract_manifest_and_stack_evidence(files_list, repo_model: Optional[Dict[s
         "Dockerfile": "Docker Container",
         "docker-compose.yml": "Docker Compose",
     }
+    manifests = []
+
+    # Extract manifests from actual files list (handles nested and monorepo manifests)
     file_paths = []
     for f in files_list:
         if isinstance(f, dict):
@@ -67,6 +84,7 @@ def _extract_manifest_and_stack_evidence(files_list, repo_model: Optional[Dict[s
             file_paths.append(str(getattr(f, "path", "")))
         else:
             file_paths.append(str(f))
+
     for fp in file_paths:
         base = os.path.basename(fp)
         if base in manifest_names:
@@ -74,67 +92,55 @@ def _extract_manifest_and_stack_evidence(files_list, repo_model: Optional[Dict[s
         elif fp.endswith(".csproj") or fp.endswith(".sln"):
             manifests.append(f"{fp} (.NET / C#)")
 
+    # Supplement with disk-inspected manifests from profile
+    for m in profile.get("manifests_found", []):
+        desc = manifest_names.get(m, "Build / Package Manifest")
+        if not any(m in existing for existing in manifests):
+            manifests.append(f"{m} ({desc})")
+
     # Entrypoints
     entrypoints = []
-    if repo_model and repo_model.get("endpoints"):
-        for ep in repo_model["endpoints"][:8]:
-            m = ep.get("method", "GET")
-            r = ep.get("route", ep.get("path", "/"))
-            h = ep.get("handler", "")
-            f = ep.get("file", "")
-            entrypoints.append(f"`{m} {r}` &rarr; `{h}` ({f})")
-    if not entrypoints:
-        for fp in file_paths:
-            base = os.path.basename(fp).lower()
-            if base in ("main.py", "app.py", "index.ts", "app.tsx", "main.go", "main.rs") or "application.java" in base:
-                entrypoints.append(f"`{fp}` (Main entrypoint)")
+    for ep in profile.get("entry_points", []):
+        if ep.get("symbol"):
+            entrypoints.append(f"`{ep['symbol']}` ({ep.get('file', '')}) &mdash; {ep.get('type', 'Entrypoint')}")
+        elif ep.get("file"):
+            entrypoints.append(f"`{ep['file']}` ({ep.get('type', 'Application Entrypoint')})")
 
-    # Key symbols & Layer Flow
+    # Key symbols: production symbols ranked by architectural priority with explainable tags
     key_symbols = []
-    controllers, services, repos = [], [], []
-    if repo_model and repo_model.get("classes"):
-        def _is_test_class(name: str, file_path: str) -> bool:
-            nl = name.lower()
-            fl = file_path.lower().replace("\\", "/")
-            return (
-                nl.startswith("test") or nl.endswith("test") or nl.endswith("tests")
-                or "test" in fl or "/tests/" in fl or "spec" in fl or nl.endswith("spec")
-            )
+    prod_symbols = profile.get("production_symbols", [])
+    for s in prod_symbols[:15]:
+        nm = s["name"]
+        fl = s["file"]
+        l1 = s["line_start"]
+        l2 = s["line_end"]
+        role = s["role"].replace("_", " ").title()
+        reason = s["ranking_reason"]
+        key_symbols.append(f"- `{nm}` [{role}] in `{fl}#L{l1}-L{l2}` &mdash; {reason}")
 
-        all_classes = repo_model["classes"]
-        # Sort: production classes first, test classes at end; cap at 15 total, ≤2 test
-        prod = [c for c in all_classes if not _is_test_class(c.get("name", ""), c.get("file", ""))]
-        test_cls = [c for c in all_classes if _is_test_class(c.get("name", ""), c.get("file", ""))]
-        ranked = (prod + test_cls[:2])[:15]
-        for c in ranked:
-            st = c.get("stereotype") or c.get("kind") or "Component"
-            nm = c.get("name", "")
-            fl = c.get("file", "")
-            l1 = c.get("line_start", 1)
-            l2 = c.get("line_end", l1 + 10)
-            key_symbols.append(f"- `{nm}` ({st}) in `{fl}#L{l1}-L{l2}`")
-            if st == "Controller" or "controller" in nm.lower():
-                controllers.append(nm)
-            elif st == "Service" or "service" in nm.lower():
-                services.append(nm)
-            elif st in ("Repository", "DAO") or "repository" in nm.lower() or "dao" in nm.lower():
-                repos.append(nm)
+    # Test symbols: cleanly segregated into supporting verification evidence
+    test_symbols = []
+    for t in profile.get("test_symbols", [])[:10]:
+        nm = t["name"]
+        fl = t["file"]
+        l1 = t["line_start"]
+        l2 = t["line_end"]
+        test_symbols.append(f"- `{nm}` [Test Fixture] in `{fl}#L{l1}-L{l2}`")
 
-    data_flow = []
-    if controllers and services:
-        chain = f"`{controllers[0]}` (Controller) &rarr; `{services[0]}` (Service)"
-        if repos:
-            chain += f" &rarr; `{repos[0]}` (Repository)"
-        data_flow.append(chain)
-    elif repo_model and repo_model.get("relationships"):
-        for r in repo_model["relationships"][:3]:
-            data_flow.append(f"`{r.get('source')}` &rarr; {r.get('type', 'DEPENDS_ON')} &rarr; `{r.get('target')}`")
+    # Data flow derived adaptively from archetype and actual AST relationships
+    data_flow = profile.get("data_flow", [])
 
     return {
         "manifests": manifests,
         "entrypoints": entrypoints,
         "key_symbols": key_symbols,
+        "test_symbols": test_symbols,
         "data_flow": data_flow,
+        "archetype": profile.get("archetype", "MODULAR_APPLICATION"),
+        "archetype_rationale": profile.get("archetype_rationale", ""),
+        "primary_language": profile.get("primary_language", "Polyglot"),
+        "framework": profile.get("framework", "Standard"),
+        "profile": profile,
     }
 
 
@@ -162,13 +168,14 @@ def _run_ingest(
             full=True,
         )
 
-        evidence = _extract_manifest_and_stack_evidence(res.files, repo_model=repo_model)
+        evidence = _extract_manifest_and_stack_evidence(res.files, repo_model=repo_model, source=source)
 
         summary_text = (
             f"Repository: {res.summary.repo_name}\n"
             f"Files analyzed: {res.summary.file_count}\n"
             f"Commit: {res.summary.commit_sha[:10]}\n"
             f"Branch: {res.summary.branch}\n"
+            f"Archetype: {evidence.get('archetype', 'MODULAR_APPLICATION')}\n"
         )
         content_chunks = []
         for f in res.files:
@@ -183,24 +190,29 @@ def _run_ingest(
         entry_section = "\n".join(f"- {e}" for e in evidence["entrypoints"]) if evidence["entrypoints"] else "- None detected"
         symbols_section = "\n".join(evidence["key_symbols"]) if evidence["key_symbols"] else "- Insufficient source analysis data — no class structure was extracted"
         flow_section = "\n".join(f"- {df}" for df in evidence["data_flow"]) if evidence["data_flow"] else "- Direct modular execution"
+        test_section = "\n".join(evidence["test_symbols"]) if evidence.get("test_symbols") else "- No test fixtures identified in parsed source"
 
         prompt_digest = (
             f"# CODEBASE DIGEST & ARCHITECTURE CONTEXT\n\n"
-            f"> NOTE FOR AI: Focus on production entry points, domain logic, and service classes. "
+            f"> NOTE FOR AI: Focus on production entry points, domain logic, and core algorithms. "
             f"Do not describe test classes or test methods as the primary application components.\n\n"
             f"## 1. Executive Overview\n"
             f"- **Repository:** {res.summary.repo_name}\n"
             f"- **Commit:** {res.summary.commit_sha[:10]} | **Branch:** {res.summary.branch}\n"
+            f"- **Primary Stack:** {evidence.get('primary_language', 'Polyglot')} ({evidence.get('framework', 'Standard')})\n"
+            f"- **Architectural Archetype:** {evidence.get('archetype', 'MODULAR_APPLICATION')} &mdash; {evidence.get('archetype_rationale', '')}\n"
             f"- **Files Analyzed:** {res.summary.file_count} | **Total Size:** {_format_size(res.summary.total_bytes)} | **Estimated Tokens:** {res.summary.estimated_tokens}\n\n"
             f"## 2. Detected Manifests & Tech Stack\n"
             f"{manifest_section}\n\n"
             f"## 3. Key Entry Points & Grounded Symbols\n"
             f"**Entry Points:**\n{entry_section}\n\n"
-            f"**Core Symbols & Source Lines:**\n{symbols_section}\n\n"
+            f"**Core Production Symbols & Source Lines:**\n{symbols_section}\n\n"
             f"## 4. Verified Data Flow & Architecture\n"
             f"{flow_section}\n\n"
-            f"## 5. Directory Structure\n```\n{res.tree}\n```\n\n"
-            f"## 6. Codebase Files\n{files_content}\n"
+            f"## 5. Test & Verification Suite\n"
+            f"{test_section}\n\n"
+            f"## 6. Directory Structure\n```\n{res.tree}\n```\n\n"
+            f"## 7. Codebase Files\n{files_content}\n"
         )
 
         return {
@@ -213,6 +225,10 @@ def _run_ingest(
             "prompt_digest": prompt_digest,
             "manifests": evidence["manifests"],
             "entrypoints": evidence["entrypoints"],
+            "key_symbols": evidence["key_symbols"],
+            "test_symbols": evidence.get("test_symbols", []),
+            "archetype": evidence.get("archetype", "MODULAR_APPLICATION"),
+            "primary_language": evidence.get("primary_language", "Polyglot"),
             "stats": {
                 "files_analyzed": res.summary.file_count,
                 "total_size_bytes": res.summary.total_bytes,
@@ -221,6 +237,8 @@ def _run_ingest(
                 "estimated_tokens_formatted": f"{res.summary.estimated_tokens / 1000:.1f}k" if res.summary.estimated_tokens >= 1000 else str(res.summary.estimated_tokens),
                 "manifests_detected": len(evidence["manifests"]),
                 "entrypoints_detected": len(evidence["entrypoints"]),
+                "production_symbols_detected": len(evidence["key_symbols"]),
+                "test_symbols_detected": len(evidence.get("test_symbols", [])),
             },
         }
     except Exception as native_err:
