@@ -15,6 +15,7 @@ from devlensx.api.routes.evaluation import router as evaluation_router
 from devlensx.api.routes.governance import router as governance_router
 from devlensx.api.routes.digest import router as digest_router
 from devlensx.api.routes.ingest_routes import router as ingest_router, analyze_router
+from devlensx.api.routes.plugin_routes import router as plugin_router
 
 __all__ = [
     "auth_router",
@@ -35,4 +36,5 @@ __all__ = [
     "digest_router",
     "ingest_router",
     "analyze_router",
+    "plugin_router",
 ]

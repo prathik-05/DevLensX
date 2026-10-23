@@ -50,6 +50,7 @@ from devlensx.api.routes import (
     digest_router,
     ingest_router,
     analyze_router,
+    plugin_router,
 )
 
 @asynccontextmanager
@@ -104,6 +105,7 @@ app.include_router(governance_router)
 app.include_router(digest_router)
 app.include_router(ingest_router)
 app.include_router(analyze_router)
+app.include_router(plugin_router)
 
 
 @app.get("/api/health")
