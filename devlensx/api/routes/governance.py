@@ -113,22 +113,23 @@ def evaluate_snapshot_governance(req: GovernanceEvaluateRequest):
 
     snap = snap_reg.get(run_id)
     if not snap:
-        # Check global_state recovery
-        try:
-            from devlensx.api.main import global_state
-            repo_model = global_state.get("repo_model") or {}
-            if repo_model:
-                r_id = repo_model.get("repo") or req.repository_id or "repository"
-                r_path = repo_model.get("repo_path") or "."
-                from devlensx.evidence import register_snapshot
-                snap = register_snapshot(
-                    repository_id=r_id,
-                    analysis_run_id=run_id,
-                    repo_path=r_path,
-                    commit_hash=repo_model.get("commit_hash"),
-                )
-        except Exception:
-            pass
+        # Check global_state recovery ONLY when caller did not supply a specific explicit run_id
+        if not req.analysis_run_id:
+            try:
+                from devlensx.api.main import global_state
+                repo_model = global_state.get("repo_model") or {}
+                if repo_model:
+                    r_id = repo_model.get("repo") or req.repository_id or "repository"
+                    r_path = repo_model.get("repo_path") or "."
+                    from devlensx.evidence import register_snapshot
+                    snap = register_snapshot(
+                        repository_id=r_id,
+                        analysis_run_id=run_id,
+                        repo_path=r_path,
+                        commit_hash=repo_model.get("commit_hash"),
+                    )
+            except Exception:
+                pass
 
     if not snap:
         raise HTTPException(status_code=404, detail=f"SNAPSHOT_NOT_FOUND:{run_id}")

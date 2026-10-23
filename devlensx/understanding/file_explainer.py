@@ -76,6 +76,30 @@ class FileExplainer:
         package = target_class.get("package", "") if target_class else ""
         annotations = [str(a) for a in (target_class.get("annotations", []) if target_class else [])]
         raw_methods = target_class.get("methods", []) if target_class else []
+        if not raw_methods and target_class:
+            # In polyglot AST models, methods may be stored as scoped symbols in the same file
+            cls_name = target_class.get("name", "")
+            cls_id = target_class.get("id", "")
+            cls_l_start = target_class.get("line_start", 1)
+            cls_l_end = target_class.get("line_end", cls_l_start + 100)
+            method_symbols = [
+                c for c in classes
+                if isinstance(c, dict)
+                and c.get("kind") in ("method", "function")
+                and (c.get("file") or "").replace("\\", "/").lstrip("/") == norm_file
+                and (
+                    c.get("metadata", {}).get("parent_class") in (cls_name, cls_id)
+                    or (cls_l_start <= c.get("line_start", 0) <= cls_l_end and c.get("name") != cls_name)
+                )
+            ]
+            seen_names = set()
+            raw_methods = []
+            for m in method_symbols:
+                m_name = m.get("name")
+                if m_name and m_name not in seen_names:
+                    seen_names.add(m_name)
+                    raw_methods.append(m)
+
         methods = [m.get("name") if isinstance(m, dict) else str(m) for m in raw_methods]
         raw_fields = target_class.get("fields", []) if target_class else []
         fields = [f.get("name") if isinstance(f, dict) else str(f) for f in raw_fields]

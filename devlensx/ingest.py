@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin, urlsplit
 import socket
 import ipaddress
 import select
@@ -381,11 +381,17 @@ class _EgressProxyHandler(BaseHTTPRequestHandler):
         pass
 
     def do_CONNECT(self):
-        address = self.path.split(":")
-        host = address[0]
+        # RFC 7230 / RFC 9112 compliant authority parsing with bracketed IPv6 support
+        raw_target = self.path.strip()
         try:
-            port = int(address[1]) if len(address) > 1 else 443
-        except ValueError:
+            parsed = urlsplit(f"//{raw_target}")
+            host = parsed.hostname
+            port = parsed.port if parsed.port is not None else 443
+        except Exception:
+            self.send_error(400, f"Malformed CONNECT destination: {self.path}")
+            return
+
+        if not host:
             self.send_error(400, f"Malformed CONNECT destination: {self.path}")
             return
 

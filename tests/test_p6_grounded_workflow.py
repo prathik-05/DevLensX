@@ -648,6 +648,38 @@ def test_validating_egress_proxy_blocks_non_443_ports():
         assert "destination port 80 is prohibited" in res80
 
 
+def test_validating_egress_proxy_bracketed_ipv6_and_malformed_destinations():
+    """
+    AUDIT TEST (P0 IPv6 Bracket Authority Parsing):
+    Verifies that ValidatingEgressProxy parses RFC 7230/9112 bracketed IPv6 destinations correctly:
+    - [::1]:443 is parsed as host '::1' and blocked with 403 (loopback policy).
+    - Malformed targets return HTTP 400 Bad Request.
+    """
+    import socket
+    with ValidatingEgressProxy() as proxy_url:
+        port = int(proxy_url.split(":")[-1])
+
+        # 1. Bracketed IPv6 Loopback: CONNECT [::1]:443
+        sock_v6 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock_v6.connect(("127.0.0.1", port))
+        sock_v6.sendall(b"CONNECT [::1]:443 HTTP/1.1\r\nHost: [::1]:443\r\n\r\n")
+        res_v6 = sock_v6.recv(1024).decode("utf-8")
+        sock_v6.close()
+
+        assert "403" in res_v6
+        assert "disallowed under network security policy" in res_v6 or "private/disallowed" in res_v6.lower()
+
+        # 2. Malformed CONNECT Target: no host
+        sock_bad = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock_bad.connect(("127.0.0.1", port))
+        sock_bad.sendall(b"CONNECT :443 HTTP/1.1\r\nHost: :443\r\n\r\n")
+        res_bad = sock_bad.recv(1024).decode("utf-8")
+        sock_bad.close()
+
+        assert "400" in res_bad
+        assert "Malformed CONNECT destination" in res_bad
+
+
 def test_validating_egress_proxy_pins_ip_and_blocks_rebinding():
     """
     AUDIT TEST (P0 IP Pinning & Anti-DNS-Rebinding):
