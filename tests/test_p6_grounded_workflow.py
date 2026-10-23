@@ -1,56 +1,72 @@
 """
-Unit and Integration Tests for P6: Grounded Intelligence Loop, Claim-Level Evidence Contract,
-and Hardened Adversarial Verifier.
+DevLensX P6 Grounded Workflow & Hard Invariant Tests
+
+Covers:
+1. P6-C Customer Understanding & File Explainer (Claim-Level Evidence Output Contract)
+2. P0 AWS Credential Classification vs Secret Literal vs Documentation Placeholder vs Configuration Reference
+3. P0 Bounded Submodule Ingestion (Count limits, depth 1 non-recursive, host/network access policy)
+4. Check H Security Annotation vs Global Config
+5. Check F Maintainability Exact Method Counts & Abstention
+6. Check I Blast Radius Deduplication, Directional Separation & Numerical Proof
 """
 
 import pytest
 from pathlib import Path
-from devlensx.understanding.file_explainer import FileExplainer
-from devlensx.scanners import SemgrepScanner, AstGrepScanner, ScannerStatus, CandidateFinding
-from devlensx.critic.critic_engine import CriticAgent
+from fastapi import HTTPException
+from devlensx.understanding.file_explainer import FileExplainer, SimpleTerms
+from devlensx.critic import CriticAgent
+from devlensx.ingest import clone_repository
 
 
 class MockGraphStore:
-    def __init__(self, impact_nodes=None):
-        self.impact_nodes = impact_nodes or [
-            {"class_name": "PaymentController"},
-            {"class_name": "InventoryService"},
-            {"class_name": "PaymentController"}  # Intentionally duplicate to test deduplication
+    """Mock graph store returning change impact and dependencies."""
+    def query_change_impact(self, class_name: str):
+        # Returns 2 dependent callers (1 duplicate to test deduplication)
+        return [
+            {"class_name": "OrderController", "relation": "CALLS"},
+            {"class_name": "PaymentWebhookHandler", "relation": "CALLS"},
+            {"class_name": "OrderController", "relation": "CALLS"}, # duplicate
         ]
 
-    def query_change_impact(self, class_name):
-        if class_name == "OrderService":
-            return self.impact_nodes
-        return []
 
-    def query_blast_radius(self, limit=50):
-        return [{"class_name": "OrderService"}]
-
-
-def test_file_explainer_claim_level_evidence_contract():
+def test_p6_claim_level_evidence_contract_file_explainer():
+    """
+    AUDIT TEST:
+    Verifies that FileExplainer strictly adheres to the claim-level evidence contract,
+    emits smallest relevant line ranges, separates downstream vs upstream impact,
+    and avoids aggregate VERIFIED badges when unverified content exists (PARTIALLY_VERIFIED).
+    """
     repo_model = {
-        "repo": "test_repo",
+        "repository_id": "repo-test-001",
         "analysis_run_id": "run-test-123",
+        "commit_hash": "commit-abc456",
         "classes": [
             {
                 "name": "OrderService",
                 "file": "src/main/java/com/app/OrderService.java",
-                "kind": "class",
                 "stereotype": "Service",
-                "package": "com.app",
+                "package": "com.app.service",
                 "annotations": ["@Service", "@Transactional"],
                 "methods": [
-                    {"name": "createOrder", "line_range": "30-55"},
-                    {"name": "cancelOrder", "line_range": "56-80"},
-                    {"name": "getOrderById", "line_range": "81-100"}
+                    {"name": "createOrder", "line_start": 35, "line_range": "35-45"},
+                    {"name": "cancelOrder", "line_start": 50, "line_range": "50-60"}
                 ],
                 "fields": [
-                    {"name": "orderRepository"},
-                    {"name": "paymentClient"}
+                    {"name": "orderRepository", "line_start": 25, "type": "OrderRepository"},
+                    {"name": "paymentClient", "line_start": 26, "type": "PaymentClient"}
                 ],
                 "injected_dependencies": ["OrderRepository", "PaymentClient"],
                 "line_start": 20,
                 "line_range": "20-150"
+            },
+            {
+                "name": "OrderController",
+                "file": "src/main/java/com/app/OrderController.java",
+                "stereotype": "Controller",
+                "line_start": 15,
+                "line_range": "15-80",
+                "methods": [],
+                "fields": []
             }
         ]
     }
@@ -60,65 +76,147 @@ def test_file_explainer_claim_level_evidence_contract():
     # Developer Depth
     res = explainer.explain("src/main/java/com/app/OrderService.java", symbol_name="OrderService", depth="developer")
 
-    # Contract Field 1: in_simple_terms
+    # Contract Field 1: in_simple_terms (String-compatible & Dict-accessible with claim_ids)
     assert isinstance(res["in_simple_terms"], str)
     assert "OrderService" in res["in_simple_terms"]
+    assert hasattr(res["in_simple_terms"], "claim_ids")
+    assert len(res["in_simple_terms"].claim_ids) > 0
+    assert res["in_simple_terms"]["text"] == str(res["in_simple_terms"])
 
-    # Contract Field 2: purpose { text, status }
+    # Contract Field 2: purpose { text, status, claim_ids }
     assert isinstance(res["purpose"], dict)
     assert "text" in res["purpose"]
     assert res["purpose"]["status"] in ("VERIFIED", "AI_SUGGESTION")
+    assert "claim_ids" in res["purpose"]
 
-    # Contract Field 3: how_it_works [ { step, text, verification_status, code_involved, evidence_ids } ]
+    # Contract Field 3: how_it_works [ { step, claim_ids, explanation, text, verification_status, code_involved, evidence_ids } ]
     assert isinstance(res["how_it_works"], list)
     assert len(res["how_it_works"]) >= 3
     for step in res["how_it_works"]:
         assert "step" in step
         assert "text" in step
+        assert "explanation" in step
+        assert "claim_ids" in step
         assert step["verification_status"] in ("VERIFIED", "AI_SUGGESTION", "INSUFFICIENT_EVIDENCE")
         assert "code_involved" in step
         assert "evidence_ids" in step
 
-    # Contract Field 4: claims [ { text, verification_status, evidence_ids } ]
+    # Contract Field 4: claims [ { id, text, verification_status, evidence_ids } ]
     assert isinstance(res["claims"], list)
     assert len(res["claims"]) >= 3
     for claim in res["claims"]:
+        assert "id" in claim
         assert "text" in claim
         assert claim["verification_status"] in ("VERIFIED", "AI_SUGGESTION", "INSUFFICIENT_EVIDENCE")
+        assert "evidence_ids" in claim
 
-    # Contract Field 5: dependencies_and_impact { summary, relationships }
-    assert isinstance(res["dependencies_and_impact"], dict)
-    assert "summary" in res["dependencies_and_impact"]
-    assert isinstance(res["dependencies_and_impact"]["relationships"], list)
-    for rel in res["dependencies_and_impact"]["relationships"]:
+    # Contract Field 5: evidence [ { id, repository_id, analysis_run_id, commit_hash, file, line_start, line_end } ]
+    assert isinstance(res["evidence"], list)
+    assert len(res["evidence"]) >= 2
+    for ev in res["evidence"]:
+        assert "id" in ev
+        assert "repository_id" in ev
+        assert "analysis_run_id" in ev
+        assert "commit_hash" in ev
+        assert "file" in ev
+        assert "line_start" in ev
+        assert "line_end" in ev
+
+    # Contract Field 6: dependencies_and_impact (Strict Directional Separation)
+    dep_impact = res["dependencies_and_impact"]
+    assert isinstance(dep_impact, dict)
+    assert "summary" in dep_impact
+    assert dep_impact["blast_radius_components_count"] == 2  # OrderController and PaymentWebhookHandler
+    assert dep_impact["downstream_dependents_count"] == 2
+    assert dep_impact["upstream_dependencies_count"] == 2    # OrderRepository and PaymentClient
+    assert isinstance(dep_impact["relationships"], list)
+    for rel in dep_impact["relationships"]:
         assert "source" in rel
         assert "target" in rel
         assert "relation" in rel
-        assert "source_citation" in rel
-        assert rel["verification_status"] in ("VERIFIED", "AI_SUGGESTION", "INSUFFICIENT_EVIDENCE")
+        assert "direction" in rel
+        assert rel["direction"] in ("INCOMING", "OUTGOING")
+        assert rel["verification_status"] in ("VERIFIED", "AI_SUGGESTION", "INSUFFICIENT_EVIDENCE", "UNPROVEN_EDGE")
 
-    # Contract Field 6: verification_status { overall, verdicts_breakdown, evidence_registry }
-    assert isinstance(res["verification_status"], dict)
-    assert res["verification_status"]["overall"] in ("VERIFIED", "AI_SUGGESTION", "INSUFFICIENT_EVIDENCE")
-    assert "run-test-123" in res["verification_status"]["source_line"]
-    assert "#L20-150" in res["verification_status"]["source_line"]
-    assert "verdicts_breakdown" in res["verification_status"]
-    assert "evidence_registry" in res["verification_status"]
+    # Contract Field 7: verification_status (Aggregate Mixed Status Policy)
+    v_status = res["verification_status"]
+    assert isinstance(v_status, dict)
+    # Since Step 4 and purpose have AI_SUGGESTION, overall MUST NOT be VERIFIED! Must be PARTIALLY_VERIFIED!
+    assert v_status["overall"] == "PARTIALLY_VERIFIED"
+    assert v_status["overall"] in ("VERIFIED", "PARTIALLY_VERIFIED", "AI_SUGGESTION", "INSUFFICIENT_EVIDENCE")
+    assert "run-test-123" in v_status["source_line"]
+    assert "verdicts_breakdown" in v_status
+    assert "evidence_registry" in v_status
 
-    # Contract Field 7: next_action
+    # Contract Field 8: next_action
     assert isinstance(res["next_action"], str)
     assert len(res["next_action"]) > 10
 
 
-def test_secret_detection_literal_credential_with_key_suffix():
+# =========================================================================
+# P0 AUDIT SUITE: AWS Credential Classification, Placeholders & Redaction
+# =========================================================================
+
+def test_secret_detection_documentation_placeholder_rejected():
     """
-    CRITICAL AUDIT CASE:
-    Ensure fields ending in _KEY (such as AWS_API_KEY) are NOT exempted if they hold
-    an actual literal credential. Must be verified and redacted.
+    AUDIT TEST:
+    Ensures standard AWS documentation placeholders (e.g., AKIAIOSFODNN7EXAMPLE,
+    wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY) are recognized as documentation/sample
+    placeholders and fail closed (REJECTED), NOT reported as active leaks.
     """
     critic = CriticAgent(MockGraphStore())
     repo_model = {
-        "analysis_run_id": "snap-sec-001",
+        "analysis_run_id": "snap-placeholder-001",
+        "classes": [
+            {
+                "name": "AwsDocExample",
+                "file": "src/main/java/com/app/AwsDocExample.java",
+                "line_start": 10,
+                "line_range": "10-40",
+                "methods": [],
+                "fields": [
+                    {"name": "SAMPLE_KEY", "initializer": "AKIAIOSFODNN7EXAMPLE"},
+                    {"name": "SAMPLE_SECRET", "initializer": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}
+                ]
+            }
+        ]
+    }
+
+    # Case 1: Documentation Access Key ID
+    finding_doc_key = {
+        "class_name": "AwsDocExample",
+        "file": "src/main/java/com/app/AwsDocExample.java",
+        "category": "Hardcoded Secret",
+        "claim": "Class AwsDocExample contains field 'SAMPLE_KEY' with hardcoded secret.",
+        "evidence": {"field_name": "SAMPLE_KEY", "value": "AKIAIOSFODNN7EXAMPLE"}
+    }
+    res1 = critic.verify_finding(finding_doc_key, repo_model)
+    assert res1["verdict"] == "REJECTED"
+    assert "documentation placeholder" in res1["evidence_trail"]["ast_check"]["details"]
+
+    # Case 2: Documentation Secret Key
+    finding_doc_secret = {
+        "class_name": "AwsDocExample",
+        "file": "src/main/java/com/app/AwsDocExample.java",
+        "category": "Hardcoded Secret",
+        "claim": "Class AwsDocExample contains field 'SAMPLE_SECRET' with hardcoded secret.",
+        "evidence": {"field_name": "SAMPLE_SECRET", "value": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}
+    }
+    res2 = critic.verify_finding(finding_doc_secret, repo_model)
+    assert res2["verdict"] == "REJECTED"
+    assert "documentation placeholder" in res2["evidence_trail"]["ast_check"]["details"]
+
+
+def test_secret_detection_aws_access_key_id_classification_and_masking():
+    """
+    AUDIT TEST:
+    Ensures an actual AWS access key ID (AKIA...) is classified as an account identifier
+    (not a secret access key), and proved that raw credentials are NEVER leaked unmasked.
+    """
+    critic = CriticAgent(MockGraphStore())
+    actual_key_id = "AKIA3J5K6L7M8N9P0Q1R"
+    repo_model = {
+        "analysis_run_id": "snap-akia-001",
         "classes": [
             {
                 "name": "CloudCredentials",
@@ -126,37 +224,108 @@ def test_secret_detection_literal_credential_with_key_suffix():
                 "line_start": 10,
                 "line_range": "10-40",
                 "methods": [],
-                "fields": [
-                    {
-                        "name": "AWS_API_KEY",
-                        "type": "String",
-                        "initializer": "AKIAIOSFODNN7EXAMPLE",
-                        "is_final": True
-                    }
-                ]
+                "fields": [{"name": "AWS_KEY_ID", "initializer": actual_key_id}]
+            }
+        ]
+    }
+
+    # Case A: Correctly claims AWS Access Key Identifier
+    finding_key_id = {
+        "class_name": "CloudCredentials",
+        "file": "src/main/java/com/app/CloudCredentials.java",
+        "category": "Access Key",
+        "claim": "Class CloudCredentials contains field 'AWS_KEY_ID' with hardcoded AWS access key ID.",
+        "evidence": {"field_name": "AWS_KEY_ID", "value": actual_key_id}
+    }
+    res_a = critic.verify_finding(finding_key_id, repo_model)
+    assert res_a["verdict"] == "VERIFIED"
+    details_a = res_a["evidence_trail"]["ast_check"]["details"]
+    assert "AWS Access Key Identifier" in details_a
+    assert "[REDACTED]" in details_a
+    # PROVE raw key is redacted in output!
+    assert actual_key_id not in details_a
+    assert "AKIA" in details_a
+
+    # Case B: Falsely claims AKIA is a "secret access key leak" or "password"
+    finding_false_claim = {
+        "class_name": "CloudCredentials",
+        "file": "src/main/java/com/app/CloudCredentials.java",
+        "category": "Hardcoded Secret",
+        "claim": "Class CloudCredentials leaks private secret access key in field 'AWS_KEY_ID'.",
+        "evidence": {"field_name": "AWS_KEY_ID", "value": actual_key_id}
+    }
+    res_b = critic.verify_finding(finding_false_claim, repo_model)
+    assert res_b["verdict"] == "REJECTED"
+    assert "account identifier, not a secret access key" in res_b["evidence_trail"]["ast_check"]["details"]
+
+
+def test_secret_detection_real_secret_token_redaction():
+    """
+    AUDIT TEST:
+    Ensures true secret tokens (e.g. OpenAI sk-, GitHub PAT) are verified as secret literals,
+    and masked in output.
+    """
+    critic = CriticAgent(MockGraphStore())
+    raw_token = "sk-live-1234567890abcdef1234567890abcdef"
+    repo_model = {
+        "analysis_run_id": "snap-secret-001",
+        "classes": [
+            {
+                "name": "AiConfig",
+                "file": "src/main/java/com/app/AiConfig.java",
+                "line_start": 5,
+                "line_range": "5-30",
+                "methods": [],
+                "fields": [{"name": "OPENAI_SECRET", "initializer": raw_token}]
             }
         ]
     }
 
     finding = {
-        "class_name": "CloudCredentials",
-        "file": "src/main/java/com/app/CloudCredentials.java",
+        "class_name": "AiConfig",
+        "file": "src/main/java/com/app/AiConfig.java",
         "category": "Hardcoded Secret",
-        "claim": "Class CloudCredentials contains field 'AWS_API_KEY' with hardcoded secret.",
-        "evidence": {
-            "field_name": "AWS_API_KEY",
-            "value": "AKIAIOSFODNN7EXAMPLE"
-        }
+        "claim": "Class AiConfig contains field 'OPENAI_SECRET' with hardcoded secret literal.",
+        "evidence": {"field_name": "OPENAI_SECRET", "value": raw_token}
+    }
+    res = critic.verify_finding(finding, repo_model)
+    assert res["verdict"] == "VERIFIED"
+    details = res["evidence_trail"]["ast_check"]["details"]
+    assert "secret credential literal" in details
+    assert "[REDACTED]" in details
+    assert raw_token not in details
+
+
+def test_secret_detection_configuration_reference_rejected():
+    """
+    AUDIT TEST:
+    Ensures dynamic lookups (System.getenv, @Value) are rejected as configuration references.
+    """
+    critic = CriticAgent(MockGraphStore())
+    repo_model = {
+        "analysis_run_id": "snap-config-001",
+        "classes": [
+            {
+                "name": "AppConfig",
+                "file": "src/main/java/com/app/AppConfig.java",
+                "line_start": 5,
+                "line_range": "5-25",
+                "methods": [],
+                "fields": [{"name": "API_KEY", "initializer": "System.getenv(\"API_KEY\")"}]
+            }
+        ]
     }
 
-    result = critic.verify_finding(finding, repo_model)
-    # MUST be VERIFIED because an actual AWS key literal is present!
-    assert result["verdict"] == "VERIFIED"
-    details = result["evidence_trail"]["ast_check"]["details"]
-    assert "AKIA..." in details or "[REDACTED]" in details
-    # Literal secret MUST be redacted in output, not printed in cleartext
-    assert "AKIAIOSFODNN7EXAMPLE" not in details
-    assert "#L10-40" in result["source_line"]
+    finding = {
+        "class_name": "AppConfig",
+        "file": "src/main/java/com/app/AppConfig.java",
+        "category": "Hardcoded Secret",
+        "claim": "Class AppConfig contains field 'API_KEY' with hardcoded secret.",
+        "evidence": {"field_name": "API_KEY", "value": "System.getenv(\"API_KEY\")"}
+    }
+    res = critic.verify_finding(finding, repo_model)
+    assert res["verdict"] == "REJECTED"
+    assert "dynamic configuration/environment reference" in res["evidence_trail"]["ast_check"]["details"]
 
 
 def test_secret_detection_parameter_name_constant_is_rejected():
@@ -198,10 +367,85 @@ def test_secret_detection_parameter_name_constant_is_rejected():
     }
 
     result = critic.verify_finding(finding, repo_model)
-    # Must fail closed: it's a property key name, not a leaked secret
     assert result["verdict"] == "REJECTED"
     assert "configuration property key identifier" in result["evidence_trail"]["ast_check"]["details"]
 
+
+# =========================================================================
+# P0 AUDIT SUITE: Bounded Submodule Ingestion & Network Policy
+# =========================================================================
+
+def test_submodule_ingestion_policy_checks(tmp_path):
+    """
+    AUDIT TEST:
+    Verifies that clone_repository enforces:
+    1. Maximum submodule count limit (rejects > 5)
+    2. Strict HTTPS requirement (rejects file://, ssh://)
+    3. Disallows local network/IP access
+    """
+    fake_target = tmp_path / "target_repo"
+    fake_target.mkdir()
+
+    # Create a mock .gitmodules exceeding count limit (> 5 submodules)
+    too_many_submodules = "\n".join([
+        f'[submodule "sub{i}"]\n\tpath = sub{i}\n\turl = https://github.com/example/sub{i}.git'
+        for i in range(7)
+    ])
+    (fake_target / ".gitmodules").write_text(too_many_submodules, encoding="utf-8")
+
+    # Mock subprocess run to simulate successful base clone
+    import subprocess
+    original_run = subprocess.run
+
+    def mock_run(cmd, *args, **kwargs):
+        class MockProc:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+        return MockProc()
+
+    subprocess.run = mock_run
+    try:
+        # Case 1: Count Limit (> 5 submodules)
+        with pytest.raises(HTTPException) as exc1:
+            clone_repository(
+                clone_url="https://github.com/example/main.git",
+                target_dir=fake_target,
+                submodules=True
+            )
+        assert exc1.value.status_code == 400
+        assert "exceeds maximum allowed submodule count" in exc1.value.detail
+
+        # Case 2: Protocol Security Policy (reject file:// URL)
+        insecure_proto = '[submodule "local"]\n\tpath = local\n\turl = file:///etc/passwd'
+        (fake_target / ".gitmodules").write_text(insecure_proto, encoding="utf-8")
+        with pytest.raises(HTTPException) as exc2:
+            clone_repository(
+                clone_url="https://github.com/example/main.git",
+                target_dir=fake_target,
+                submodules=True
+            )
+        assert exc2.value.status_code == 403
+        assert "strictly HTTPS required" in exc2.value.detail
+
+        # Case 3: Local Network IP Disallowance (reject 127.0.0.1 / localhost)
+        local_ip_sub = '[submodule "internal"]\n\tpath = internal\n\turl = https://127.0.0.1/secret.git'
+        (fake_target / ".gitmodules").write_text(local_ip_sub, encoding="utf-8")
+        with pytest.raises(HTTPException) as exc3:
+            clone_repository(
+                clone_url="https://github.com/example/main.git",
+                target_dir=fake_target,
+                submodules=True
+            )
+        assert exc3.value.status_code == 403
+        assert "disallowed under network security policy" in exc3.value.detail
+    finally:
+        subprocess.run = original_run
+
+
+# =========================================================================
+# AUDIT SUITE: Check H Security Annotation vs Global Configuration
+# =========================================================================
 
 def test_security_annotation_vs_global_configuration():
     """
@@ -245,10 +489,13 @@ def test_security_annotation_vs_global_configuration():
         "evidence": {}
     }
     res_b = critic.verify_finding(finding_unprotected, repo_model)
-    # MUST NOT be marked VERIFIED because global security configuration has not proven it unprotected!
     assert res_b["verdict"] != "VERIFIED"
     assert "INSUFFICIENT_EVIDENCE" in res_b["evidence_trail"]["ast_check"]["details"]
 
+
+# =========================================================================
+# AUDIT SUITE: Check F Maintainability Exact Method Counts & Abstention
+# =========================================================================
 
 def test_maintainability_exact_method_count_and_abstention():
     """
@@ -307,12 +554,15 @@ def test_maintainability_exact_method_count_and_abstention():
     assert "INSUFFICIENT_EVIDENCE" in res_c["evidence_trail"]["ast_check"]["details"]
 
 
+# =========================================================================
+# AUDIT SUITE: Check I Blast Radius Deduplication & Directional Separation
+# =========================================================================
+
 def test_blast_radius_deduplication_and_abstention():
     """
     AUDIT CASE:
     Ensure dependent nodes from graph queries are deduplicated, and abstain if count is unstated.
     """
-    # Graph store returns 3 nodes, but 1 is duplicate -> 2 unique dependents
     critic = CriticAgent(MockGraphStore())
     repo_model = {
         "analysis_run_id": "snap-impact-001",

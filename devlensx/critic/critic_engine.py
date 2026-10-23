@@ -183,38 +183,103 @@ class CriticAgent:
                         claim_specific_passed = False
                         ast_details = f"AST Check Failed: Class '{class_name}' has {actual_methods} methods (claimed {claimed_methods}, threshold > 15)."
 
-            # Adversarial Check G: Hardcoded Secret vs. Constant Key Identifier with Value Inspection & Redaction
-            elif category in ("Hardcoded Secret", "Secret", "Credential Leak") or "SECRET" in title_claim.upper() or "PASSWORD" in title_claim.upper():
+            # Adversarial Check G: AWS Access Key ID vs. Secret Credential Literal vs. Placeholder vs. Constant Key
+            elif category in ("Hardcoded Secret", "Secret", "Credential Leak", "Access Key") or "SECRET" in title_claim.upper() or "PASSWORD" in title_claim.upper() or "AKIA" in title_claim.upper():
                 field_match = re.search(r"field ['\"]([^'\"]+)['\"]", title_claim)
                 field_name = field_match.group(1) if field_match else str(evidence.get("field_name", "") or "")
                 
                 matched_field_obj = next((f for f in (matched_class.get("fields") or []) if isinstance(f, dict) and f.get("name") == field_name), None)
                 field_initializer = str((matched_field_obj.get("initializer") if matched_field_obj else "") or evidence.get("value") or evidence.get("initializer") or "").strip()
 
-                CREDENTIAL_LITERAL_REGEX = re.compile(
-                    r'(AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|AIza[0-9A-Za-z-_]{35}|xox[baprs]-[a-zA-Z0-9-]+|-----BEGIN [A-Z ]*PRIVATE KEY-----)',
+                def redact_value(val: str) -> str:
+                    if not val:
+                        return "[EMPTY]"
+                    clean = val.strip("\"'")
+                    if len(clean) <= 8:
+                        return "[REDACTED]"
+                    masked = clean[:4] + "*" * (len(clean) - 8) + clean[-4:]
+                    return f"{masked} [REDACTED]"
+
+                # 1. Check for standard documentation placeholders and harmless sample credentials
+                KNOWN_DOC_PLACEHOLDERS = (
+                    "AKIAIOSFODNN7EXAMPLE",
+                    "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+                    "your_api_key",
+                    "your_token_here",
+                    "placeholder",
+                    "dummy_secret",
+                    "changeme",
+                )
+                raw_clean_val = field_initializer.strip("\"'")
+                is_doc_placeholder = (
+                    any(p.lower() in raw_clean_val.lower() for p in KNOWN_DOC_PLACEHOLDERS) or
+                    "example" in raw_clean_val.lower() or
+                    "placeholder" in raw_clean_val.lower() or
+                    "sample" in raw_clean_val.lower() or
+                    "dummy" in raw_clean_val.lower() or
+                    re.match(r'^(x+|0+|123456+)$', raw_clean_val, re.IGNORECASE) is not None
+                )
+
+                # 2. Check for configuration or environment references
+                is_config_reference = bool(
+                    "System.getenv" in field_initializer or
+                    "System.getProperty" in field_initializer or
+                    "@Value" in field_initializer or
+                    "config.get" in field_initializer or
+                    "properties.get" in field_initializer
+                )
+
+                # 3. Check for AWS Access Key ID (AKIA...)
+                AWS_ACCESS_KEY_REGEX = re.compile(r'\b(AKIA[0-9A-Z]{16})\b')
+                aws_access_key_match = AWS_ACCESS_KEY_REGEX.search(field_initializer) or AWS_ACCESS_KEY_REGEX.search(title_claim)
+
+                # 4. Check for Secret-like Credential Literal (AWS Secret Key, OpenAI, GitHub PAT, Private Key, Slack, etc.)
+                SECRET_LITERAL_REGEX = re.compile(
+                    r'(sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{50,}|AIza[0-9A-Za-z-_]{35}|xox[baprs]-[a-zA-Z0-9-]+|-----BEGIN [A-Z ]*PRIVATE KEY-----)',
                     re.IGNORECASE
                 )
-                has_credential_literal = bool(CREDENTIAL_LITERAL_REGEX.search(field_initializer) or CREDENTIAL_LITERAL_REGEX.search(title_claim))
+                secret_literal_match = SECRET_LITERAL_REGEX.search(field_initializer) or SECRET_LITERAL_REGEX.search(title_claim)
                 
-                is_hex_or_b64_secret = False
-                if len(field_initializer) >= 20 and re.match(r'^[0-9a-zA-Z+/=_-]+$', field_initializer):
-                    if not ('.' in field_initializer or '-' in field_initializer or field_initializer.lower() in field_name.lower()):
-                        is_hex_or_b64_secret = True
+                # AWS Secret Access Key: 40 base64 chars
+                is_aws_secret_key = False
+                if len(raw_clean_val) == 40 and re.match(r'^[A-Za-z0-9/+=]{40}$', raw_clean_val):
+                    if not is_doc_placeholder and not raw_clean_val.isalnum():
+                        is_aws_secret_key = True
 
-                is_real_secret_literal = has_credential_literal or is_hex_or_b64_secret
+                is_generic_high_entropy_secret = False
+                if len(raw_clean_val) >= 24 and re.match(r'^[0-9a-zA-Z+/=_-]+$', raw_clean_val):
+                    if not ('.' in raw_clean_val or '-' in raw_clean_val or raw_clean_val.lower() in field_name.lower()):
+                        if not is_doc_placeholder:
+                            is_generic_high_entropy_secret = True
 
-                def redact_value(val: str) -> str:
-                    if not val or len(val) <= 6:
-                        return "[REDACTED]"
-                    return f"{val[:4]}...{val[-4:]} [REDACTED]"
+                is_real_secret_literal = bool(secret_literal_match or is_aws_secret_key or is_generic_high_entropy_secret)
 
-                # If an actual credential literal is found, it is ALWAYS a true credential leak regardless of suffix!
-                if is_real_secret_literal:
+                redacted = redact_value(field_initializer or title_claim)
+
+                # Evaluation flow:
+                if is_doc_placeholder:
+                    ast_check = False
+                    claim_specific_passed = False
+                    ast_details = f"AST Fail Closed: Value in field '{field_name}' is a known documentation placeholder or sample credential ('{redacted}'), not an active secret leak."
+                elif is_config_reference:
+                    ast_check = False
+                    claim_specific_passed = False
+                    ast_details = f"AST Fail Closed: Field '{field_name}' in '{class_name}' is a dynamic configuration/environment reference ('{redacted}'), not a hardcoded secret."
+                elif aws_access_key_match:
+                    # Distinguish Access Key ID from Secret Key
+                    is_secret_key_claim = any(kw in title_claim.lower() for kw in ("secret key", "secret access key", "password", "private key"))
+                    if is_secret_key_claim and not is_real_secret_literal:
+                        ast_check = False
+                        claim_specific_passed = False
+                        ast_details = f"AST Fail Closed: Detected AWS Access Key Identifier '{redacted}' in field '{field_name}', which is an account identifier, not a secret access key or private password."
+                    else:
+                        ast_check = True
+                        claim_specific_passed = True
+                        ast_details = f"AST Match: Confirmed hardcoded AWS Access Key Identifier '{redacted}' in field '{field_name}' ({class_name}). (Note: access-key ID is an account identifier, distinct from the secret access key; active usability not established without external verification)."
+                elif is_real_secret_literal:
                     ast_check = True
                     claim_specific_passed = True
-                    redacted = redact_value(field_initializer or title_claim)
-                    ast_details = f"AST Match: Confirmed hardcoded secret credential literal '{redacted}' in field '{field_name}' ({class_name})."
+                    ast_details = f"AST Match: Confirmed hardcoded secret credential literal '{redacted}' in field '{field_name}' ({class_name}). (Note: static literal detected; active usability not validated without live authentication)."
                 else:
                     is_test_class = bool(re.search(r'(Test|TestCase|Mock)$', class_name, re.IGNORECASE))
                     is_filter_or_service_type = bool(re.search(r'(Filter|Service|Client|Handler|Test)$', field_name, re.IGNORECASE))

@@ -27,7 +27,8 @@ class ScannerStatus(str, Enum):
 class CandidateFinding(BaseModel):
     """Normalized candidate finding from an external scanner or adapter."""
     finding_id: str
-    tool: str  # semgrep, ast-grep, graphify, repomix
+    tool: str  # semgrep, ast-grep, repomix
+    tool_version: Optional[str] = None
     check_id: str
     file: str
     line: Optional[int] = None

@@ -302,9 +302,8 @@ def clone_repository(
         parsed = urlparse(clone_url)
         final_url = f"https://x-access-token:{active_token}@{parsed.netloc}{parsed.path}"
 
+    # Base clone is always shallow depth 1, single-branch, without submodules
     cmd = ["git", "clone", "--depth", "1", "--single-branch"]
-    if submodules:
-        cmd.extend(["--recurse-submodules", "--shallow-submodules"])
     if branch:
         cmd.extend(["--branch", branch])
     cmd.extend([final_url, str(target_dir)])
@@ -320,6 +319,59 @@ def clone_repository(
         if proc.returncode != 0:
             clean_err = mask_token(proc.stderr)
             raise HTTPException(status_code=400, detail=f"Git clone failed: {clean_err.strip()}")
+            
+        # P0 Audit Fix: Bounded Submodule Ingestion with Strict Count, Depth, Host & Network Policies
+        if submodules:
+            gitmodules_path = target_dir / ".gitmodules"
+            if gitmodules_path.exists():
+                gitmodules_content = gitmodules_path.read_text(encoding="utf-8", errors="replace")
+                submodule_urls = re.findall(r'url\s*=\s*([^\r\n]+)', gitmodules_content)
+                
+                # 1. Submodule Count Limit (Max 5)
+                MAX_SUBMODULES = 5
+                if len(submodule_urls) > MAX_SUBMODULES:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Repository exceeds maximum allowed submodule count ({len(submodule_urls)} > {MAX_SUBMODULES})."
+                    )
+
+                # 2. Host & Network Access Policy Validation
+                ALLOWED_SUBMODULE_HOSTS = ("github.com", "gitlab.com", "bitbucket.org")
+                DISALLOWED_IPS = ("127.", "10.", "192.168.", "169.254.", "0.0.0.0", "localhost")
+
+                for raw_s_url in submodule_urls:
+                    s_url = raw_s_url.strip()
+                    parsed_s = urlparse(s_url)
+                    
+                    # Strictly require https protocol; reject file://, ssh://, git://
+                    if parsed_s.scheme != "https":
+                        raise HTTPException(
+                            status_code=403,
+                            detail=f"Submodule URL '{s_url}' violates network access policy: strictly HTTPS required."
+                        )
+                    
+                    # Reject local or private IP addresses
+                    host = (parsed_s.hostname or "").lower()
+                    if any(host.startswith(bad_ip) or host == bad_ip for bad_ip in DISALLOWED_IPS):
+                        raise HTTPException(
+                            status_code=403,
+                            detail=f"Submodule host '{host}' is disallowed under network security policy."
+                        )
+
+                # 3. Explicit Depth 1 Bounded Initialization (Non-Recursive)
+                # Omitting --recursive guarantees recursion depth is strictly 1 (nested submodules are never cloned)
+                submodule_cmd = ["git", "submodule", "update", "--init", "--depth", "1"]
+                sub_proc = subprocess.run(
+                    submodule_cmd,
+                    cwd=str(target_dir),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=min(45, timeout),
+                )
+                if sub_proc.returncode != 0:
+                    clean_sub_err = mask_token(sub_proc.stderr)
+                    raise HTTPException(status_code=400, detail=f"Submodule initialization failed: {clean_sub_err.strip()}")
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=408, detail=f"Git clone timed out after {timeout} seconds.")
     except HTTPException:
