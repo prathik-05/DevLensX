@@ -24,51 +24,40 @@ class TestIngestUrlFix(unittest.TestCase):
 
 
 class TestOllamaAutoDetection(unittest.TestCase):
-    """P0 — Ollama is returned from auto when env vars are set."""
+    """P0 — Ollama is returned from auto when env vars are set.
 
-    def _get_provider(self, env: dict):
-        # Import fresh inside patched env to avoid cached module state
-        import importlib
-        with patch.dict(os.environ, env, clear=False):
-            import devlensx.llm.provider as p
-            importlib.reload(p)
-            return p.get_llm_provider("auto")
+    We check type *name* rather than isinstance because `importlib.reload`
+    would create new class identities and break isinstance checks in other tests
+    that imported the original classes at module load time.
+    """
+
+    def _provider_type_name(self, env_overrides: dict) -> str:
+        from devlensx.llm.provider import get_llm_provider
+        # get_llm_provider reads os.environ at call time — no reload needed.
+        with patch.dict(os.environ, env_overrides, clear=False):
+            provider = get_llm_provider("auto")
+        return type(provider).__name__
 
     def test_ollama_url_triggers_auto(self):
-        clean = {k: "" for k in ["AZURE_ENDPOINT", "AZURE_API_KEY", "GROQ_API_KEY",
-                                  "GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY",
-                                  "OPENROUTER_API_KEY", "LLM_PROVIDER"]}
-        clean["OLLAMA_URL"] = "http://localhost:11434/v1"
-        import importlib
-        with patch.dict(os.environ, clean, clear=False):
-            import devlensx.llm.provider as p
-            importlib.reload(p)
-            provider = p.get_llm_provider("auto")
-        self.assertIsInstance(provider, p.OllamaProvider)
+        env = {k: "" for k in ["AZURE_ENDPOINT", "AZURE_API_KEY", "GROQ_API_KEY",
+                                "GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY",
+                                "OPENROUTER_API_KEY", "LLM_PROVIDER"]}
+        env["OLLAMA_URL"] = "http://localhost:11434/v1"
+        self.assertEqual(self._provider_type_name(env), "OllamaProvider")
 
     def test_ollama_base_url_triggers_auto(self):
-        clean = {k: "" for k in ["AZURE_ENDPOINT", "AZURE_API_KEY", "GROQ_API_KEY",
-                                  "GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY",
-                                  "OPENROUTER_API_KEY", "LLM_PROVIDER", "OLLAMA_URL"]}
-        clean["OLLAMA_BASE_URL"] = "http://localhost:11434/v1"
-        import importlib
-        with patch.dict(os.environ, clean, clear=False):
-            import devlensx.llm.provider as p
-            importlib.reload(p)
-            provider = p.get_llm_provider("auto")
-        self.assertIsInstance(provider, p.OllamaProvider)
+        env = {k: "" for k in ["AZURE_ENDPOINT", "AZURE_API_KEY", "GROQ_API_KEY",
+                                "GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY",
+                                "OPENROUTER_API_KEY", "LLM_PROVIDER", "OLLAMA_URL"]}
+        env["OLLAMA_BASE_URL"] = "http://localhost:11434/v1"
+        self.assertEqual(self._provider_type_name(env), "OllamaProvider")
 
     def test_llm_provider_env_ollama(self):
-        clean = {k: "" for k in ["AZURE_ENDPOINT", "AZURE_API_KEY", "GROQ_API_KEY",
-                                  "GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY",
-                                  "OPENROUTER_API_KEY", "OLLAMA_URL", "OLLAMA_BASE_URL"]}
-        clean["LLM_PROVIDER"] = "ollama"
-        import importlib
-        with patch.dict(os.environ, clean, clear=False):
-            import devlensx.llm.provider as p
-            importlib.reload(p)
-            provider = p.get_llm_provider("auto")
-        self.assertIsInstance(provider, p.OllamaProvider)
+        env = {k: "" for k in ["AZURE_ENDPOINT", "AZURE_API_KEY", "GROQ_API_KEY",
+                                "GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY",
+                                "OPENROUTER_API_KEY", "OLLAMA_URL", "OLLAMA_BASE_URL"]}
+        env["LLM_PROVIDER"] = "ollama"
+        self.assertEqual(self._provider_type_name(env), "OllamaProvider")
 
 
 class TestOllamaHealth(unittest.TestCase):
