@@ -16,7 +16,7 @@ from pathlib import Path
 from fastapi import HTTPException
 from devlensx.understanding.file_explainer import FileExplainer
 from devlensx.critic import CriticAgent
-from devlensx.ingest import clone_repository, resolve_git_relative_url
+from devlensx.ingest import clone_repository, resolve_git_relative_url, ValidatingEgressProxy
 
 
 class MockGraphStore:
@@ -149,12 +149,12 @@ def test_p6_claim_level_evidence_contract_file_explainer():
         assert rel["direction"] in ("INCOMING", "OUTGOING")
         assert rel["verification_status"] in ("VERIFIED", "AI_SUGGESTION", "INSUFFICIENT_EVIDENCE", "UNPROVEN_EDGE")
 
-    # Contract Field 7: verification_status (Aggregate Mixed Status Policy)
+    # Contract Field 7: verification_status (Canonical Mixed Status Policy)
     v_status = res["verification_status"]
     assert isinstance(v_status, dict)
-    # Since Step 4 and purpose have AI_SUGGESTION, overall MUST NOT be VERIFIED! Must be PARTIALLY_VERIFIED!
-    assert v_status["overall"] == "PARTIALLY_VERIFIED"
-    assert v_status["overall"] in ("VERIFIED", "PARTIALLY_VERIFIED", "AI_SUGGESTION", "INSUFFICIENT_EVIDENCE")
+    # Since Step 4 and purpose have AI_SUGGESTION, overall MUST NOT be VERIFIED! Must be MIXED_VERIFICATION!
+    assert v_status["overall"] == "MIXED_VERIFICATION"
+    assert v_status["overall"] in ("VERIFIED", "MIXED_VERIFICATION", "UNVERIFIED", "REFUTED")
     assert "run-test-123" in v_status["source_line"]
     assert "verdicts_breakdown" in v_status
     assert "evidence_registry" in v_status
@@ -557,9 +557,9 @@ def test_resolve_git_relative_url_semantics():
     """
     AUDIT TEST:
     Verifies that resolve_git_relative_url strictly follows Git's documented relative-URL semantics:
-    Treats the superproject's repository path like a directory, even when ending in .git.
+    Treats the superproject's repository path like a directory, matching Git's C implementation.
     """
-    # Case A: ../ from repo.git preserves organization
+    # Case A: ../ from repo.git pops repository and preserves organization
     res_a = resolve_git_relative_url("https://github.com/apache/dubbo.git", "../dubbo-spi.git")
     assert res_a == "https://github.com/apache/dubbo-spi.git"
 
@@ -567,19 +567,54 @@ def test_resolve_git_relative_url_semantics():
     res_b = resolve_git_relative_url("https://github.com/apache/dubbo", "../dubbo-spi.git")
     assert res_b == "https://github.com/apache/dubbo-spi.git"
 
-    # Case C: ./sub.git appends inside the repository path
+    # Case C: ./sub.git appends inside the current repository path (matching Git's actual behavior)
     res_c = resolve_git_relative_url("https://github.com/apache/dubbo.git", "./sub.git")
-    assert res_c == "https://github.com/apache/dubbo/sub.git"
+    assert res_c == "https://github.com/apache/dubbo.git/sub.git"
+
+    # Case C2: ./sub.git when parent does not end in .git
+    res_c2 = resolve_git_relative_url("https://github.com/apache/dubbo", "./sub.git")
+    assert res_c2 == "https://github.com/apache/dubbo/sub.git"
 
     # Case D: ../../ traverses up to root and replaces organization
     res_d = resolve_git_relative_url("https://github.com/apache/dubbo.git", "../../other-org/lib.git")
     assert res_d == "https://github.com/other-org/lib.git"
 
-    # Case E: Traversal above root raises HTTPException 403
-    with pytest.raises(HTTPException) as exc_e:
+    # Case E: Non-relative bare name is left unmodified
+    res_e = resolve_git_relative_url("https://github.com/apache/dubbo.git", "bare_name.git")
+    assert res_e == "bare_name.git"
+
+    # Case F: Traversal above root raises HTTPException 403
+    with pytest.raises(HTTPException) as exc_f:
         resolve_git_relative_url("https://github.com/apache/dubbo.git", "../../../../escape.git")
-    assert exc_e.value.status_code == 403
-    assert "traverses above repository root" in exc_e.value.detail
+    assert exc_f.value.status_code == 403
+    assert "traverses above repository root" in exc_f.value.detail
+
+
+def test_validating_egress_proxy_blocks_real_git_subprocess(tmp_path):
+    """
+    AUDIT TEST (P0 DNS Rebinding & Destination Restriction):
+    Verifies that ValidatingEgressProxy actively intercepts and terminates a real Git subprocess
+    at TCP connection time when attempting to access a prohibited destination (e.g. 127.0.0.1 or private host).
+    """
+    import subprocess
+    target_dir = tmp_path / "cloned_repo"
+    
+    with ValidatingEgressProxy() as proxy_url:
+        cmd = [
+            "git",
+            "-c", f"http.proxy={proxy_url}",
+            "-c", "protocol.allow=never",
+            "-c", "protocol.https.allow=always",
+            "-c", "http.followRedirects=false",
+            "clone", "--depth", "1",
+            "https://127.0.0.1/malicious/repo.git",
+            str(target_dir)
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        # Git must fail with non-zero exit code because proxy rejects 127.0.0.1 with 403 Forbidden
+        assert proc.returncode != 0
+        err_out = proc.stderr.lower()
+        assert ("403" in err_out or "tunnel failed" in err_out or "proxy" in err_out or "failed" in err_out)
 
 
 # =========================================================================

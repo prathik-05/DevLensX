@@ -448,18 +448,21 @@ class FileExplainer:
             "relationships": downstream_relationships + upstream_relationships
         }
 
-        # 5. verification_status: Aggregate Mixed Status & Strict Verdict Policy
+        # 5. Canonical Response-Level Verification Status & Verdict Precedence
         verified_claims_count = sum(1 for c in claims_list if c["verification_status"] == "VERIFIED")
-        ai_suggestion_count = sum(1 for c in claims_list if c["verification_status"] == "AI_SUGGESTION")
-        unproven_count = sum(1 for c in claims_list if c["verification_status"] in ("INSUFFICIENT_EVIDENCE", "UNVERIFIED"))
+        unverified_count = sum(1 for c in claims_list if c["verification_status"] in ("AI_SUGGESTION", "UNVERIFIED", "INSUFFICIENT_EVIDENCE"))
+        refuted_count = sum(1 for c in claims_list if c["verification_status"] == "REFUTED")
 
-        # Invariant: If any step or claim is AI_SUGGESTION or INSUFFICIENT_EVIDENCE, overall MUST NOT be VERIFIED!
-        has_unverified_content = (ai_suggestion_count > 0 or unproven_count > 0 or purpose["status"] != "VERIFIED" or any(s["verification_status"] != "VERIFIED" for s in how_it_works_steps))
+        # Invariant: If any step or claim is unverified or refuted, overall MUST NOT be VERIFIED!
+        has_unverified_content = (unverified_count > 0 or refuted_count > 0 or purpose["status"] != "VERIFIED" or any(s["verification_status"] != "VERIFIED" for s in how_it_works_steps))
         
         if not snapshot_resolvable or verified_claims_count == 0:
-            overall_status = "INSUFFICIENT_EVIDENCE"
+            if refuted_count > 0:
+                overall_status = "REFUTED"
+            else:
+                overall_status = "UNVERIFIED"
         elif has_unverified_content:
-            overall_status = "PARTIALLY_VERIFIED"
+            overall_status = "MIXED_VERIFICATION"
         else:
             overall_status = "VERIFIED"
 
@@ -467,9 +470,10 @@ class FileExplainer:
 
         verdicts_breakdown = {
             "VERIFIED": verified_claims_count,
-            "PARTIALLY_VERIFIED": 1 if overall_status == "PARTIALLY_VERIFIED" else 0,
-            "AI_SUGGESTION": ai_suggestion_count,
-            "INSUFFICIENT_EVIDENCE": unproven_count
+            "MIXED_VERIFICATION": 1 if overall_status == "MIXED_VERIFICATION" else 0,
+            "PARTIALLY_VERIFIED": 1 if overall_status == "MIXED_VERIFICATION" else 0,
+            "UNVERIFIED": unverified_count,
+            "REFUTED": refuted_count
         }
 
         verification_status = {

@@ -2,7 +2,7 @@
 
 import threading
 from typing import Dict, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from devlensx.evidence.resolver import get_snapshot_registry
 from devlensx.workspace.models import WorkspaceSession, WorkspaceStatus
@@ -17,7 +17,7 @@ class WorkspaceSessionRegistry:
         self._lock = threading.Lock()
 
     def _now(self) -> str:
-        return datetime.utcnow().isoformat() + "Z"
+        return datetime.now(timezone.utc).isoformat()
 
     def create_or_get(self, analysis_run_id: str) -> WorkspaceSession:
         snap = get_snapshot_registry().get(analysis_run_id)

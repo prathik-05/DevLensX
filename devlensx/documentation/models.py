@@ -9,7 +9,7 @@ and EvidenceRef from devlensx.evidence.models.
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from devlensx.evidence.models import EvidenceRef
 from devlensx.critic.claim_verifier import AtomicClaim, ClaimVerdict
@@ -105,7 +105,7 @@ class DocumentationPage:
         "insufficient_evidence": 0,
     })
     diagram_ids: List[str] = field(default_factory=list)
-    generated_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    generated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def validate_invariants(self) -> bool:
         """

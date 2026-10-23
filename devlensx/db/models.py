@@ -3,7 +3,7 @@ DevLensX Relational Database Models & Entities
 """
 
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class User:
@@ -12,7 +12,7 @@ class User:
         self.email = email
         self.hashed_password = hashed_password
         self.full_name = full_name
-        self.created_at = datetime.utcnow()
+        self.created_at = datetime.now(timezone.utc)
 
 
 class Repository:
@@ -23,8 +23,8 @@ class Repository:
         self.path = path
         self.language = language
         self.status = status
-        self.created_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        self.created_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(timezone.utc)
 
 
 class AnalysisRun:
@@ -32,7 +32,7 @@ class AnalysisRun:
         self.id = id
         self.repository_id = repository_id
         self.status = status
-        self.started_at = datetime.utcnow()
+        self.started_at = datetime.now(timezone.utc)
         self.completed_at = None
         self.parser_version = "1.0.0-javalang"
         self.error_message = None
@@ -50,4 +50,4 @@ class Finding:
         self.file = file
         self.critic_verdict = "VERIFIED"
         self.evidence_coverage_score = 100.0
-        self.created_at = datetime.utcnow()
+        self.created_at = datetime.now(timezone.utc)

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from devlensx.workspace.context import WorkspaceContext
@@ -25,7 +25,7 @@ class WorkspaceEvent:
     repository_id: str = ""
     analysis_run_id: str = ""
     commit_hash: Optional[str] = None
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     event_type: str = "PAGE_SELECTED"
     context: Optional[WorkspaceContext] = None
     payload: Dict[str, Any] = field(default_factory=dict)

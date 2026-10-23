@@ -8,7 +8,7 @@ Reuses EvidenceRef and AtomicClaim from canonical subsystems.
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class ChatMode(str, Enum):
@@ -110,7 +110,7 @@ class VerifiedAnswer:
     diagrams: List[Dict[str, Any]] = field(default_factory=list)
     research: Optional[Dict[str, Any]] = None
     verification_summary: Dict[str, int] = field(default_factory=dict)
-    generated_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    generated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> Dict[str, Any]:
         return {

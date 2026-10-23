@@ -8,7 +8,7 @@ holds full EvidenceRef provenance (repository_id + analysis_run_id + commit_hash
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from devlensx.evidence.models import EvidenceRef, EvidenceType
 
@@ -124,7 +124,7 @@ class Diagram:
     mermaid_source: str = ""
     description: str = ""
     verdict: str = "VERIFIED"
-    generated_at: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    generated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def validate_invariants(self) -> DiagramValidationResult:
         """Enforces D6.0 Hard Invariant: All VERIFIED entities must possess valid evidence_refs."""

@@ -22,6 +22,9 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from urllib.parse import urlparse, urljoin
 import socket
 import ipaddress
+import select
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 import pathspec
 from fastapi import HTTPException
@@ -285,15 +288,19 @@ def mask_token(text: str) -> str:
 def resolve_git_relative_url(parent_url: str, rel_url: str) -> str:
     """
     Resolves relative submodule URLs using Git's documented relative-URL semantics.
-    Git treats the superproject's repository path like a directory, stripping trailing .git.
+    Git treats the superproject's repository path like a directory:
+    - If rel_url starts with '../': pops the last path segment (whether ending in .git or not).
+    - If rel_url starts with './': stays in current repository path (appends inside parent directory).
+    - If rel_url does not start with './' or '../': returns clean_rel unchanged, as Git does not resolve it relative to parent.
     """
     clean_rel = rel_url.replace("\\", "/").strip()
     if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*://', clean_rel):
         return clean_rel
+    if not (clean_rel.startswith("./") or clean_rel.startswith("../")):
+        return clean_rel
+
     parsed = urlparse(parent_url)
     parent_path = parsed.path.rstrip("/")
-    if parent_path.endswith(".git"):
-        parent_path = parent_path[:-4]
     segments = [s for s in parent_path.split("/") if s]
     for part in clean_rel.split("/"):
         if part == "..":
@@ -308,6 +315,126 @@ def resolve_git_relative_url(parent_url: str, rel_url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}{resolved_path}"
 
 
+DISALLOWED_HOST_NAMES = (
+    "localhost", "127.0.0.1", "::1", "0.0.0.0",
+    "instance-data", "169.254.169.254", "metadata.google.internal"
+)
+
+
+def validate_destination_address(host: str, port: int = 443) -> str:
+    """
+    Validates host resolution at TCP connect time.
+    Guarantees destination restriction, preventing DNS rebinding.
+    """
+    clean_host = (host or "").lower()
+    if clean_host in DISALLOWED_HOST_NAMES:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Host '{host}' is disallowed under network security policy."
+        )
+
+    try:
+        entries = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"DNS resolution failed for submodule host '{host}': {e}"
+        )
+
+    for entry in entries:
+        ip_str = entry[4][0]
+        ip = ipaddress.ip_address(ip_str)
+        is_nat64 = (ip.version == 6 and ip in ipaddress.ip_network("64:ff9b::/96"))
+
+        if is_nat64:
+            embedded_ipv4 = ipaddress.IPv4Address(ip.packed[12:])
+            if (embedded_ipv4.is_loopback or embedded_ipv4.is_private or embedded_ipv4.is_link_local or
+                embedded_ipv4.is_reserved or embedded_ipv4.is_multicast or embedded_ipv4.is_unspecified):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Submodule host '{host}' resolves to NAT64 address '{ip}' with disallowed embedded IPv4 '{embedded_ipv4}'."
+                )
+        elif ip.version == 6 and ip.ipv4_mapped:
+            embedded_ipv4 = ip.ipv4_mapped
+            if (embedded_ipv4.is_loopback or embedded_ipv4.is_private or embedded_ipv4.is_link_local or
+                embedded_ipv4.is_reserved or embedded_ipv4.is_multicast or embedded_ipv4.is_unspecified):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Submodule host '{host}' resolves to IPv4-mapped address with disallowed destination: {embedded_ipv4}"
+                )
+        elif (ip.is_loopback or ip.is_private or ip.is_link_local or
+              ip.is_multicast or ip.is_unspecified or ip.is_reserved):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Submodule host '{host}' resolves to private/disallowed IP: {ip_str}"
+            )
+        return ip_str
+
+    raise HTTPException(
+        status_code=403,
+        detail=f"No routable addresses found for '{host}'."
+    )
+
+
+class _EgressProxyHandler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+
+    def do_CONNECT(self):
+        address = self.path.split(":")
+        host = address[0]
+        port = int(address[1]) if len(address) > 1 else 443
+
+        try:
+            safe_ip = validate_destination_address(host, port)
+        except HTTPException as exc:
+            self.send_error(exc.status_code, exc.detail)
+            return
+        except Exception as err:
+            self.send_error(403, f"Egress security policy violation: {err}")
+            return
+
+        try:
+            upstream_sock = socket.create_connection((safe_ip, port), timeout=10)
+        except Exception as err:
+            self.send_error(502, f"Gateway connection error: {err}")
+            return
+
+        self.send_response(200, "Connection Established")
+        self.end_headers()
+
+        conns = [self.connection, upstream_sock]
+        try:
+            while True:
+                r, _, _ = select.select(conns, [], [], 15)
+                if not r:
+                    break
+                for s in r:
+                    other = upstream_sock if s is self.connection else self.connection
+                    data = s.recv(16384)
+                    if not data:
+                        return
+                    other.sendall(data)
+        finally:
+            upstream_sock.close()
+
+
+class ValidatingEgressProxy:
+    def __init__(self):
+        self.server = HTTPServer(("127.0.0.1", 0), _EgressProxyHandler)
+        self.port = self.server.server_port
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    def __enter__(self):
+        self.thread.start()
+        return f"http://127.0.0.1:{self.port}"
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2)
+
+
 def clone_repository(
     clone_url: str,
     target_dir: Path,
@@ -319,7 +446,7 @@ def clone_repository(
     """
     Clone a repository with single-branch depth 1.
     Never logs or leaks the token.
-    Enforces timeout, protocol allowlists, anti-DNS-rebinding and bounded depth.
+    Enforces timeout, protocol allowlists, connection-time validating proxy, and bounded depth.
     """
     # Prefer explicit token or fallback to environment
     active_token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
@@ -330,136 +457,95 @@ def clone_repository(
         parsed = urlparse(clone_url)
         final_url = f"https://x-access-token:{active_token}@{parsed.netloc}{parsed.path}"
 
-    # Base clone is always shallow depth 1, single-branch, with protocol restrictions
-    cmd = [
-        "git",
-        "-c", "protocol.allow=never",
-        "-c", "protocol.https.allow=always",
-        "-c", "http.followRedirects=false",
-        "clone", "--depth", "1", "--single-branch"
-    ]
-    if branch:
-        cmd.extend(["--branch", branch])
-    cmd.extend([final_url, str(target_dir)])
-
     try:
-        proc = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout,
-        )
-        if proc.returncode != 0:
-            clean_err = mask_token(proc.stderr)
-            raise HTTPException(status_code=400, detail=f"Git clone failed: {clean_err.strip()}")
-            
-        # P0 Audit Fix: Bounded Submodule Ingestion with Strict Count, Depth, Host & Network Policies
-        if submodules:
-            gitmodules_path = target_dir / ".gitmodules"
-            if gitmodules_path.exists():
-                try:
-                    gitmodules_content = gitmodules_path.read_text(encoding="utf-8", errors="replace")
-                except Exception as e:
-                    raise HTTPException(status_code=400, detail=f"Cannot read .gitmodules: {str(e)}")
+        with ValidatingEgressProxy() as proxy_url:
+            # Base clone is always shallow depth 1, single-branch, with protocol and proxy restrictions
+            cmd = [
+                "git",
+                "-c", f"http.proxy={proxy_url}",
+                "-c", "protocol.allow=never",
+                "-c", "protocol.https.allow=always",
+                "-c", "http.followRedirects=false",
+                "clone", "--depth", "1", "--single-branch"
+            ]
+            if branch:
+                cmd.extend(["--branch", branch])
+            cmd.extend([final_url, str(target_dir)])
 
-                submodule_urls = re.findall(r'url\s*=\s*([^\r\n]+)', gitmodules_content)
-                if not submodule_urls and len(gitmodules_content.strip()) > 0 and "[submodule" in gitmodules_content:
-                    raise HTTPException(status_code=400, detail="Malformed or unparseable .gitmodules file.")
-
-                # 1. Submodule Count Limit (Max 5)
-                MAX_SUBMODULES = 5
-                if len(submodule_urls) > MAX_SUBMODULES:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Repository exceeds maximum allowed submodule count ({len(submodule_urls)} > {MAX_SUBMODULES})."
-                    )
-
-                # 2. Host & Network Access Policy Validation for EVERY Submodule
-                DISALLOWED_HOST_NAMES = ("localhost", "127.0.0.1", "::1", "0.0.0.0")
-
-                for raw_s_url in submodule_urls:
-                    # Git-documented relative URL resolution semantics
-                    s_url = resolve_git_relative_url(clone_url, raw_s_url)
-                    parsed_s = urlparse(s_url)
-
-                    # Strictly require https protocol; reject file://, ssh://, git://, http://
-                    if parsed_s.scheme != "https":
-                        raise HTTPException(
-                            status_code=403,
-                            detail=f"Submodule URL '{raw_s_url}' violates network access policy: strictly HTTPS required (got '{parsed_s.scheme}')."
-                        )
-
-                    host = (parsed_s.hostname or "").lower()
-                    if not host:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Submodule URL '{raw_s_url}' does not specify a valid hostname."
-                        )
-
-                    if host in DISALLOWED_HOST_NAMES:
-                        raise HTTPException(
-                            status_code=403,
-                            detail=f"Submodule host '{host}' is disallowed under network security policy."
-                        )
-
-                    # DNS resolution verification with embedded IPv4/NAT64 filtering
+            proc = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=timeout,
+            )
+            if proc.returncode != 0:
+                clean_err = mask_token(proc.stderr)
+                raise HTTPException(status_code=400, detail=f"Git clone failed: {clean_err.strip()}")
+                
+            # P0 Audit Fix: Bounded Submodule Ingestion with Strict Count, Depth, Host & Network Policies
+            if submodules:
+                gitmodules_path = target_dir / ".gitmodules"
+                if gitmodules_path.exists():
                     try:
-                        resolved_entries = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
-                        for entry in resolved_entries:
-                            ip_str = entry[4][0]
-                            ip = ipaddress.ip_address(ip_str)
-                            is_nat64 = (ip.version == 6 and ip in ipaddress.ip_network("64:ff9b::/96"))
-                            
-                            if is_nat64:
-                                # Validate embedded IPv4 address in NAT64 translation
-                                embedded_ipv4 = ipaddress.IPv4Address(ip.packed[12:])
-                                if (embedded_ipv4.is_loopback or embedded_ipv4.is_private or embedded_ipv4.is_link_local or
-                                    embedded_ipv4.is_reserved or embedded_ipv4.is_multicast or embedded_ipv4.is_unspecified):
-                                    raise HTTPException(
-                                        status_code=403,
-                                        detail=f"Submodule host '{host}' resolves to NAT64 address with disallowed embedded IPv4: {embedded_ipv4}"
-                                    )
-                            elif ip.version == 6 and ip.ipv4_mapped:
-                                # Validate embedded IPv4-mapped address
-                                embedded_ipv4 = ip.ipv4_mapped
-                                if (embedded_ipv4.is_loopback or embedded_ipv4.is_private or embedded_ipv4.is_link_local or
-                                    embedded_ipv4.is_reserved or embedded_ipv4.is_multicast or embedded_ipv4.is_unspecified):
-                                    raise HTTPException(
-                                        status_code=403,
-                                        detail=f"Submodule host '{host}' resolves to IPv4-mapped address with disallowed destination: {embedded_ipv4}"
-                                    )
-                            elif (ip.is_loopback or ip.is_private or ip.is_link_local or
-                                  ip.is_multicast or ip.is_unspecified or ip.is_reserved):
-                                raise HTTPException(
-                                    status_code=403,
-                                    detail=f"Submodule host '{host}' resolves to private/disallowed IP: {ip_str}"
-                                )
-                    except socket.gaierror as ge:
+                        gitmodules_content = gitmodules_path.read_text(encoding="utf-8", errors="replace")
+                    except Exception as e:
+                        raise HTTPException(status_code=400, detail=f"Cannot read .gitmodules: {str(e)}")
+
+                    submodule_urls = re.findall(r'url\s*=\s*([^\r\n]+)', gitmodules_content)
+                    if not submodule_urls and len(gitmodules_content.strip()) > 0 and "[submodule" in gitmodules_content:
+                        raise HTTPException(status_code=400, detail="Malformed or unparseable .gitmodules file.")
+
+                    # 1. Submodule Count Limit (Max 5)
+                    MAX_SUBMODULES = 5
+                    if len(submodule_urls) > MAX_SUBMODULES:
                         raise HTTPException(
                             status_code=400,
-                            detail=f"Cannot resolve submodule host '{host}': {str(ge)}"
+                            detail=f"Repository exceeds maximum allowed submodule count ({len(submodule_urls)} > {MAX_SUBMODULES})."
                         )
 
-                # 3. Explicit Depth 1 Bounded Initialization with Protocol & Redirect Hardening
-                submodule_cmd = [
-                    "git",
-                    "-c", "protocol.allow=never",
-                    "-c", "protocol.https.allow=always",
-                    "-c", "http.followRedirects=false",
-                    "submodule", "update", "--init", "--depth", "1"
-                ]
-                sub_proc = subprocess.run(
-                    submodule_cmd,
-                    cwd=str(target_dir),
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    timeout=min(45, timeout),
-                )
-                if sub_proc.returncode != 0:
-                    clean_sub_err = mask_token(sub_proc.stderr)
-                    raise HTTPException(status_code=400, detail=f"Submodule initialization failed: {clean_sub_err.strip()}")
+                    for raw_s_url in submodule_urls:
+                        # Git-documented relative URL resolution semantics
+                        s_url = resolve_git_relative_url(clone_url, raw_s_url)
+                        parsed_s = urlparse(s_url)
+
+                        # Strictly require https protocol; reject file://, ssh://, git://, http://
+                        if parsed_s.scheme != "https":
+                            raise HTTPException(
+                                status_code=403,
+                                detail=f"Submodule URL '{raw_s_url}' violates network access policy: strictly HTTPS required (got '{parsed_s.scheme}')."
+                            )
+
+                        host = (parsed_s.hostname or "").lower()
+                        if not host:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Submodule URL '{raw_s_url}' does not specify a valid hostname."
+                            )
+
+                        # Validate destination address immediately as well
+                        validate_destination_address(host, 443)
+
+                    # 2. Explicit Depth 1 Bounded Initialization with Proxy, Protocol & Redirect Hardening
+                    submodule_cmd = [
+                        "git",
+                        "-c", f"http.proxy={proxy_url}",
+                        "-c", "protocol.allow=never",
+                        "-c", "protocol.https.allow=always",
+                        "-c", "http.followRedirects=false",
+                        "submodule", "update", "--init", "--depth", "1"
+                    ]
+                    sub_proc = subprocess.run(
+                        submodule_cmd,
+                        cwd=str(target_dir),
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        timeout=min(45, timeout),
+                    )
+                    if sub_proc.returncode != 0:
+                        clean_sub_err = mask_token(sub_proc.stderr)
+                        raise HTTPException(status_code=400, detail=f"Submodule initialization failed: {clean_sub_err.strip()}")
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=408, detail=f"Git clone timed out after {timeout} seconds.")
     except HTTPException:
