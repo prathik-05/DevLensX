@@ -1,0 +1,61 @@
+name: DevLensX CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-backend:
+    name: Backend Regression & Grounding Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio anyio typeguard
+
+      - name: Run Core Canonical Regression & Security Tests
+        run: |
+          pytest tests/unit tests/test_p6_grounded_workflow.py tests/test_native_ingest.py tests/test_p5c_delivery_mcp_api.py -v
+
+      - name: Verify CLI Analysis Pipeline
+        run: |
+          python run_devlensx.py analyze sample_repo
+
+  build-frontend:
+    name: Frontend TypeScript & Vite Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "web/package.json"
+
+      - name: Install Frontend Dependencies
+        working-directory: web
+        run: npm install
+
+      - name: Compile & Build Frontend Bundle
+        working-directory: web
+        run: npm run build
