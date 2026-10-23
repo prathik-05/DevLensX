@@ -381,7 +381,8 @@ class _EgressProxyHandler(BaseHTTPRequestHandler):
         pass
 
     def do_CONNECT(self):
-        # RFC 7230 / RFC 9112 compliant authority parsing with bracketed IPv6 support
+        # RFC 7230 / RFC 9112 compliant authority parsing with bracketed IPv6 support.
+        # Authority-form MUST strictly be uri-host:port without credentials, path, query, or fragment.
         raw_target = self.path.strip()
         try:
             parsed = urlsplit(f"//{raw_target}")
@@ -391,7 +392,14 @@ class _EgressProxyHandler(BaseHTTPRequestHandler):
             self.send_error(400, f"Malformed CONNECT destination: {self.path}")
             return
 
-        if not host:
+        if (
+            not host
+            or parsed.username is not None
+            or parsed.password is not None
+            or bool(parsed.query)
+            or bool(parsed.fragment)
+            or bool(parsed.path)
+        ):
             self.send_error(400, f"Malformed CONNECT destination: {self.path}")
             return
 

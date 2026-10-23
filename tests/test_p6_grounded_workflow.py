@@ -669,15 +669,23 @@ def test_validating_egress_proxy_bracketed_ipv6_and_malformed_destinations():
         assert "403" in res_v6
         assert "disallowed under network security policy" in res_v6 or "private/disallowed" in res_v6.lower()
 
-        # 2. Malformed CONNECT Target: no host
-        sock_bad = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock_bad.connect(("127.0.0.1", port))
-        sock_bad.sendall(b"CONNECT :443 HTTP/1.1\r\nHost: :443\r\n\r\n")
-        res_bad = sock_bad.recv(1024).decode("utf-8")
-        sock_bad.close()
+        # 2. Malformed CONNECT Targets: no host, user credentials, unexpected path, query, or fragment
+        malformed_targets = [
+            ":443",
+            "user:pass@github.com:443",
+            "github.com:443/malicious/path",
+            "github.com:443?query=val",
+            "github.com:443#fragment",
+        ]
+        for bad_target in malformed_targets:
+            sock_bad = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock_bad.connect(("127.0.0.1", port))
+            sock_bad.sendall(f"CONNECT {bad_target} HTTP/1.1\r\nHost: {bad_target}\r\n\r\n".encode("utf-8"))
+            res_bad = sock_bad.recv(1024).decode("utf-8")
+            sock_bad.close()
 
-        assert "400" in res_bad
-        assert "Malformed CONNECT destination" in res_bad
+            assert "400" in res_bad, f"Expected 400 for malformed target {bad_target!r}, got: {res_bad}"
+            assert "Malformed CONNECT destination" in res_bad
 
 
 def test_validating_egress_proxy_pins_ip_and_blocks_rebinding():
