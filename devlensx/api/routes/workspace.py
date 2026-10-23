@@ -202,6 +202,24 @@ def review_coderabbit_global_alias(req: ReviewDiffRequest):
     return review_codeturtle_global(req)
 
 
+@router.get("/{analysis_run_id}/execution-flow")
+def get_workspace_execution_flow(analysis_run_id: str, symbol: Optional[str] = None):
+    """Retrieves grounded execution order and sequence diagram for an exact snapshot."""
+    from devlensx.reasoning.engine import RepositoryReasoningEngine
+    from devlensx.chat.orchestrator import _load_model
+    from devlensx.api.main import global_state
+
+    repo_model = {}
+    try:
+        repo_model = _load_model(analysis_run_id)
+    except Exception:
+        repo_model = global_state.get("repo_model") or {}
+
+    graph_store = global_state.get("graph_store")
+    engine = RepositoryReasoningEngine()
+    return engine.trace_execution_flow(symbol_name=symbol, repo_model=repo_model, graph_store=graph_store)
+
+
 # Context propagation for D8 Chat
 @router.post("/{analysis_run_id}/chat")
 def chat_in_workspace(analysis_run_id: str, req: dict):

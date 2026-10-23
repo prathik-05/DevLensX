@@ -60,7 +60,14 @@ class CodeTurtleReviewEngine:
             model = None
 
         if not isinstance(model, dict) or not model.get("classes"):
-            raise ValueError(f"SNAPSHOT_UNAVAILABLE:{analysis_run_id}")
+            try:
+                from devlensx.api.main import global_state
+                if global_state.get("repo_model") and global_state.get("repo_model", {}).get("classes"):
+                    model = global_state.get("repo_model")
+            except Exception:
+                pass
+            if not isinstance(model, dict) or not model.get("classes"):
+                raise ValueError(f"SNAPSHOT_UNAVAILABLE:{analysis_run_id}")
 
         # 2. Delegate to existing ReviewEngine for deterministic grounding
         grounded_review = ReviewEngine.review(diff, analysis_run_id, base_commit)
@@ -290,6 +297,10 @@ class CodeTurtleReviewEngine:
             # 9. Myers Line-Diff Engine for Committable Suggestions
             enriched = attach_suggestion_diff_to_finding(comment_dict)
             verified_comments.append(enriched)
+
+        # Prioritize findings by severity: CRITICAL > HIGH/MAJOR/WARNING > MEDIUM/MODERATE > LOW/INFO
+        SEV_ORDER = {"CRITICAL": 0, "HIGH": 1, "MAJOR": 1, "WARNING": 1, "MEDIUM": 2, "MODERATE": 2, "LOW": 3, "INFO": 4}
+        verified_comments.sort(key=lambda c: SEV_ORDER.get(str(c.get("severity", "INFO")).upper(), 5))
 
         # Calculate genuine statistics (no fabricated counts)
         verified_count = sum(1 for c in verified_comments if c["status"] == "VERIFIED")

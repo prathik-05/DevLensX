@@ -1458,6 +1458,20 @@ export async function reviewCodeTurtle(
 
 export const reviewCodeRabbit = reviewCodeTurtle;
 
+/** Retrieve grounded execution order and sequence flow for a symbol or repository. */
+export async function getExecutionFlow(analysisRunId?: string, symbol?: string): Promise<any> {
+  const url = new URL(`${API_BASE}/api/copilot/execution-flow`);
+  if (analysisRunId) url.searchParams.set('analysis_run_id', analysisRunId);
+  if (symbol) url.searchParams.set('symbol', symbol);
+  const res = await fetch(url.toString(), {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch execution flow (${res.status})`);
+  }
+  return await res.json();
+}
+
 /** Calculate change impact alias. */
 export const getChangeImpact = getWorkspaceImpact;
 

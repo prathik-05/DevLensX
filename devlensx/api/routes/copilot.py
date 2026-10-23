@@ -123,17 +123,34 @@ def explain_concept(req: dict):
     )
 
 
+@router.get("/execution-flow")
 @router.get("/guided-tour/{tour_id}")
 @router.get("/guided-tour")
-def get_guided_tour(tour_id: str = "user-request-flow"):
-    """Generates 7-step guided execution tour (User -> UI -> API -> Service -> AI -> DB -> Response)."""
+def get_guided_tour(
+    tour_id: str = "user-request-flow",
+    symbol: Optional[str] = None,
+    analysis_run_id: Optional[str] = None
+):
+    """Traces grounded execution flow and call hierarchy for active repository or specific symbol."""
     from devlensx.api.main import global_state
     from devlensx.reasoning.engine import RepositoryReasoningEngine
+
+    repo_model = {}
+    if analysis_run_id:
+        try:
+            from devlensx.chat.orchestrator import _load_model
+            repo_model = _load_model(analysis_run_id)
+        except Exception:
+            repo_model = {}
+    if not repo_model:
+        repo_model = global_state.get("repo_model") or {}
+
+    graph_store = global_state.get("graph_store")
     engine = RepositoryReasoningEngine()
-    return engine.generate_guided_tour(
-        tour_id=tour_id,
-        repo_model=global_state.get("repo_model") or {},
-        graph_store=global_state.get("graph_store")
+    return engine.trace_execution_flow(
+        symbol_name=symbol,
+        repo_model=repo_model,
+        graph_store=graph_store
     )
 
 
