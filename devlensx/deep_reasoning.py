@@ -334,16 +334,28 @@ class DeepReasoningEngine:
         # 1. Primary: Web/API controllers if present
         controllers = [c for c in prod_classes if c.get("stereotype") in ("Controller", "Route", "Handler")]
 
-        # 2. Secondary: Entrypoint symbols discovered by profiler / heuristics
+        # 2. Secondary: Entrypoint symbols discovered by repository profiler
         if not controllers:
-            entry_points = [
-                c for c in prod_classes
-                if "main" in str(c.get("methods", [])).lower()
-                or "application" in c.get("name", "").lower()
-                or c.get("name") in ("App", "Application", "Main", "Game", "RootLayout")
-                or any(m.get("name") == "main" for m in c.get("methods", []))
-            ]
-            controllers = entry_points[:3] if entry_points else prod_classes[:2]
+            prof_entrypoints = []
+            try:
+                from devlensx.understanding.profiling.repository_profiler import RepositoryProfiler
+                root = self.model.get("root_path") or self.model.get("repo_path") or "."
+                prof = RepositoryProfiler.profile_repository(root, classes=self.classes, repo_model=self.model)
+                ep_names = {e.get("symbol_name") or e.get("symbol") or e.get("name") for e in prof.get("entrypoints", []) if e}
+                prof_entrypoints = [c for c in prod_classes if c.get("name") in ep_names]
+            except Exception:
+                prof_entrypoints = []
+
+            if prof_entrypoints:
+                controllers = prof_entrypoints[:3]
+            else:
+                from pathlib import Path
+                entry_points = [
+                    c for c in prod_classes
+                    if any(m.get("name") == "main" for m in c.get("methods", []))
+                    or Path(c.get("file", "")).stem.lower() in ("main", "app", "cli", "run", "index")
+                ]
+                controllers = entry_points[:3] if entry_points else prod_classes[:2]
 
         for ctrl in controllers[:3]:  # Top 3 entrypoints/controllers
             path = [ctrl["name"]]

@@ -25,11 +25,11 @@ class WikiGenerator:
         return {
             "analysis_run_id": brain.analysis_run_id,
             "overview": {
-                "title": f"DevLensX Living Wiki: {brain.profile['project_name']}",
-                "identity": brain.profile["identity_summary"],
-                "primary_language": brain.profile["primary_language"],
-                "framework": brain.profile["framework"],
-                "databases": brain.profile["databases"],
+                "title": f"DevLensX Living Wiki: {brain.profile.get('project_name', 'Repository')}",
+                "identity": brain.profile.get("identity_summary", ""),
+                "primary_language": brain.profile.get("primary_language", "Polyglot"),
+                "framework": brain.profile.get("framework", "Native"),
+                "databases": brain.profile.get("databases", brain.profile.get("database", [])),
                 "status": "🟢 LIVE REPOSITORY BRAIN WIKI"
             },
             "architecture": brain.architecture,

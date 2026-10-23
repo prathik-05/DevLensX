@@ -9,6 +9,7 @@ from datetime import datetime
 
 class CopilotAskRequest(BaseModel):
     repo_id: Optional[str] = ""
+    analysis_run_id: Optional[str] = ""
     question: str
     session_history: Optional[List[Dict[str, Any]]] = []
     provider: Optional[str] = "groq"

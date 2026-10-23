@@ -27,6 +27,8 @@ class ChatIntent(str, Enum):
     EXPLANATION = "EXPLANATION"
     CODEMAP_REQUEST = "CODEMAP_REQUEST"
     RESEARCH = "RESEARCH"
+    WHERE_TO_EDIT = "WHERE_TO_EDIT"
+    TESTING = "TESTING"
 
 
 @dataclass
@@ -92,6 +94,11 @@ class ChatEvidence:
     diagrams: List[Dict[str, Any]] = field(default_factory=list)
     total_symbols: int = 0
     total_relationships: int = 0
+    missing_capabilities: List[str] = field(default_factory=list)
+    detected_intent: Optional[str] = None
+    archetype: Optional[str] = None
+    query_matched: bool = True
+    source_snippets: List[Dict[str, Any]] = field(default_factory=list)
 
     def is_empty(self) -> bool:
         return not (self.deterministic_symbols or self.deterministic_relationships)

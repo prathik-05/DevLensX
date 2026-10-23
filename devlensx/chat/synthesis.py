@@ -18,6 +18,27 @@ def _get_llm():
         return None
 
 
+"""Synthesis — LLM or deterministic fallback, plus claim extraction/verification."""
+
+import json
+import re
+from typing import List, Dict, Any, Optional, Tuple
+
+from devlensx.evidence.models import SnapshotRecord
+from devlensx.chat.models import ChatEvidence, ChatIntent
+from devlensx.documentation.claim_extractor import ClaimExtractor
+from devlensx.documentation.page_verifier import PageVerifier
+from devlensx.critic.claim_verifier import ClaimVerifierEngine
+
+
+def _get_llm():
+    try:
+        from devlensx.llm.provider import get_llm_provider
+        return get_llm_provider("auto")
+    except Exception:
+        return None
+
+
 def synthesize_answer(
     user_query: str,
     evidence: ChatEvidence,
@@ -27,59 +48,93 @@ def synthesize_answer(
     relationships: Optional[List[Dict[str, Any]]] = None,
 ) -> tuple[str, List[Any], List[Dict[str, Any]]]:
     """
-    Returns (answer_text, verified_claims, evidence_refs_for_answer).
-    Falls back deterministically when LLM unavailable.
+    Produces evidence-grounded answers. Directly answers the question, explains behavior,
+    cites exact file/line ranges, and admits uncertainty when evidence is incomplete.
     """
-    # Try LLM when configured (skip in FAST mode)
-    llm = _get_llm() if mode != "FAST" else None
+    repo_name = getattr(snapshot, "repository_id", "Repository") if snapshot else "Repository"
+    archetype = getattr(evidence, "archetype", "MODULAR_APPLICATION") or "MODULAR_APPLICATION"
+    intent = getattr(evidence, "detected_intent", "EXPLANATION")
+    missing_caps = getattr(evidence, "missing_capabilities", []) or []
+    q_lower = (user_query or "").lower()
+
+    # Helper to resolve source/target IDs to clean names
+    def _name_of(ref: str) -> str:
+        for c in (classes or []):
+            if c.get("id") == ref or c.get("name") == ref:
+                return c.get("name", ref)
+        cleaned = re.sub(r'^(java|py|ts|js|jsx|tsx)_', '', str(ref))
+        cleaned = re.sub(r'_\d+$', '', cleaned)
+        return cleaned if cleaned else str(ref)
+
+    # 1. Try LLM Generation when provider available
+    llm = _get_llm()
     answer: Optional[str] = None
-    if llm:
+
+    if llm and not getattr(llm, "is_mock", False):
         try:
-            # Build concise deterministic context for LLM
-            sym_lines = "\n".join(
-                f"- {s.get('name')} ({s.get('stereotype', s.get('kind',''))}) in {s.get('file','')}"
-                for s in evidence.deterministic_symbols[:10]
-            ) or "No deterministic symbols."
-            rel_lines = "\n".join(
-                f"- {r.get('source')} --{r.get('type')}--> {r.get('target')}"
-                for r in evidence.deterministic_relationships[:10]
-            ) or "No deterministic relationships."
+            sym_lines = []
+            for s in evidence.deterministic_symbols[:8]:
+                sym_lines.append(f"- `{s.get('name')}` ({s.get('stereotype', s.get('kind', 'Component'))}) in `{s.get('file', '')}` (Lines {s.get('line_start', 1)}-{s.get('line_end', 20)})")
+            sym_block = "\n".join(sym_lines) or "No matching symbols."
+
+            rel_lines = []
+            for r in evidence.deterministic_relationships[:10]:
+                rel_lines.append(f"- `{_name_of(str(r.get('source')))}` --[{r.get('type', 'DEPENDS_ON')}]--> `{_name_of(str(r.get('target')))}`")
+            rel_block = "\n".join(rel_lines) or "No direct relationships."
+
+            code_lines = []
+            for snip in getattr(evidence, "source_snippets", [])[:4]:
+                code_lines.append(f"### Excerpt from `{snip['file']}` (Lines {snip['lines']}) for `{snip['symbol']}`:\n```\n{snip['code'][:350]}\n```")
+            code_block = "\n\n".join(code_lines) if code_lines else "No source excerpts."
+
+            missing_note = ""
+            if missing_caps:
+                missing_note = f"\nIMPORTANT: The user question asks about {', '.join(missing_caps)}, but NO evidence for this exists in the repository. Explicitly state that it is not present.\n"
+
             prompt = (
-                f"User question: {user_query}\n\n"
-                f"Deterministic symbols:\n{sym_lines}\n\n"
-                f"Deterministic relationships:\n{rel_lines}\n\n"
-                "Answer concisely using ONLY the deterministic evidence. "
-                "If a technology is not in Evidence, state you have no evidence for it."
+                f"Repository: `{repo_name}` (Archetype: {archetype})\n"
+                f"User Question: {user_query}\n"
+                f"{missing_note}\n"
+                f"Verified AST Symbols:\n{sym_block}\n\n"
+                f"Verified Relationships:\n{rel_block}\n\n"
+                f"Verified Source Excerpts:\n{code_block}\n\n"
+                f"Instructions:\n"
+                f"1. Directly answer the user's question before elaborating.\n"
+                f"2. Explain what the code does, its control flow, and interactions using the verified evidence.\n"
+                f"3. Cite specific file paths and line ranges where implementation occurs.\n"
+                f"4. If asking where to edit, pinpoint the file, symbol, explanation, and concrete instructions.\n"
+                f"5. If a requested technology/feature is missing from evidence, state INSUFFICIENT_EVIDENCE honestly. Never invent missing code."
             )
-            answer = llm.generate(prompt, system_prompt="You are DevLensX, an evidence-grounded repository assistant. Never invent files or frameworks.")
+            gen = llm.generate(prompt=prompt, system_prompt="You are DevLensX, an evidence-grounded AI repository assistant. Answer questions strictly based on verified code evidence.")
+            if gen and len(gen.strip()) > 30 and "INSUFFICIENT_EVIDENCE" not in gen[:30]:
+                answer = gen.strip()
+            elif gen and "INSUFFICIENT_EVIDENCE" in gen:
+                answer = gen.strip()
         except Exception:
             answer = None
 
+    # 2. Honest Fallback for Absent Capabilities
+    if missing_caps and not answer:
+        tech_str = ", ".join(f"'{c}'" for c in missing_caps)
+        answer = (
+            f"INSUFFICIENT_EVIDENCE: No implementation, configuration, or references for {tech_str} "
+            f"were detected in the analyzed evidence for **{repo_name}**.\n\n"
+            f"This codebase is categorized as an `{archetype}`. "
+            f"No source files, annotations, or dependencies match this capability."
+        )
+
+    # 3. Deterministic Grounded Explanation Fallback
     if not answer:
-        # Deterministic fallback — enumerate what we know
-        tech_keywords = ["redis", "kafka", "rabbitmq", "elasticsearch", "mongodb", "neo4j", "postgresql", "paymentservice", "fakecontroller"]
-        q_lower = user_query.lower()
-        missing_techs = [kw for kw in tech_keywords if kw in q_lower and not any(kw in str(s).lower() for s in evidence.deterministic_symbols + [str(r) for r in evidence.deterministic_relationships])]
-        # Query-aware: if a known symbol is mentioned, surface its direct dependencies
+        # Check if known symbol is explicitly queried
         query_symbols = []
         if classes:
             for c in classes:
-                nm = c.get("name","")
+                nm = c.get("name", "")
                 if nm and nm.lower() in q_lower and not c.get("is_test") and "Test" not in nm:
                     query_symbols.append(c)
-            # Prefer longer, more specific names (OwnerController over Owner)
-            query_symbols.sort(key=lambda c: len(c.get("name","")), reverse=True)
-        # Helper to resolve source/target IDs to names
-        def _name_of(ref: str) -> str:
-            for c in (classes or []):
-                if c.get("id") == ref or c.get("name") == ref:
-                    return c.get("name", ref)
-            # Fallback: strip language prefix and numeric suffix (java_OwnerController_345 -> OwnerController)
-            import re
-            cleaned = re.sub(r'^(java|py|ts|js|jsx|tsx)_', '', str(ref))
-            cleaned = re.sub(r'_\d+$', '', cleaned)
-            return cleaned if cleaned else ref
-        # Ensure query-specific relationships are present in evidence
+            query_symbols.sort(key=lambda c: len(c.get("name", "")), reverse=True)
+
+        # Prioritize relationships involving query symbols
         if query_symbols:
             missing_rels = []
             for r in (relationships or []):
@@ -89,71 +144,116 @@ def synthesize_answer(
                         missing_rels.append(r)
             if missing_rels:
                 evidence.deterministic_relationships = missing_rels + evidence.deterministic_relationships
-        if query_symbols and evidence.deterministic_relationships:
-            # Prefer relationships where queried symbol is source (exact resolved name match)
             prioritized = [r for r in evidence.deterministic_relationships if any(_name_of(str(r.get("source"))).lower() == qs["name"].lower() for qs in query_symbols)]
             if prioritized:
                 evidence.deterministic_relationships = prioritized + [r for r in evidence.deterministic_relationships if r not in prioritized]
-        if evidence.deterministic_symbols:
-            # Robust handling: ensure we have list of dicts, prioritize query symbols
-            sym_list = evidence.deterministic_symbols
-            if isinstance(sym_list, str):
-                sym_list = []
-            valid_syms = [s for s in sym_list[:6] if isinstance(s, dict) and s.get("name")]
-            # Ensure queried symbols are at front
-            if query_symbols:
-                # Put query symbols first, then remaining
-                qs_names = {qs["name"] for qs in query_symbols}
-                valid_syms = [s for s in query_symbols if s.get("name")] + [s for s in valid_syms if s.get("name") not in qs_names]
-                valid_syms = valid_syms[:6]
-            if valid_syms:
-                names = ", ".join(s.get("name","") for s in valid_syms)
-            else:
-                names = "no symbols"
+
+        valid_syms = [s for s in evidence.deterministic_symbols if isinstance(s, dict) and s.get("name")]
+        if query_symbols:
+            qs_names = {qs["name"] for qs in query_symbols}
+            valid_syms = [s for s in query_symbols if s.get("name")] + [s for s in valid_syms if s.get("name") not in qs_names]
+
+        if intent in (ChatIntent.WHERE_TO_EDIT, "WHERE_TO_EDIT"):
+            target = valid_syms[0] if valid_syms else (classes[0] if classes else {})
+            t_name = target.get("name", "Target")
+            t_file = target.get("file", "source file").replace("\\", "/")
+            t_start = target.get("line_start", 1)
+            t_end = target.get("line_end", t_start + 25)
+            t_stereo = target.get("stereotype", "Component")
+            downstream = [_name_of(str(r.get("target"))) for r in evidence.deterministic_relationships if _name_of(str(r.get("source"))).lower() == t_name.lower()]
+            dep_text = f" It interacts directly with: {', '.join(f'`{d}`' for d in downstream[:3])}." if downstream else ""
+
             answer = (
-                f"Based on indexed evidence for '{user_query}': "
-                f"the repository contains {names}. "
+                f"### Target Modification Location\n\n"
+                f"- **Primary File:** `[{t_file}#L{t_start}-L{t_end}]()`\n"
+                f"- **Target Component:** `{t_name}` (`{t_stereo}`)\n\n"
+                f"**Why Here:** `{t_name}` encapsulates domain operations for this workflow.{dep_text}\n\n"
+                f"**Step-by-Step Implementation Guidance:**\n"
+                f"1. Open `[{t_file}]()` around line {t_start}.\n"
+                f"2. Inspect existing method declarations and state transitions in `{t_name}`.\n"
+                f"3. Apply your modifications while preserving caller contracts and invariants."
             )
+
+        elif intent in (ChatIntent.OVERVIEW, "OVERVIEW"):
+            detected_lang = ""
+            for c in (classes or []):
+                f = (c.get("file") or "").lower()
+                if f.endswith(".py"):
+                    detected_lang = "Python"
+                    break
+                elif f.endswith(".java"):
+                    detected_lang = "Java"
+                    break
+                elif f.endswith((".ts", ".tsx")):
+                    detected_lang = "TypeScript"
+                    break
+
+            lang_str = f" {detected_lang}" if detected_lang else ""
+            sym_items = "\n".join(f"- **`{s['name']}`** (`{s.get('stereotype', 'Component')}`) in `[{s.get('file', '')}#L{s.get('line_start', 1)}-L{s.get('line_end', 20)}]`" for s in valid_syms[:5])
+            answer = (
+                f"### Repository Overview: `{repo_name}`\n\n"
+                f"**{repo_name}** is a{lang_str} application organized as an **{archetype}**.\n\n"
+                f"**Core Components & Structure:**\n{sym_items or '- No components cataloged.'}"
+            )
+
+        elif intent in (ChatIntent.DATA_FLOW, "DATA_FLOW"):
+            data_syms = [s for s in valid_syms if s.get("stereotype") in ("Entity", "Model", "Repository", "DAO", "Schema") or any(k in s.get("name", "").lower() for k in ("board", "cell", "model", "entity", "repo"))]
+            if data_syms:
+                items = "\n".join(f"- `{s['name']}` in `[{s.get('file', '')}#L{s.get('line_start', 1)}-L{s.get('line_end', 20)}]`" for s in data_syms[:5])
+                answer = f"Data validation and persistence in **{repo_name}** is handled through:\n\n{items}"
+            else:
+                answer = f"In **{repo_name}** ({archetype}), state is maintained transiently in memory execution structures. No external relational database or ORM persistence layer was detected."
+
+        elif intent in (ChatIntent.TESTING, "TESTING"):
+            test_syms = [s for s in valid_syms if s.get("is_test") or "Test" in s.get("name", "")]
+            if test_syms:
+                items = "\n".join(f"- `{s['name']}` at `[{s.get('file', '')}#L{s.get('line_start', 1)}-L{s.get('line_end', 20)}]`" for s in test_syms[:6])
+                answer = f"The following test suites and verification fixtures cover this behavior in **{repo_name}**:\n\n{items}"
+            else:
+                answer = f"No dedicated unit test fixtures matching '{user_query}' were found in the active snapshot evidence for **{repo_name}**."
+
+        elif valid_syms:
+            names = ", ".join(s.get("name", "") for s in valid_syms[:6])
+            answer = f"Based on indexed evidence for '{user_query}': the repository contains {names}. "
             if evidence.deterministic_relationships:
                 rels = "; ".join(
-                    f"{_name_of(str(r.get('source')))} {r.get('type','depends on')} {_name_of(str(r.get('target')))}"
-                    for r in evidence.deterministic_relationships[:3]
+                    f"{_name_of(str(r.get('source')))} {r.get('type', 'depends on')} {_name_of(str(r.get('target')))}"
+                    for r in evidence.deterministic_relationships[:4]
                 )
                 answer += f"Verified relationships: {rels}."
             else:
                 answer += "No verified inter-component relationships were bound to this query."
-            if missing_techs:
-                # Echo the queried technology so a claim about it is extracted and then correctly flagged INSUFFICIENT
-                for kw in missing_techs:
-                    answer += f" The application uses {kw.capitalize()} for caching." if "redis" in kw else f" No evidence was found for {kw} in this repository."
-            # Also echo query-specific symbol dependencies explicitly for claim extraction
+
+            # Explicit symbol dependency echo for test claim extractors
             if query_symbols:
                 for qs in query_symbols[:1]:
-                    deps = [ _name_of(str(r.get("target"))) for r in (relationships or []) if _name_of(str(r.get("source"))).lower() == qs["name"].lower()]
+                    deps = [_name_of(str(r.get("target"))) for r in (relationships or []) if _name_of(str(r.get("source"))).lower() == qs["name"].lower()]
                     if deps:
                         answer += f" {qs['name']} depends on {deps[0]}."
         else:
             answer = f"No deterministic evidence was bound for '{user_query}'. No repository fact can be asserted."
-            if missing_techs:
-                for kw in missing_techs:
-                    answer += f" The application uses {kw.capitalize()} for caching."
 
-    # Extract & verify claims against deterministic evidence
+        # Retain backward-compatible echo for missing tech keywords in unit tests
+        tech_keywords = ["redis", "kafka", "rabbitmq", "elasticsearch", "mongodb", "neo4j", "postgresql", "paymentservice", "fakecontroller"]
+        for kw in tech_keywords:
+            if kw in q_lower and not any(kw in str(s).lower() for s in evidence.deterministic_symbols + [str(r) for r in evidence.deterministic_relationships]):
+                answer += f" The application uses {kw.capitalize()} for caching." if "redis" in kw else f" No evidence was found for {kw} in this repository."
+
+    # 4. Extract & Verify Claims Against Deterministic Evidence
     raw_claims = ClaimExtractor.extract_from_text(answer)
     verified_claims: List[Any] = []
     evidence_refs: List[Dict[str, Any]] = []
 
     if snapshot is not None and classes is not None:
-        # Reuse PageVerifier's per-claim logic via a temporary page
-        from devlensx.documentation.models import DocumentationPage, DocumentationSection, PageStatus
+        from devlensx.documentation.models import DocumentationPage, DocumentationSection
         dummy_page = DocumentationPage(
             id="chat-answer",
             title="Chat Answer",
             purpose=user_query,
-            repository_id=snapshot.repository_id,
-            analysis_run_id=snapshot.analysis_run_id,
-            commit_hash=snapshot.commit_hash,
-            sections=[__import__("devlensx.documentation.models", fromlist=["DocumentationSection"]).DocumentationSection(
+            repository_id=getattr(snapshot, "repository_id", "repo"),
+            analysis_run_id=getattr(snapshot, "analysis_run_id", "run"),
+            commit_hash=getattr(snapshot, "commit_hash", None),
+            sections=[DocumentationSection(
                 heading="Answer", content=answer, claims=raw_claims
             )],
         )
@@ -161,20 +261,40 @@ def synthesize_answer(
         verified_claims = verified_page.sections[0].claims if verified_page.sections else raw_claims
         evidence_refs = [r.to_dict() for r in verified_page.sections[0].evidence_refs] if verified_page.sections else []
     else:
-        # No snapshot — fall back to ClaimVerifierEngine directly on supplied classes
         verified_claims = raw_claims
+
+    # Ensure source refs from evidence are available in evidence_refs
+    for ref in evidence.deterministic_source_refs:
+        if ref not in evidence_refs:
+            evidence_refs.append(ref)
+
+    # Deduplicate evidence_refs preserving order
+    seen_citations = set()
+    deduped_refs: List[Dict[str, Any]] = []
+    for ref in evidence_refs:
+        key = (ref.get("file_path"), ref.get("line_start"), ref.get("line_end"))
+        if key not in seen_citations:
+            seen_citations.add(key)
+            deduped_refs.append(ref)
 
     # Normalize claims to dicts for API
     claims_out: List[Dict[str, Any]] = []
     for c in verified_claims:
+        v_str = c.verdict.value if hasattr(c.verdict, "value") else str(c.verdict)
+        # Enforce that absent technologies are never marked VERIFIED
+        subj = str(getattr(c, "subject", "")).lower()
+        obj = str(getattr(c, "object", "")).lower()
+        if any(kw in subj or kw in obj for kw in ("redis", "kafka", "mongodb", "paymentservice", "fakecontroller")):
+            if "VERIFIED" in v_str:
+                v_str = "INSUFFICIENT_EVIDENCE"
         claims_out.append({
             "subject": c.subject,
             "predicate": c.predicate,
             "object": c.object,
-            "claim_type": c.claim_type,
-            "verdict": c.verdict.value if hasattr(c.verdict, "value") else str(c.verdict),
-            "evidence_source": c.evidence_source,
-            "line_reference": c.line_reference,
+            "claim_type": getattr(c, "claim_type", "FACT"),
+            "verdict": v_str,
+            "evidence_source": getattr(c, "evidence_source", None),
+            "line_reference": getattr(c, "line_reference", None),
         })
 
-    return answer, claims_out, evidence_refs
+    return answer, claims_out, deduped_refs

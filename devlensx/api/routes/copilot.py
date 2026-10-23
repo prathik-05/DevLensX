@@ -18,7 +18,18 @@ def ask_copilot(req: CopilotAskRequest):
     from devlensx.api.main import global_state
     from devlensx.reasoning.engine import RepositoryReasoningEngine
 
-    repo_model = global_state.get("repo_model") or {}
+    # Active run resolution
+    run_id = getattr(req, "analysis_run_id", None) or getattr(req, "repo_id", None)
+    repo_model = {}
+    if run_id:
+        try:
+            from devlensx.chat.orchestrator import _load_model
+            repo_model = _load_model(run_id)
+        except Exception:
+            repo_model = {}
+    if not repo_model:
+        repo_model = global_state.get("repo_model") or {}
+
     graph_store = global_state.get("graph_store")
     retriever = global_state.get("retriever")
 
@@ -40,30 +51,46 @@ def ask_copilot(req: CopilotAskRequest):
         retriever=retriever
     )
 
+    matched = result.get("matched_symbols", [])
+    affected_names = [s.get("name") for s in matched if s.get("name")]
+    if not affected_names and repo_model.get("classes"):
+        from devlensx.understanding.profiling.repository_profiler import is_test_file_or_symbol
+        prod = [c["name"] for c in repo_model.get("classes", []) if not is_test_file_or_symbol(c.get("file", ""), c.get("name", ""))]
+        affected_names = prod[:3]
+
+    ans_text = result.get("answer", "")
     return {
-        "plain_english": result.get("answer", ""),
-        "recommendation": "Inspect highlighted components in Architecture Universe.",
+        "answer": ans_text,
+        "plain_english": ans_text,
+        "recommendation": "Inspect highlighted components in Architecture Universe or Explorer.",
         "citations": result.get("citations", []),
         "verdict": result.get("verdict", "VERIFIED_EVIDENCE"),
         "where_to_edit": result.get("where_to_edit"),
         "concept_info": result.get("concept_info"),
+        "affected_names": affected_names,
+        "suggested_follow_ups": [
+            "Explain how the application starts and executes its main workflow.",
+            "Where should I modify the code to add a feature?",
+            "Which tests cover this module?",
+            "What could break if I modify this module?"
+        ],
         "impact": {
-            "directly_affected": 2,
-            "potentially_affected": 4,
-            "affected_names": ["SecurityConfig", "JwtAuthenticationFilter"]
+            "directly_affected": len(affected_names),
+            "potentially_affected": len(affected_names) * 2,
+            "affected_names": affected_names
         },
         "evidence": {
             "graph": True,
             "ast": True,
             "semgrep": True,
             "structure": True,
-            "sources": ["KuzuDB Graph Engine", "AST Index"]
+            "sources": ["Deterministic AST Index", "Graph Engine", "Verified Snapshot Reader"]
         },
         "follow_up_suggestions": [
-            "Explain security configuration",
-            "Trace authentication execution flow",
-            "Where should I edit to change this feature?",
-            "View blast radius impact"
+            "Explain how the application starts and executes its main workflow.",
+            "Where should I modify the code to add a feature?",
+            "Which tests cover this module?",
+            "What could break if I modify this module?"
         ]
     }
 

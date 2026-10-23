@@ -669,84 +669,59 @@ class RepositoryReasoningEngine:
                 "verdict": "VERIFIED_FACT" if top_symbols else "INSUFFICIENT_EVIDENCE"
             }
 
-        # 1. Retrieve hybrid context
-        vector_facts = []
-        graph_facts = []
-        if retriever and hasattr(retriever, "retrieve_context"):
-            try:
-                retrieval = retriever.retrieve_context(question, top_k_graph=8, top_k_vector=4)
-                vector_facts = retrieval.get("relevant_ast_nodes", [])
-                graph_facts = retrieval.get("graph_facts", [])
-            except Exception:
-                pass
-
-        citations = []
-        for v in vector_facts:
-            f = v.get("file")
-            if f:
-                citations.append(f"{f}#L1-L20")
-
-        # 2. Invoke LLM with bounded grounded context + conversation history
-        llm = self._get_llm()
-        if llm:
-            prompt_ctx = "\n".join(
-                f"- Symbol: {v.get('class_name')} ({v.get('stereotype')}) in {v.get('file')}"
-                for v in vector_facts[:6]
-            )
-            graph_ctx = "\n".join(
-                f"- {g.get('subject')} --[{g.get('predicate')}]--> {g.get('object')}"
-                for g in graph_facts[:6] if isinstance(g, dict)
+        # 1. Resolve or construct snapshot record for active run
+        from devlensx.evidence.models import SnapshotRecord
+        from devlensx.evidence.resolver import get_snapshot_registry
+        reg = get_snapshot_registry()
+        run_id = repo_model.get("analysis_run_id") or repo_model.get("run_id") or "active_run"
+        snap = reg.get(run_id)
+        if not snap:
+            repo_path = repo_model.get("repo_path") or repo_model.get("root_path") or "."
+            snap = SnapshotRecord(
+                repository_id=repo_name,
+                analysis_run_id=run_id,
+                repo_path=str(repo_path),
+                commit_hash=repo_model.get("commit_hash")
             )
 
-            history_text = ""
-            if conversation_history:
-                recent = conversation_history[-4:]
-                history_text = "\nRecent Conversation Turns:\n" + "\n".join(
-                    f"{m.get('role', 'user').capitalize()}: {m.get('text', '')}"
-                    for m in recent if m.get('text')
-                ) + "\n\n"
+        # 2. Collect Query-Aware Evidence via shared subsystem
+        from devlensx.chat.evidence_context import collect_evidence
+        from devlensx.chat.synthesis import synthesize_answer
+        ev = collect_evidence(snap, repo_model, question, top_k=8)
 
-            prompt = (
-                f"Repository: `{repo_name}`\n"
-                f"{history_text}"
-                f"User Question: {question}\n\n"
-                f"Retrieved AST Evidence:\n{prompt_ctx or 'None'}\n\n"
-                f"Retrieved Graph Relationships:\n{graph_ctx or 'None'}\n\n"
-                f"Answer the user question accurately. Cite specific symbols and files. "
-                f"Distinguish observed code facts from reasonable architectural inference. "
-                f"If the codebase does not contain evidence to answer, state INSUFFICIENT_EVIDENCE."
-            )
-            try:
-                ans = llm.generate(
-                    prompt=prompt,
-                    system_prompt="You are DevLensX Evidence-Grounded AI Assistant. Answer questions based only on code evidence."
-                )
-                if ans:
-                    return {
-                        "answer": ans,
-                        "citations": citations[:4],
-                        "verdict": "VERIFIED_EVIDENCE" if citations else "AI_SUGGESTION"
-                    }
-            except Exception:
-                pass
-
-        # Fallback response with explicit evidence accounting
-        if not vector_facts and not graph_facts:
-            return {
-                "answer": f"INSUFFICIENT_EVIDENCE: No matching AST nodes or graph relationships found for query '{question}' in active snapshot '{repo_name}'.",
-                "citations": [],
-                "verdict": "INSUFFICIENT_EVIDENCE"
-            }
-
-        sym_list = ", ".join(v.get("class_name", "") for v in vector_facts[:4] if v.get("class_name"))
-        fallback_ans = (
-            f"Grounded in active repository snapshot evidence for `{repo_name}`, related components include: {sym_list}. "
-            f"Inspect the Explorer or DeepWiki for source code definitions."
+        # 3. Synthesize Grounded Answer with LLM or deterministic fallback
+        ans_text, claims, refs = synthesize_answer(
+            user_query=question,
+            evidence=ev,
+            mode="CODEMAP",
+            snapshot=snap,
+            classes=classes,
+            relationships=repo_model.get("relationships", [])
         )
+
+        formatted_citations = []
+        for r in refs:
+            fp = r.get("file_path") or r.get("file")
+            if fp:
+                s = r.get("line_start", 1)
+                e = r.get("line_end", 20)
+                formatted_citations.append(f"{fp}#L{s}-L{e}")
+
+        # Deduplicate citations
+        seen_c = set()
+        deduped_citations = []
+        for c in formatted_citations:
+            if c not in seen_c:
+                seen_c.add(c)
+                deduped_citations.append(c)
+
+        verdict = "VERIFIED_EVIDENCE" if any("VERIFIED" in str(c.get("verdict")) for c in claims) else ("INSUFFICIENT_EVIDENCE" if "INSUFFICIENT_EVIDENCE" in ans_text else "AI_SUGGESTION")
         return {
-            "answer": fallback_ans,
-            "citations": citations[:4],
-            "verdict": "VERIFIED_FACT" if citations else "INSUFFICIENT_EVIDENCE"
+            "answer": ans_text,
+            "citations": deduped_citations[:6],
+            "verdict": verdict,
+            "claims": claims,
+            "matched_symbols": ev.deterministic_symbols[:4]
         }
 
     # ----------------------------------------------------------------------
@@ -765,26 +740,41 @@ class RepositoryReasoningEngine:
         classes = repo_model.get("classes", [])
 
         query_lower = desired_change.lower()
-        tokens = set(re.findall(r"\b[a-zA-Z]{3,}\b", query_lower))
+        STOP_WORDS = {
+            "the", "and", "for", "with", "from", "that", "this", "want", "where", "should",
+            "edit", "change", "modify", "code", "file", "how", "what", "can", "would", "you"
+        }
+        tokens = {t for t in re.findall(r"\b[a-zA-Z]{3,}\b", query_lower) if t not in STOP_WORDS}
+        wants_test = any(k in query_lower for k in ("test", "spec", "fixture", "mock", "assert"))
 
         candidates = []
         for c in classes:
             name = c.get("name", "")
             file_p = c.get("file", "").replace("\\", "/")
+            is_test_item = c.get("is_test") or "/test/" in file_p.lower() or name.endswith("Test")
+            if not wants_test and is_test_item:
+                continue
             stereo = c.get("stereotype", "")
             doc = c.get("docstring", "") or ""
             methods = [m.get("name", "") for m in c.get("methods", [])]
 
             score = 0
             for t in tokens:
-                if t in name.lower():
-                    score += 15
-                if t in file_p.lower():
-                    score += 10
-                if any(t in m.lower() for m in methods):
-                    score += 8
-                if t in doc.lower():
-                    score += 3
+                # Require significant substring or word boundary match
+                if len(t) <= 3:
+                    if t == name.lower() or name.lower().startswith(t) or name.lower().endswith(t):
+                        score += 15
+                    if t in file_p.lower().split("/"):
+                        score += 10
+                else:
+                    if t in name.lower():
+                        score += 15
+                    if t in file_p.lower():
+                        score += 10
+                    if any(t in m.lower() for m in methods):
+                        score += 8
+                    if t in doc.lower():
+                        score += 3
 
             if any(k in query_lower for k in ("button", "ui", "click", "color", "header", "modal")):
                 if file_p.endswith((".tsx", ".jsx", ".html", ".vue", ".css")) or "component" in name.lower():
@@ -815,13 +805,21 @@ class RepositoryReasoningEngine:
             primary_stereo = best_match.get("stereotype", "Component")
             related = [c[1] for c in candidates[1:5]]
         else:
-            first = classes[0] if classes else {}
-            primary_file = first.get("file", "src/main.ts").replace("\\", "/")
-            primary_symbol = first.get("name", "Main")
-            line_start = 1
-            line_end = 30
-            primary_stereo = first.get("stereotype", "Entry Point")
-            related = classes[1:4] if len(classes) > 1 else []
+            return {
+                "primary_file": {
+                    "path": "Not Found",
+                    "symbol": "None",
+                    "line_start": 0,
+                    "line_end": 0,
+                    "stereotype": "None",
+                    "citation": ""
+                },
+                "explanation": f"INSUFFICIENT_EVIDENCE: No matching components, files, or symbols related to '{desired_change}' were detected in this codebase.",
+                "exact_instructions": [f"No matching code targets found for '{desired_change}' in the analyzed evidence."],
+                "related_files": [],
+                "patch_preview": "// No modifications proposed: target feature is not present in repository evidence.",
+                "downstream_impact": []
+            }
 
         downstream = []
         if graph_store and primary_symbol:

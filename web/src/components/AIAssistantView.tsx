@@ -53,8 +53,78 @@ const whereToEditPresets = [
 
 const conceptPresets = ['Gemini', 'GPT', 'RAG', 'FAISS', 'Postgres', 'Spring', 'Redis', 'Docker'];
 
+const renderAssistantMessage = (content: string) => {
+  const lines = (content || '').split('\n');
+  const elements: React.ReactNode[] = [];
+  let inCode = false;
+  let codeBuffer: string[] = [];
+
+  const formatInline = (text: string) => {
+    const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return <code key={idx} className="px-1 py-0.5 bg-neutral-100 dark:bg-zinc-800 rounded font-mono text-[11px] text-zinc-800 dark:text-zinc-200">{part.slice(1, -1)}</code>;
+      }
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={idx} className="font-semibold text-neutral-900 dark:text-white">{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim().startsWith('```')) {
+      if (inCode) {
+        elements.push(
+          <pre key={`code-${i}`} className="p-2.5 my-2 bg-neutral-900 text-neutral-100 rounded text-[11px] font-mono overflow-x-auto">
+            {codeBuffer.join('\n')}
+          </pre>
+        );
+        codeBuffer = [];
+        inCode = false;
+      } else {
+        inCode = true;
+      }
+      continue;
+    }
+    if (inCode) {
+      codeBuffer.push(line);
+      continue;
+    }
+    if (line.startsWith('### ')) {
+      elements.push(<h4 key={`h4-${i}`} className="font-bold text-xs mt-3 mb-1 text-neutral-900 dark:text-zinc-100">{formatInline(line.slice(4))}</h4>);
+    } else if (line.startsWith('## ')) {
+      elements.push(<h3 key={`h3-${i}`} className="font-bold text-sm mt-3 mb-1 text-neutral-900 dark:text-zinc-100">{formatInline(line.slice(3))}</h3>);
+    } else if (line.startsWith('# ')) {
+      elements.push(<h2 key={`h2-${i}`} className="font-bold text-sm mt-4 mb-1.5 text-neutral-900 dark:text-zinc-100">{formatInline(line.slice(2))}</h2>);
+    } else if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+      elements.push(
+        <div key={`li-${i}`} className="flex items-start gap-1.5 my-0.5 pl-2 text-neutral-700 dark:text-zinc-300">
+          <span className="text-neutral-400 dark:text-zinc-500">•</span>
+          <span>{formatInline(line.trim().slice(2))}</span>
+        </div>
+      );
+    } else if (line.trim() === '') {
+      elements.push(<div key={`sp-${i}`} className="h-1.5" />);
+    } else {
+      elements.push(<p key={`p-${i}`} className="my-1 text-neutral-800 dark:text-zinc-200">{formatInline(line)}</p>);
+    }
+  }
+
+  if (inCode && codeBuffer.length > 0) {
+    elements.push(
+      <pre key="code-end" className="p-2.5 my-2 bg-neutral-900 text-neutral-100 rounded text-[11px] font-mono overflow-x-auto">
+        {codeBuffer.join('\n')}
+      </pre>
+    );
+  }
+
+  return elements;
+};
+
 export const AIAssistantView: React.FC = () => {
-  const { repoPath, analysisData } = useAppStore();
+  const { repoPath, analysisData, analysisId } = useAppStore();
   const repoName = analysisData?.repository || repoPath || 'Repository';
 
   const [activeTab, setActiveTab] = useState<AssistantTab>('ask');
@@ -104,7 +174,7 @@ export const AIAssistantView: React.FC = () => {
 
     try {
       const history = messages.map(m => ({ q: m.role === 'user' ? m.content : '', a: m.role === 'assistant' ? m.content : '' }));
-      const res = await askCopilot(q, history, repoName);
+      const res = await askCopilot(q, history, repoName, analysisId || undefined);
 
       const assistantMsg: ChatMessage = {
         id: `asst-${Date.now()}`,
@@ -276,7 +346,13 @@ export const AIAssistantView: React.FC = () => {
                         : 'border-black/20 dark:border-[#26272e] bg-white dark:bg-[#16171d] text-black dark:text-zinc-200 shadow-sm dark:shadow-none'
                     }`}
                   >
-                    <div className="whitespace-pre-wrap font-sans">{msg.content}</div>
+                    <div className="font-sans text-xs leading-relaxed">
+                      {msg.role === 'user' ? (
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                      ) : (
+                        renderAssistantMessage(msg.content)
+                      )}
+                    </div>
 
                     {/* Citations */}
                     {msg.citations && msg.citations.length > 0 && (

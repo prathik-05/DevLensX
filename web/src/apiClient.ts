@@ -410,14 +410,25 @@ const dubboDataset: ExtendedAnalysisResponse = {
 };
 
 // Dynamic Copilot AI Assistant Engine
-export async function askCopilot(question: string, sessionHistory: Array<{q: string, a: string}> = [], repoName: string = "spring-petclinic"): Promise<import('./types').CopilotAskResponse> {
-  const selectedProvider = localStorage.getItem('devlensx_llm_provider') || 'deepseek';
+export async function askCopilot(
+  question: string,
+  sessionHistory: Array<{q: string, a: string}> = [],
+  repoName: string = "spring-petclinic",
+  analysisRunId?: string
+): Promise<import('./types').CopilotAskResponse> {
+  const selectedProvider = localStorage.getItem('devlensx_llm_provider') || 'auto';
 
   try {
     const res = await fetch(`${API_BASE}/api/copilot/ask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, session_history: sessionHistory, provider: selectedProvider, repo_name: repoName })
+      body: JSON.stringify({
+        question,
+        session_history: sessionHistory,
+        provider: selectedProvider,
+        repo_name: repoName,
+        analysis_run_id: analysisRunId
+      })
     });
     if (res.ok) {
       return await res.json();

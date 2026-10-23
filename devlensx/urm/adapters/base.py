@@ -238,8 +238,12 @@ class BaseLanguageAdapter(ABC):
     
     def _get_node_text(self, parse_result: ParseResult, node: Node) -> str:
         """Get source text for a node."""
+        if hasattr(node, 'text') and node.text is not None:
+            return node.text.decode('utf-8', errors='replace') if isinstance(node.text, bytes) else str(node.text)
         if parse_result.source_code:
-            return parse_result.source_code[node.start_byte:node.end_byte]
+            if isinstance(parse_result.source_code, bytes):
+                return parse_result.source_code[node.start_byte:node.end_byte].decode('utf-8', errors='replace')
+            return parse_result.source_code.encode('utf-8')[node.start_byte:node.end_byte].decode('utf-8', errors='replace')
         return ""
     
     def _get_node_text_from_source(self, node: Node) -> str:
