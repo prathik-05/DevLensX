@@ -16,7 +16,7 @@ from pathlib import Path
 from fastapi import HTTPException
 from devlensx.understanding.file_explainer import FileExplainer
 from devlensx.critic import CriticAgent
-from devlensx.ingest import clone_repository
+from devlensx.ingest import clone_repository, resolve_git_relative_url
 
 
 class MockGraphStore:
@@ -519,18 +519,67 @@ def test_submodule_ingestion_policy_checks(tmp_path):
         assert exc3.value.status_code == 403
         assert "disallowed under network security policy" in exc3.value.detail
 
-        # Case 4: Relative Submodule URL Resolution
+        # Case 4: Relative Submodule URL Resolution (Git-Specific Semantics)
         relative_sub = '[submodule "relative"]\n\tpath = relative\n\turl = ../sibling.git'
         (fake_target / ".gitmodules").write_text(relative_sub, encoding="utf-8")
         # Relative to https://github.com/example/main.git resolves to https://github.com/example/sibling.git
-        # Which is a valid HTTPS URL on github.com (passes validation)
         clone_repository(
             clone_url="https://github.com/example/main.git",
             target_dir=fake_target,
             submodules=True
         )
+
+        # Case 5: NAT64 Embedded Private IPv4 Rejection
+        # Mock getaddrinfo to return a NAT64 IPv6 address embedding private 127.0.0.1 (64:ff9b::7f00:1)
+        import socket
+        orig_getaddrinfo = socket.getaddrinfo
+        def mock_nat64_getaddrinfo(h, *a, **kw):
+            return [(socket.AF_INET6, socket.SOCK_STREAM, 6, '', ('64:ff9b::7f00:1', 443, 0, 0))]
+        socket.getaddrinfo = mock_nat64_getaddrinfo
+        try:
+            nat64_sub = '[submodule "nat64"]\n\tpath = nat64\n\turl = https://github.com/example/repo.git'
+            (fake_target / ".gitmodules").write_text(nat64_sub, encoding="utf-8")
+            with pytest.raises(HTTPException) as exc5:
+                clone_repository(
+                    clone_url="https://github.com/example/main.git",
+                    target_dir=fake_target,
+                    submodules=True
+                )
+            assert exc5.value.status_code == 403
+            assert "disallowed embedded IPv4" in exc5.value.detail
+        finally:
+            socket.getaddrinfo = orig_getaddrinfo
     finally:
         subprocess.run = original_run
+
+
+def test_resolve_git_relative_url_semantics():
+    """
+    AUDIT TEST:
+    Verifies that resolve_git_relative_url strictly follows Git's documented relative-URL semantics:
+    Treats the superproject's repository path like a directory, even when ending in .git.
+    """
+    # Case A: ../ from repo.git preserves organization
+    res_a = resolve_git_relative_url("https://github.com/apache/dubbo.git", "../dubbo-spi.git")
+    assert res_a == "https://github.com/apache/dubbo-spi.git"
+
+    # Case B: ../ without .git preserves organization
+    res_b = resolve_git_relative_url("https://github.com/apache/dubbo", "../dubbo-spi.git")
+    assert res_b == "https://github.com/apache/dubbo-spi.git"
+
+    # Case C: ./sub.git appends inside the repository path
+    res_c = resolve_git_relative_url("https://github.com/apache/dubbo.git", "./sub.git")
+    assert res_c == "https://github.com/apache/dubbo/sub.git"
+
+    # Case D: ../../ traverses up to root and replaces organization
+    res_d = resolve_git_relative_url("https://github.com/apache/dubbo.git", "../../other-org/lib.git")
+    assert res_d == "https://github.com/other-org/lib.git"
+
+    # Case E: Traversal above root raises HTTPException 403
+    with pytest.raises(HTTPException) as exc_e:
+        resolve_git_relative_url("https://github.com/apache/dubbo.git", "../../../../escape.git")
+    assert exc_e.value.status_code == 403
+    assert "traverses above repository root" in exc_e.value.detail
 
 
 # =========================================================================

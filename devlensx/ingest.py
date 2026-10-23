@@ -282,6 +282,32 @@ def mask_token(text: str) -> str:
     return re.sub(r"://[^@\s]+@", "://***@", text)
 
 
+def resolve_git_relative_url(parent_url: str, rel_url: str) -> str:
+    """
+    Resolves relative submodule URLs using Git's documented relative-URL semantics.
+    Git treats the superproject's repository path like a directory, stripping trailing .git.
+    """
+    clean_rel = rel_url.replace("\\", "/").strip()
+    if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*://', clean_rel):
+        return clean_rel
+    parsed = urlparse(parent_url)
+    parent_path = parsed.path.rstrip("/")
+    if parent_path.endswith(".git"):
+        parent_path = parent_path[:-4]
+    segments = [s for s in parent_path.split("/") if s]
+    for part in clean_rel.split("/"):
+        if part == "..":
+            if not segments:
+                raise HTTPException(status_code=403, detail=f"Relative submodule URL '{rel_url}' traverses above repository root.")
+            segments.pop()
+        elif part == "." or part == "":
+            continue
+        else:
+            segments.append(part)
+    resolved_path = "/" + "/".join(segments)
+    return f"{parsed.scheme}://{parsed.netloc}{resolved_path}"
+
+
 def clone_repository(
     clone_url: str,
     target_dir: Path,
@@ -293,7 +319,7 @@ def clone_repository(
     """
     Clone a repository with single-branch depth 1.
     Never logs or leaks the token.
-    Enforces timeout.
+    Enforces timeout, protocol allowlists, anti-DNS-rebinding and bounded depth.
     """
     # Prefer explicit token or fallback to environment
     active_token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
@@ -304,8 +330,14 @@ def clone_repository(
         parsed = urlparse(clone_url)
         final_url = f"https://x-access-token:{active_token}@{parsed.netloc}{parsed.path}"
 
-    # Base clone is always shallow depth 1, single-branch, without submodules
-    cmd = ["git", "clone", "--depth", "1", "--single-branch"]
+    # Base clone is always shallow depth 1, single-branch, with protocol restrictions
+    cmd = [
+        "git",
+        "-c", "protocol.allow=never",
+        "-c", "protocol.https.allow=always",
+        "-c", "http.followRedirects=false",
+        "clone", "--depth", "1", "--single-branch"
+    ]
     if branch:
         cmd.extend(["--branch", branch])
     cmd.extend([final_url, str(target_dir)])
@@ -347,11 +379,8 @@ def clone_repository(
                 DISALLOWED_HOST_NAMES = ("localhost", "127.0.0.1", "::1", "0.0.0.0")
 
                 for raw_s_url in submodule_urls:
-                    s_url = raw_s_url.strip()
-                    # Resolve relative submodule URLs (e.g. '../other.git') against parent repository URL
-                    if not re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*://', s_url):
-                        s_url = urljoin(clone_url if clone_url.endswith("/") else clone_url + "/", s_url)
-
+                    # Git-documented relative URL resolution semantics
+                    s_url = resolve_git_relative_url(clone_url, raw_s_url)
                     parsed_s = urlparse(s_url)
 
                     # Strictly require https protocol; reject file://, ssh://, git://, http://
@@ -374,15 +403,34 @@ def clone_repository(
                             detail=f"Submodule host '{host}' is disallowed under network security policy."
                         )
 
-                    # DNS resolution verification: ensure host does NOT resolve to loopback, private, or link-local IP
+                    # DNS resolution verification with embedded IPv4/NAT64 filtering
                     try:
                         resolved_entries = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
                         for entry in resolved_entries:
                             ip_str = entry[4][0]
                             ip = ipaddress.ip_address(ip_str)
                             is_nat64 = (ip.version == 6 and ip in ipaddress.ip_network("64:ff9b::/96"))
-                            if (ip.is_loopback or ip.is_private or ip.is_link_local or
-                                ip.is_multicast or ip.is_unspecified or (ip.is_reserved and not is_nat64)):
+                            
+                            if is_nat64:
+                                # Validate embedded IPv4 address in NAT64 translation
+                                embedded_ipv4 = ipaddress.IPv4Address(ip.packed[12:])
+                                if (embedded_ipv4.is_loopback or embedded_ipv4.is_private or embedded_ipv4.is_link_local or
+                                    embedded_ipv4.is_reserved or embedded_ipv4.is_multicast or embedded_ipv4.is_unspecified):
+                                    raise HTTPException(
+                                        status_code=403,
+                                        detail=f"Submodule host '{host}' resolves to NAT64 address with disallowed embedded IPv4: {embedded_ipv4}"
+                                    )
+                            elif ip.version == 6 and ip.ipv4_mapped:
+                                # Validate embedded IPv4-mapped address
+                                embedded_ipv4 = ip.ipv4_mapped
+                                if (embedded_ipv4.is_loopback or embedded_ipv4.is_private or embedded_ipv4.is_link_local or
+                                    embedded_ipv4.is_reserved or embedded_ipv4.is_multicast or embedded_ipv4.is_unspecified):
+                                    raise HTTPException(
+                                        status_code=403,
+                                        detail=f"Submodule host '{host}' resolves to IPv4-mapped address with disallowed destination: {embedded_ipv4}"
+                                    )
+                            elif (ip.is_loopback or ip.is_private or ip.is_link_local or
+                                  ip.is_multicast or ip.is_unspecified or ip.is_reserved):
                                 raise HTTPException(
                                     status_code=403,
                                     detail=f"Submodule host '{host}' resolves to private/disallowed IP: {ip_str}"
@@ -393,9 +441,14 @@ def clone_repository(
                             detail=f"Cannot resolve submodule host '{host}': {str(ge)}"
                         )
 
-                # 3. Explicit Depth 1 Bounded Initialization (Non-Recursive)
-                # Omitting --recursive guarantees recursion depth is strictly 1 (nested submodules are never cloned)
-                submodule_cmd = ["git", "submodule", "update", "--init", "--depth", "1"]
+                # 3. Explicit Depth 1 Bounded Initialization with Protocol & Redirect Hardening
+                submodule_cmd = [
+                    "git",
+                    "-c", "protocol.allow=never",
+                    "-c", "protocol.https.allow=always",
+                    "-c", "http.followRedirects=false",
+                    "submodule", "update", "--init", "--depth", "1"
+                ]
                 sub_proc = subprocess.run(
                     submodule_cmd,
                     cwd=str(target_dir),
