@@ -181,6 +181,20 @@ def test_factory_azure_and_ollama():
     assert isinstance(get_llm_provider("openai"), OpenAIProvider)
     assert isinstance(get_llm_provider("openrouter"), OpenRouterProvider)
     assert isinstance(get_llm_provider("gemini"), GeminiProvider)
+    assert isinstance(get_llm_provider("google"), GeminiProvider)
+    assert isinstance(get_llm_provider("google-ai-studio"), GeminiProvider)
+
+
+def test_gemini_google_api_key_support(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("GOOGLE_API_KEY", "google-test-key-1234")
+    p = GeminiProvider()
+    assert p.api_key == "google-test-key-1234"
+    assert p.health()["ok"] is True
+    assert p.health()["provider"] == "gemini"
+    auto_p = get_llm_provider("auto")
+    assert isinstance(auto_p, GeminiProvider)
+    assert auto_p.api_key == "google-test-key-1234"
 
 
 def test_factory_unknown_returns_none_or_legacy():

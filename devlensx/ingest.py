@@ -768,8 +768,36 @@ def _collect_files(
 
 
 def _format_digest(tree: str, files: List[IngestFile]) -> str:
-    """Format full digest string matching gitingest standard."""
+    """Format full digest string matching gitingest standard with detected tech stack."""
+    manifests = []
+    manifest_names = {
+        "package.json": "Node.js / npm",
+        "pom.xml": "Java / Maven",
+        "build.gradle": "Java / Gradle",
+        "build.gradle.kts": "Kotlin / Gradle",
+        "requirements.txt": "Python / pip",
+        "pyproject.toml": "Python / pyproject",
+        "setup.py": "Python / setuptools",
+        "Cargo.toml": "Rust / Cargo",
+        "go.mod": "Go / Modules",
+        "Dockerfile": "Docker Container",
+        "docker-compose.yml": "Docker Compose",
+    }
+    entrypoints = []
+    for f in files:
+        base = os.path.basename(f.path)
+        if base in manifest_names:
+            manifests.append(f"{f.path} ({manifest_names[base]})")
+        elif base.lower() in ("main.py", "app.py", "index.ts", "app.tsx", "main.go", "main.rs") or "application.java" in base.lower():
+            entrypoints.append(f.path)
+
     chunks = [
+        "# CODEBASE DIGEST & ARCHITECTURE CONTEXT",
+        "",
+        "## Tech Stack & Manifests",
+        f"Detected Manifests: {', '.join(manifests) if manifests else 'None'}",
+        f"Key Entry Points: {', '.join(entrypoints[:6]) if entrypoints else 'None'}",
+        "",
         "Directory structure:",
         tree,
         "",

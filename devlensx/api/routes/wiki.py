@@ -67,6 +67,24 @@ def get_wiki_page_spec(analysis_id: str, page_id: str):
     if snap:
         cache = get_documentation_cache()
         p = cache.get_page(snap.repository_id, analysis_id, snap.commit_hash, page_id)
+        if not p:
+            from devlensx.chat.orchestrator import _model_store
+            repo_model = _model_store.get(analysis_id)
+            if not repo_model:
+                from devlensx.core.persistence import get_storage_manager
+                recovered = get_storage_manager().load_snapshot(analysis_id)
+                if recovered:
+                    repo_model = recovered[1]
+            if not repo_model:
+                from devlensx.api.main import global_state
+                brain = global_state.get("brain")
+                if brain and getattr(brain, "analysis_run_id", None) == analysis_id:
+                    repo_model = global_state.get("repo_model") or {}
+            if repo_model:
+                gen = DocumentationPageGenerator(snap, repo_model)
+                pages = gen.generate_all_pages()
+                cache.store_pages(snap.repository_id, analysis_id, snap.commit_hash, pages)
+                p = cache.get_page(snap.repository_id, analysis_id, snap.commit_hash, page_id)
         if p:
             return p.to_dict()
     raise HTTPException(status_code=404, detail=f"Wiki page '{page_id}' not found for analysis '{analysis_id}'.")
@@ -120,12 +138,29 @@ def get_wiki_tree_spec(analysis_id: str):
         if snap:
             cache = get_documentation_cache()
             pages = cache.list_pages(snap.repository_id, analysis_id, snap.commit_hash)
+            if not pages:
+                from devlensx.chat.orchestrator import _model_store
+                repo_model = _model_store.get(analysis_id)
+                if not repo_model:
+                    from devlensx.core.persistence import get_storage_manager
+                    recovered = get_storage_manager().load_snapshot(analysis_id)
+                    if recovered:
+                        repo_model = recovered[1]
+                if not repo_model:
+                    from devlensx.api.main import global_state
+                    brain = global_state.get("brain")
+                    if brain and getattr(brain, "analysis_run_id", None) == analysis_id:
+                        repo_model = global_state.get("repo_model") or {}
+                if repo_model:
+                    gen = DocumentationPageGenerator(snap, repo_model)
+                    pages = gen.generate_all_pages()
+                    cache.store_pages(snap.repository_id, analysis_id, snap.commit_hash, pages)
             if pages:
                 return {
                     "analysis_id": analysis_id,
                     "repository_id": snap.repository_id,
                     "commit_hash": snap.commit_hash,
-                    "page_tree": [{"id": p.id, "title": p.title, "type": "doc"} for p in pages],
+                    "page_tree": [{"id": p.id, "title": p.title, "type": "doc", "purpose": p.purpose} for p in pages],
                     "count": len(pages),
                     "pages_summary": {p.id: p.purpose for p in pages},
                 }
@@ -177,57 +212,95 @@ def get_wiki_flows_default():
 # D7 Verified Documentation Pages API
 # ----------------------------------------------------------------------
 
-@router.get("/{analysis_run_id}/pages")
-def get_wiki_pages(analysis_run_id: str):
-    """Returns catalog and list of verified documentation pages for an analysis run."""
+def _resolve_snapshot_and_model(analysis_run_id: str):
+    """Safely resolves snapshot and exact model for analysis run, preventing cross-run leakage."""
     from devlensx.api.main import global_state
     registry = get_snapshot_registry()
     snapshot = registry.get(analysis_run_id)
 
+    repo_model = None
+    if snapshot:
+        try:
+            from devlensx.chat.orchestrator import _model_store
+            repo_model = _model_store.get(analysis_run_id)
+        except Exception:
+            pass
+        if not repo_model:
+            try:
+                from devlensx.core.persistence import get_storage_manager
+                recovered = get_storage_manager().load_snapshot(analysis_run_id)
+                if recovered:
+                    repo_model = recovered[1]
+            except Exception:
+                pass
+        if not repo_model:
+            brain = global_state.get("brain")
+            if brain and getattr(brain, "analysis_run_id", None) == analysis_run_id:
+                repo_model = global_state.get("repo_model") or {}
+
+    return snapshot, repo_model
+
+
+@router.get("/{analysis_run_id}/pages")
+def get_wiki_pages(analysis_run_id: str):
+    """Returns catalog and list of verified documentation pages for an analysis run."""
+    snapshot, repo_model = _resolve_snapshot_and_model(analysis_run_id)
+
     if not snapshot:
-        repo_model = global_state.get("repo_model") or {}
-        repo_id = repo_model.get("repository", "default")
-    else:
-        repo_id = snapshot.repository_id
+        raise HTTPException(
+            status_code=404,
+            detail=f"Analysis snapshot '{analysis_run_id}' not found. Cannot generate ungrounded documentation.",
+        )
+
+    repo_id = snapshot.repository_id
+    commit_hash = snapshot.commit_hash
 
     cache = get_documentation_cache()
-    cached_pages = cache.list_pages(repo_id, analysis_run_id, snapshot.commit_hash if snapshot else None)
+    cached_pages = cache.list_pages(repo_id, analysis_run_id, commit_hash)
 
-    if not cached_pages:
-        repo_model = global_state.get("repo_model") or {}
-        if snapshot:
-            gen = DocumentationPageGenerator(snapshot, repo_model)
-            cached_pages = gen.generate_all_pages()
-            cache.store_pages(repo_id, analysis_run_id, snapshot.commit_hash, cached_pages)
+    if not cached_pages and repo_model:
+        gen = DocumentationPageGenerator(snapshot, repo_model)
+        cached_pages = gen.generate_all_pages()
+        cache.store_pages(repo_id, analysis_run_id, commit_hash, cached_pages)
 
+    pages_dicts = [p.to_dict() for p in cached_pages]
     return {
         "status": "SUCCESS",
         "analysis_run_id": analysis_run_id,
+        "repository_id": repo_id,
+        "commit_hash": commit_hash,
         "count": len(cached_pages),
-        "pages": [p.to_dict() for p in cached_pages],
+        "pages": pages_dicts,
+        "page_tree": [
+            {"id": p.id, "title": p.title, "type": "doc", "purpose": p.purpose}
+            for p in cached_pages
+        ],
+        "pages_summary": {p.id: p.purpose for p in cached_pages},
     }
 
 
 @router.get("/{analysis_run_id}/pages/{page_id}")
 def get_wiki_page_by_id(analysis_run_id: str, page_id: str):
     """Returns a single verified documentation page with claims, citations, and diagrams."""
-    from devlensx.api.main import global_state
-    registry = get_snapshot_registry()
-    snapshot = registry.get(analysis_run_id)
+    snapshot, repo_model = _resolve_snapshot_and_model(analysis_run_id)
 
-    repo_id = snapshot.repository_id if snapshot else "default"
-    commit_hash = snapshot.commit_hash if snapshot else None
+    if not snapshot:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Analysis snapshot '{analysis_run_id}' not found.",
+        )
+
+    repo_id = snapshot.repository_id
+    commit_hash = snapshot.commit_hash
 
     cache = get_documentation_cache()
     page = cache.get_page(repo_id, analysis_run_id, commit_hash, page_id)
 
-    if not page:
-        repo_model = global_state.get("repo_model") or {}
-        if snapshot:
-            gen = DocumentationPageGenerator(snapshot, repo_model)
-            pages = gen.generate_all_pages()
-            cache.store_pages(repo_id, analysis_run_id, commit_hash, pages)
-            page = cache.get_page(repo_id, analysis_run_id, commit_hash, page_id)
+    if not page and repo_model:
+        gen = DocumentationPageGenerator(snapshot, repo_model)
+        pages = gen.generate_all_pages()
+        cache.store_pages(repo_id, analysis_run_id, commit_hash, pages)
+        page = cache.get_page(repo_id, analysis_run_id, commit_hash, page_id)
 
     if not page:
         raise HTTPException(status_code=404, detail=f"Documentation page '{page_id}' not found for run '{analysis_run_id}'.")
@@ -238,23 +311,26 @@ def get_wiki_page_by_id(analysis_run_id: str, page_id: str):
 @router.post("/{analysis_run_id}/generate")
 def trigger_wiki_generation(analysis_run_id: str):
     """Triggers on-demand regeneration of verified documentation pages."""
-    from devlensx.api.main import global_state
-    registry = get_snapshot_registry()
-    snapshot = registry.get(analysis_run_id)
-    repo_model = global_state.get("repo_model") or {}
+    snapshot, repo_model = _resolve_snapshot_and_model(analysis_run_id)
 
-    if not snapshot:
+    if not snapshot or not repo_model:
         raise HTTPException(status_code=404, detail=f"Analysis snapshot '{analysis_run_id}' not found in registry.")
 
     gen = DocumentationPageGenerator(snapshot, repo_model)
     pages = gen.generate_all_pages()
     get_documentation_cache().store_pages(snapshot.repository_id, analysis_run_id, snapshot.commit_hash, pages)
 
+    pages_dicts = [p.to_dict() for p in pages]
     return {
         "status": "SUCCESS",
         "analysis_run_id": analysis_run_id,
         "generated_pages_count": len(pages),
-        "pages": [p.to_dict() for p in pages],
+        "pages": pages_dicts,
+        "page_tree": [
+            {"id": p.id, "title": p.title, "type": "doc", "purpose": p.purpose}
+            for p in pages
+        ],
+        "pages_summary": {p.id: p.purpose for p in pages},
     }
 
 

@@ -151,6 +151,26 @@ class DocumentationPage:
 
     def to_dict(self) -> Dict[str, Any]:
         self.validate_invariants()
+        # Resolve mermaid source for sections referencing diagrams
+        import re
+        from devlensx.diagrams.generator import get_diagram_store
+        store = get_diagram_store()
+        section_dicts = []
+        for s in self.sections:
+            sd = s.to_dict()
+            m = re.search(r"```mermaid\s*\n(.*?)\n```", s.content, re.DOTALL)
+            if m:
+                sd["mermaid"] = m.group(1).strip()
+            elif s.diagram_ids:
+                for did in s.diagram_ids:
+                    diag = store.get(self.analysis_run_id, did)
+                    if not diag and "_" in did:
+                        diag = store.get(self.analysis_run_id, did.split("_", 1)[1])
+                    if diag and diag.mermaid_source:
+                        sd["mermaid"] = diag.mermaid_source
+                        break
+            section_dicts.append(sd)
+
         return {
             "id": self.id,
             "title": self.title,
@@ -160,7 +180,7 @@ class DocumentationPage:
             "commit_hash": self.commit_hash,
             "status": self.status.value if hasattr(self.status, "value") else str(self.status),
             "verification_summary": self.verification_summary,
-            "sections": [s.to_dict() for s in self.sections],
+            "sections": section_dicts,
             "diagram_ids": self.diagram_ids,
             "generated_at": self.generated_at,
         }

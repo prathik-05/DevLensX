@@ -306,21 +306,29 @@ class _ChatCompletionsProvider(LLMProvider):
 
 
 class GeminiProvider(LLMProvider):
-    _FALLBACK_MODELS = ("gemini-2.5-flash", "gemini-1.5-flash", "gemini-flash-latest", "gemini-1.5-pro")
+    _FALLBACK_MODELS = (
+        "gemini-1.5-flash",
+        "gemini-2.0-flash",
+        "gemini-2.5-flash",
+        "gemini-flash-latest",
+        "gemini-1.5-pro",
+    )
     _CACHE: Dict[str, str] = {}
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         super().__init__()
-        self.api_key = api_key if api_key is not None else os.environ.get("GEMINI_API_KEY", "")
-        self._model = model or os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        self.api_key = api_key if api_key is not None else (
+            os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+        )
+        self._model = model or os.environ.get("GEMINI_MODEL") or os.environ.get("GOOGLE_MODEL") or "gemini-1.5-flash"
 
     def model(self) -> str:
         return self._model
 
     def health(self) -> Dict[str, Any]:
         if not self.api_key:
-            return {"ok": False, "reason": "missing GEMINI_API_KEY"}
-        return {"ok": True, "model": self._model}
+            return {"ok": False, "reason": "missing GEMINI_API_KEY or GOOGLE_API_KEY"}
+        return {"ok": True, "model": self._model, "provider": "gemini"}
 
     def generate(
         self,
@@ -581,9 +589,9 @@ def get_llm_provider(provider_name: str = "auto", api_key: Optional[str] = None)
         return AzureOpenAIProvider(api_key=api_key)
     if provider_name == "groq":
         return GroqProvider(api_key=api_key)
-    if provider_name == "gemini":
+    if provider_name in ("gemini", "google", "google-ai-studio", "google_ai_studio"):
         return GeminiProvider(api_key=api_key)
-    if provider_name == "openai":
+    if provider_name in ("openai", "chatgpt"):
         return OpenAIProvider(api_key=api_key)
     if provider_name == "openrouter":
         return OpenRouterProvider(api_key=api_key)
@@ -597,7 +605,7 @@ def get_llm_provider(provider_name: str = "auto", api_key: Optional[str] = None)
             return AzureOpenAIProvider(api_key=api_key)
         if os.environ.get("GROQ_API_KEY"):
             return GroqProvider(api_key=api_key)
-        if os.environ.get("GEMINI_API_KEY"):
+        if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
             return GeminiProvider(api_key=api_key)
         if os.environ.get("OPENAI_API_KEY"):
             return OpenAIProvider(api_key=api_key)
@@ -605,7 +613,7 @@ def get_llm_provider(provider_name: str = "auto", api_key: Optional[str] = None)
             return OpenRouterProvider(api_key=api_key)
 
     # Legacy fallback: any ambient key wins (preserves pre-P1-D behavior)
-    if os.environ.get("GEMINI_API_KEY"):
+    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
         return GeminiProvider()
     if os.environ.get("OPENAI_API_KEY"):
         return OpenAIProvider()

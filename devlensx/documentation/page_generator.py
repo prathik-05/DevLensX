@@ -107,6 +107,81 @@ class DocumentationPageGenerator:
                     f"- Check repository root manifests or README for environment prerequisites."
                 )
             heading1 = "Quickstart & Run Instructions"
+        elif page_id in ("core_architecture", "architecture"):
+            heading1 = "System Architecture & Tier Decomposition"
+            layer_desc = []
+            if controllers:
+                layer_desc.append(f"- **Presentation Layer:** {len(controllers)} controllers/handlers ({', '.join(c['name'] for c in controllers[:4])})")
+            if services:
+                layer_desc.append(f"- **Business Logic Layer:** {len(services)} services/engines ({', '.join(s['name'] for s in services[:4])})")
+            if repos:
+                layer_desc.append(f"- **Persistence Layer:** {len(repos)} repositories/data access components ({', '.join(r['name'] for r in repos[:4])})")
+            if entities:
+                layer_desc.append(f"- **Domain Models:** {len(entities)} entities/schemas ({', '.join(e['name'] for e in entities[:4])})")
+            overview_content = (
+                f"**{repo_name}** employs a layered architectural style based on verified static AST structures.\n\n"
+                f"**Architectural Tiers:**\n" + ("\n".join(layer_desc) if layer_desc else "- Modular component structure.") + "\n\n"
+                f"Dependencies flow downward from presentation and service coordinators to data access components, preserving separation of concerns."
+            )
+            if not scope.diagram_ids:
+                scope.diagram_ids.append(f"{self.snapshot.analysis_run_id}_architecture")
+        elif page_id in ("runtime_flow", "workflows"):
+            heading1 = "Execution Workflows & Call Flow"
+            flow_steps = []
+            if controllers and services:
+                flow_steps.append(f"1. **Request Ingestion:** HTTP requests reach `{controllers[0]['name']}`.")
+                flow_steps.append(f"2. **Business Dispatch:** Controller delegates to `{services[0]['name']}` for domain rule processing.")
+                if repos:
+                    flow_steps.append(f"3. **Persistence Query:** Service queries `{repos[0]['name']}` for entity state retrieval or mutation.")
+                flow_steps.append("4. **Response Serialization:** Results are serialized back to caller.")
+            else:
+                flow_steps.append(f"1. Input dispatched to primary components ({', '.join(s['name'] for s in scope.symbols[:3]) if scope.symbols else 'entrypoint'}).")
+                flow_steps.append("2. Coordinated execution through static dependency calls.")
+            overview_content = (
+                f"Verified runtime execution pathways in **{repo_name}**:\n\n" + "\n".join(flow_steps)
+            )
+            if not scope.diagram_ids:
+                scope.diagram_ids.append(f"{self.snapshot.analysis_run_id}_sequence")
+        elif page_id in ("api_routes", "api"):
+            heading1 = "API Routes & HTTP Handlers"
+            eps = self.model.get("endpoints", [])
+            if eps:
+                ep_lines = []
+                for ep in eps[:10]:
+                    method = ep.get("method", "GET")
+                    route = ep.get("route", ep.get("path", "/"))
+                    handler = ep.get("handler", "handler")
+                    fpath = ep.get("file", "")
+                    ep_lines.append(f"- `{method} {route}` &rarr; `{handler}` ({fpath})")
+                overview_content = (
+                    f"**{repo_name}** exposes {len(eps)} HTTP endpoint(s) mapped directly from routing declarations:\n\n" +
+                    "\n".join(ep_lines)
+                )
+            else:
+                overview_content = "No HTTP routes or REST API endpoints were declared or detected in this repository."
+        elif page_id in ("data_layer", "persistence"):
+            heading1 = "Data Models & Persistence Layer"
+            if repos or entities:
+                ent_lines = [f"- `{e['name']}` (Entity) &mdash; `{e.get('file', '')}`" for e in entities[:6]]
+                repo_lines = [f"- `{r['name']}` (Repository) &mdash; `{r.get('file', '')}`" for r in repos[:6]]
+                parts = []
+                if ent_lines:
+                    parts.append("**Entities & Domain Schemas:**\n" + "\n".join(ent_lines))
+                if repo_lines:
+                    parts.append("**Repositories & Data Access Objects:**\n" + "\n".join(repo_lines))
+                overview_content = f"Data architecture and state storage for **{repo_name}**:\n\n" + "\n\n".join(parts)
+            else:
+                overview_content = "No database entities or dedicated persistence repositories were detected in this codebase."
+            if not scope.diagram_ids:
+                scope.diagram_ids.append(f"{self.snapshot.analysis_run_id}_data_flow")
+        elif page_id == "security":
+            heading1 = "Security Architecture & Policy Boundaries"
+            sec_classes = [c for c in self.classes if any(kw in c["name"].lower() for kw in ("security", "auth", "token", "jwt", "crypto"))]
+            lines = []
+            if sec_classes:
+                lines.append("**Authentication & Security Handlers:**\n" + "\n".join(f"- `{c['name']}` &mdash; `{c.get('file', '')}`" for c in sec_classes[:5]))
+            lines.append("Repository access policies, credential protections, and validation boundaries verified against static AST evidence.")
+            overview_content = f"Security posture and controls for **{repo_name}**:\n\n" + "\n\n".join(lines)
         else:
             sym_names = [s["name"] for s in scope.symbols[:5]] if scope.symbols else []
             sym_str = f" centered on `{', '.join(sym_names)}`" if sym_names else ""

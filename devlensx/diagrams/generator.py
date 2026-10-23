@@ -6,13 +6,61 @@ Every node and edge holds full EvidenceRef provenance.
 Never resolves by filename alone.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
+import re
 import threading
 
 from devlensx.evidence.models import EvidenceRef, EvidenceType, SnapshotRecord
 from devlensx.evidence.resolver import get_snapshot_registry
 from devlensx.diagrams.models import Diagram, DiagramNode, DiagramEdge, DiagramType
+
+
+def _sanitize_mermaid_id(s: str) -> str:
+    clean = re.sub(r'[^A-Za-z0-9_]', '_', str(s or ""))
+    if clean and clean[0].isdigit():
+        clean = f"n_{clean}"
+    return clean or "node"
+
+
+def _escape_mermaid_label(s: str) -> str:
+    escaped = str(s or "").replace('"', "'").replace("\n", " ").replace("[", "(").replace("]", ")")
+    escaped = re.sub(r'[<>]', '', escaped)
+    return escaped.strip()[:80] or "component"
+
+
+def validate_mermaid_syntax(mermaid_code: str) -> str:
+    """Validates Mermaid syntax invariants and ensures properly formed output."""
+    lines = [ln for ln in (mermaid_code or "").split("\n") if ln.strip()]
+    if not lines:
+        return "graph TD\n    Empty[\"No diagram nodes\"]"
+    first = lines[0].strip()
+    valid_starts = (
+        "graph TD", "graph LR", "graph RL", "graph BT",
+        "sequenceDiagram", "classDiagram", "flowchart TD", "flowchart LR"
+    )
+    if not any(first.startswith(vs) for vs in valid_starts):
+        lines.insert(0, "graph TD")
+    sanitized_lines = []
+    for ln in lines:
+        open_sq = ln.count("[")
+        close_sq = ln.count("]")
+        if open_sq != close_sq:
+            diff = open_sq - close_sq
+            if diff > 0:
+                ln = ln + ("]" * diff)
+            else:
+                ln = ("[" * abs(diff)) + ln
+        open_par = ln.count("(")
+        close_par = ln.count(")")
+        if open_par != close_par:
+            diff = open_par - close_par
+            if diff > 0:
+                ln = ln + (")" * diff)
+            else:
+                ln = ("(" * abs(diff)) + ln
+        sanitized_lines.append(ln)
+    return "\n".join(sanitized_lines)
 
 
 class DiagramStore:
@@ -59,6 +107,29 @@ class DiagramGenerator:
         self.endpoints = self.model.get("endpoints", [])
         self.summary = self.model.get("repo_summary", {})
         self.primary_language = (self.summary.get("language") or "unknown").lower()
+
+    # ------------------------------------------------------------------
+    # Helper: AI narrative annotation (never hallucinates graph topology)
+    # ------------------------------------------------------------------
+    def _annotate_with_ai(self, diag: Diagram) -> None:
+        """Enriches diagram description using configured AI provider without altering graph topology."""
+        try:
+            from devlensx.llm.provider import get_llm_provider
+            provider = get_llm_provider("auto")
+            if provider and not provider.capabilities().get("offline"):
+                top_nodes = [n.label for n in diag.nodes[:6]]
+                prompt = (
+                    f"Explain the architecture depicted in this {diag.title} in 2 concise sentences.\n"
+                    f"Nodes: {', '.join(top_nodes)}\n"
+                    f"Edges count: {len(diag.edges)}\n"
+                    f"Only state facts supported by these nodes and edges."
+                )
+                system_prompt = "You are a concise software architect. Explain verified diagram components strictly without inventing any missing technologies."
+                narrative = provider.generate(prompt=prompt, system_prompt=system_prompt, max_tokens=150)
+                if narrative and narrative.strip():
+                    diag.description = f"{diag.description} {narrative.strip()}".strip()
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Helper: build EvidenceRef from class/symbol dict
@@ -141,13 +212,16 @@ class DiagramGenerator:
         # Build Mermaid flowchart
         mermaid_lines = ["graph TD"]
         for n in nodes[:25]:
-            clean_id = n.id.replace("-", "_").replace(".", "_")
-            mermaid_lines.append(f'    {clean_id}["{n.label} ({n.kind})"]')
+            clean_id = _sanitize_mermaid_id(n.id)
+            clean_label = _escape_mermaid_label(f"{n.label} ({n.kind})")
+            mermaid_lines.append(f'    {clean_id}["{clean_label}"]')
         for e in edges[:40]:
-            s_clean = e.source.replace("-", "_").replace(".", "_")
-            t_clean = e.target.replace("-", "_").replace(".", "_")
-            mermaid_lines.append(f'    {s_clean} -- "{e.relationship.lower()}" --> {t_clean}')
+            s_clean = _sanitize_mermaid_id(e.source)
+            t_clean = _sanitize_mermaid_id(e.target)
+            rel_label = _escape_mermaid_label(e.relationship.lower())
+            mermaid_lines.append(f'    {s_clean} -- "{rel_label}" --> {t_clean}')
 
+        source_code = validate_mermaid_syntax("\n".join(mermaid_lines))
         diag = Diagram(
             id=f"{self.analysis_run_id}_dependency",
             type=DiagramType.DEPENDENCY,
@@ -157,10 +231,11 @@ class DiagramGenerator:
             commit_hash=self.commit_hash,
             nodes=nodes,
             edges=edges,
-            mermaid_source="\n".join(mermaid_lines),
+            mermaid_source=source_code,
             description="Statically verified AST component dependencies with line-level evidence.",
             verdict="VERIFIED",
         )
+        self._annotate_with_ai(diag)
         diag.validate_invariants()
         return diag
 
@@ -180,12 +255,12 @@ class DiagramGenerator:
 
         mermaid_lines = ["graph TD"]
         for pkg, pkg_classes in list(packages.items())[:6]:
-            pkg_id = pkg.replace("/", "_").replace(".", "_").replace("-", "_")
-            pkg_label = pkg.split(".")[-1] if "." in pkg else (pkg.split("/")[-1] or "root")
+            pkg_id = _sanitize_mermaid_id(pkg)
+            pkg_label = _escape_mermaid_label(pkg.split(".")[-1] if "." in pkg else (pkg.split("/")[-1] or "root"))
             mermaid_lines.append(f'    subgraph {pkg_id} ["{pkg_label} ({len(pkg_classes)} components)"]')
             for c in pkg_classes[:6]:
-                c_clean = c["name"].replace("-", "_").replace(".", "_")
-                c_name = c["name"]
+                c_clean = _sanitize_mermaid_id(c["name"])
+                c_name = _escape_mermaid_label(c["name"])
                 ref = self._make_evidence_ref(c)
                 node = DiagramNode(
                     id=c["name"],
@@ -212,10 +287,11 @@ class DiagramGenerator:
                     verdict="VERIFIED",
                     evidence_refs=[src_node.evidence_refs[0]] if src_node.evidence_refs else [],
                 ))
-                s_c = src_node.id.replace("-", "_").replace(".", "_")
-                t_c = tgt_node.id.replace("-", "_").replace(".", "_")
+                s_c = _sanitize_mermaid_id(src_node.id)
+                t_c = _sanitize_mermaid_id(tgt_node.id)
                 mermaid_lines.append(f'    {s_c} -.-> {t_c}')
 
+        source_code = validate_mermaid_syntax("\n".join(mermaid_lines))
         diag = Diagram(
             id=f"{self.analysis_run_id}_component",
             type=DiagramType.COMPONENT,
@@ -225,10 +301,11 @@ class DiagramGenerator:
             commit_hash=self.commit_hash,
             nodes=nodes,
             edges=edges,
-            mermaid_source="\n".join(mermaid_lines),
+            mermaid_source=source_code,
             description="Component containment by directory module and namespace package.",
             verdict="VERIFIED",
         )
+        self._annotate_with_ai(diag)
         diag.validate_invariants()
         return diag
 
@@ -324,38 +401,39 @@ class DiagramGenerator:
         # Build Layered Mermaid flowchart
         mermaid_lines = ["graph TD"]
         if layer_1_nodes:
-            mermaid_lines.append(f'    subgraph Layer1 ["{layer_1_title}"]')
+            mermaid_lines.append(f'    subgraph Layer1 ["{_escape_mermaid_label(layer_1_title)}"]')
             for n in layer_1_nodes[:8]:
-                c_id = n.id.replace("-", "_").replace(".", "_")
-                mermaid_lines.append(f'        {c_id}["{n.label}"]')
+                c_id = _sanitize_mermaid_id(n.id)
+                mermaid_lines.append(f'        {c_id}["{_escape_mermaid_label(n.label)}"]')
             mermaid_lines.append("    end")
 
         if layer_2_nodes:
-            mermaid_lines.append(f'    subgraph Layer2 ["{layer_2_title}"]')
+            mermaid_lines.append(f'    subgraph Layer2 ["{_escape_mermaid_label(layer_2_title)}"]')
             for n in layer_2_nodes[:8]:
-                c_id = n.id.replace("-", "_").replace(".", "_")
-                mermaid_lines.append(f'        {c_id}["{n.label}"]')
+                c_id = _sanitize_mermaid_id(n.id)
+                mermaid_lines.append(f'        {c_id}["{_escape_mermaid_label(n.label)}"]')
             mermaid_lines.append("    end")
 
         if layer_3_nodes:
-            mermaid_lines.append(f'    subgraph Layer3 ["{layer_3_title}"]')
+            mermaid_lines.append(f'    subgraph Layer3 ["{_escape_mermaid_label(layer_3_title)}"]')
             for n in layer_3_nodes[:8]:
-                c_id = n.id.replace("-", "_").replace(".", "_")
-                mermaid_lines.append(f'        {c_id}["{n.label}"]')
+                c_id = _sanitize_mermaid_id(n.id)
+                mermaid_lines.append(f'        {c_id}["{_escape_mermaid_label(n.label)}"]')
             mermaid_lines.append("    end")
 
         if layer_4_nodes:
-            mermaid_lines.append(f'    subgraph Layer4 ["{layer_4_title}"]')
+            mermaid_lines.append(f'    subgraph Layer4 ["{_escape_mermaid_label(layer_4_title)}"]')
             for n in layer_4_nodes[:8]:
-                c_id = n.id.replace("-", "_").replace(".", "_")
-                mermaid_lines.append(f'        {c_id}["{n.label}"]')
+                c_id = _sanitize_mermaid_id(n.id)
+                mermaid_lines.append(f'        {c_id}["{_escape_mermaid_label(n.label)}"]')
             mermaid_lines.append("    end")
 
         for e in edges[:30]:
-            s_clean = e.source.replace("-", "_").replace(".", "_")
-            t_clean = e.target.replace("-", "_").replace(".", "_")
+            s_clean = _sanitize_mermaid_id(e.source)
+            t_clean = _sanitize_mermaid_id(e.target)
             mermaid_lines.append(f'    {s_clean} --> {t_clean}')
 
+        source_code = validate_mermaid_syntax("\n".join(mermaid_lines))
         diag = Diagram(
             id=f"{self.analysis_run_id}_architecture",
             type=DiagramType.ARCHITECTURE,
@@ -365,10 +443,11 @@ class DiagramGenerator:
             commit_hash=self.commit_hash,
             nodes=nodes,
             edges=edges,
-            mermaid_source="\n".join(mermaid_lines),
+            mermaid_source=source_code,
             description="Multi-tier architectural layers partitioned strictly by AST stereotype and language evidence.",
             verdict="VERIFIED",
         )
+        self._annotate_with_ai(diag)
         diag.validate_invariants()
         return diag
 
@@ -428,13 +507,14 @@ class DiagramGenerator:
 
         mermaid_lines = ["graph LR"]
         for n in nodes[:15]:
-            c_id = n.id.replace("-", "_").replace(".", "_")
-            mermaid_lines.append(f'    {c_id}["{n.label}"]')
+            c_id = _sanitize_mermaid_id(n.id)
+            mermaid_lines.append(f'    {c_id}["{_escape_mermaid_label(n.label)}"]')
         for e in edges[:20]:
-            s_c = e.source.replace("-", "_").replace(".", "_")
-            t_c = e.target.replace("-", "_").replace(".", "_")
+            s_c = _sanitize_mermaid_id(e.source)
+            t_c = _sanitize_mermaid_id(e.target)
             mermaid_lines.append(f'    {s_c} --> {t_c}')
 
+        source_code = validate_mermaid_syntax("\n".join(mermaid_lines))
         diag = Diagram(
             id=f"{self.analysis_run_id}_call_graph",
             type=DiagramType.CALL_GRAPH,
@@ -444,10 +524,11 @@ class DiagramGenerator:
             commit_hash=self.commit_hash,
             nodes=nodes,
             edges=edges,
-            mermaid_source="\n".join(mermaid_lines),
+            mermaid_source=source_code,
             description="Statically verified invocation call paths between functions and methods.",
             verdict="VERIFIED",
         )
+        self._annotate_with_ai(diag)
         diag.validate_invariants()
         return diag
 
@@ -548,13 +629,15 @@ class DiagramGenerator:
 
         mermaid_lines = ["graph LR"]
         for n in nodes:
-            c_id = n.id.replace("-", "_").replace(".", "_").replace("/", "_")
-            mermaid_lines.append(f'    {c_id}["{n.label} ({n.kind})"]')
+            c_id = _sanitize_mermaid_id(n.id)
+            mermaid_lines.append(f'    {c_id}["{_escape_mermaid_label(f"{n.label} ({n.kind})")}"]')
         for e in edges:
-            s_c = e.source.replace("-", "_").replace(".", "_").replace("/", "_")
-            t_c = e.target.replace("-", "_").replace(".", "_").replace("/", "_")
-            mermaid_lines.append(f'    {s_c} -- "{e.relationship}" --> {t_c}')
+            s_c = _sanitize_mermaid_id(e.source)
+            t_c = _sanitize_mermaid_id(e.target)
+            rel_label = _escape_mermaid_label(e.relationship)
+            mermaid_lines.append(f'    {s_c} -- "{rel_label}" --> {t_c}')
 
+        source_code = validate_mermaid_syntax("\n".join(mermaid_lines))
         diag = Diagram(
             id=f"{self.analysis_run_id}_data_flow",
             type=DiagramType.DATA_FLOW,
@@ -564,10 +647,11 @@ class DiagramGenerator:
             commit_hash=self.commit_hash,
             nodes=nodes,
             edges=edges,
-            mermaid_source="\n".join(mermaid_lines),
+            mermaid_source=source_code,
             description="End-to-end data pipeline from incoming HTTP route down to persistence layer.",
             verdict="VERIFIED",
         )
+        self._annotate_with_ai(diag)
         diag.validate_invariants()
         return diag
 
@@ -607,6 +691,8 @@ class DiagramGenerator:
         for i in range(len(actors) - 1):
             src = actors[i]
             tgt = actors[i + 1]
+            src_actor = _sanitize_mermaid_id(src)
+            tgt_actor = _sanitize_mermaid_id(tgt)
             edges.append(DiagramEdge(
                 source=src,
                 target=tgt,
@@ -614,9 +700,10 @@ class DiagramGenerator:
                 verdict="AI_SUGGESTION",
                 evidence_refs=nodes[i].evidence_refs,
             ))
-            mermaid_lines.append(f"    {src}->>+{tgt}: [AI Suggestion] Invoke request payload")
-            mermaid_lines.append(f"    {tgt}-->>-{src}: Return response")
+            mermaid_lines.append(f"    {src_actor}->>+{tgt_actor}: [AI Suggestion] Invoke request payload")
+            mermaid_lines.append(f"    {tgt_actor}-->>-{src_actor}: Return response")
 
+        source_code = validate_mermaid_syntax("\n".join(mermaid_lines))
         diag = Diagram(
             id=f"{self.analysis_run_id}_sequence",
             type=DiagramType.SEQUENCE,
@@ -626,10 +713,11 @@ class DiagramGenerator:
             commit_hash=self.commit_hash,
             nodes=nodes,
             edges=edges,
-            mermaid_source="\n".join(mermaid_lines),
+            mermaid_source=source_code,
             description="Inferred invocation timeline. Tagged AI_SUGGESTION due to static ordering bounds.",
             verdict="AI_SUGGESTION",
         )
+        self._annotate_with_ai(diag)
         diag.validate_invariants()
         return diag
 

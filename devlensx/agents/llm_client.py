@@ -24,7 +24,7 @@ def call_external_llm(
     """
     load_dotenv(override=True)
 
-    gemini_key = api_key if (api_key and not api_key.startswith("sk-") and not api_key.startswith("gsk_")) else (os.environ.get("GEMINI_API_KEY") or api_key)
+    gemini_key = api_key if (api_key and not api_key.startswith("sk-") and not api_key.startswith("gsk_")) else (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or api_key)
     openrouter_key = api_key if api_key.startswith("sk-or-") else (os.environ.get("OPENROUTER_API_KEY") or api_key)
     groq_key = api_key if api_key.startswith("gsk_") else (os.environ.get("GROQ_API_KEY") or api_key)
     openai_key = api_key if (api_key.startswith("sk-") and not api_key.startswith("sk-or-")) else os.environ.get("OPENAI_API_KEY")
