@@ -10,10 +10,15 @@ from devlensx.chat.deep_research_mode import run_deep_research
 
 # Per-run model store — populated at POST /api/analyze time.
 _model_store: Dict[str, Dict[str, Any]] = {}
+_intelligence_store: Dict[str, Any] = {}
 
 
 def store_model(analysis_run_id: str, model: Dict[str, Any]):
     _model_store[analysis_run_id] = model
+
+
+def store_intelligence(analysis_run_id: str, intelligence: Any):
+    _intelligence_store[analysis_run_id] = intelligence
 
 
 def _load_snapshot(analysis_run_id: str) -> SnapshotRecord:
@@ -26,12 +31,17 @@ def _load_snapshot(analysis_run_id: str) -> SnapshotRecord:
 def _load_model(analysis_run_id: str) -> Dict[str, Any]:
     if analysis_run_id in _model_store:
         return _model_store[analysis_run_id]
-    # Fallback to latest global_state (backward compat for tests that didn't store)
+    # Check persistence storage manager for this specific run
     try:
-        from devlensx.api.main import global_state
-        return global_state.get("repo_model") or {}
+        from devlensx.core.persistence import get_storage_manager
+        recovered = get_storage_manager().load_snapshot(analysis_run_id)
+        if recovered:
+            _, model = recovered
+            _model_store[analysis_run_id] = model
+            return model
     except Exception:
-        return {}
+        pass
+    return {}
 
 
 class ChatOrchestrator:

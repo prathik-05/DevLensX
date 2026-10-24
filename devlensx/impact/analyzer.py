@@ -240,8 +240,10 @@ class ImpactAnalyzer:
         direct_callers: List[Dict[str, Any]] = []
         direct_caller_names: Set[str] = set()
         test_callers: List[Dict[str, Any]] = []
+        dependencies: List[Dict[str, Any]] = []
+        dep_seen: Set[str] = set()
 
-        # A. Model relationships (CALLS & DEPENDS_ON)
+        # A. Model relationships from Parser URM — preserve relationship types
         for r in relationships:
             if not isinstance(r, dict):
                 continue
@@ -252,28 +254,42 @@ class ImpactAnalyzer:
                 src_c = next((c for c in classes if c.get("name") == src), None)
                 caller_file = (src_c.get("file", "") if src_c else "").replace("\\", "/")
                 is_test = is_test_file_or_symbol(caller_file, src) if src_c else False
-                entry = {
-                    "symbol": src,
-                    "file": caller_file,
-                    "line_start": int(src_c.get("line_start", 1)) if src_c else 1,
-                    "line_end": int(src_c.get("line_end", 20)) if src_c else 20,
-                    "relation": rtype if rtype in ("CALLS", "EXTENDS", "IMPLEMENTS") else "CALLS",
-                    "confidence": "VERIFIED_CALL",
-                    "citation": f"{caller_file}#L{src_c.get('line_start', 1)}-L{src_c.get('line_end', 20)}" if caller_file else "",
-                }
-                if is_test:
-                    test_callers.append(entry)
-                elif src not in direct_caller_names:
-                    direct_caller_names.add(src)
-                    direct_callers.append(entry)
+                start_l = int(src_c.get("line_start", 1)) if src_c else 1
+                end_l = int(src_c.get("line_end", 20)) if src_c else 20
+
+                if rtype == "CALLS":
+                    entry = {
+                        "symbol": src,
+                        "file": caller_file,
+                        "line_start": start_l,
+                        "line_end": end_l,
+                        "relation": "CALLS",
+                        "confidence": "VERIFIED_CALL",
+                        "citation": f"{caller_file}#L{start_l}-L{end_l}" if caller_file else "",
+                    }
+                    if is_test:
+                        test_callers.append(entry)
+                    elif src not in direct_caller_names:
+                        direct_caller_names.add(src)
+                        direct_callers.append(entry)
+                elif rtype in ("EXTENDS", "IMPLEMENTS", "INJECTS", "IMPORTS", "DEPENDS_ON", "USES_TYPE"):
+                    if src not in dep_seen:
+                        dep_seen.add(src)
+                        dependencies.append({
+                            "symbol": src,
+                            "file": caller_file,
+                            "relation": rtype,
+                            "confidence": "VERIFIED_DEPENDENCY",
+                            "detail": f"Structural {rtype} contract referencing {target_name}",
+                            "citation": f"{caller_file}#L{start_l}-L{end_l}" if caller_file else "",
+                        })
 
         # B. AST Code Invocation Scan for Method / Function Calls
         call_pattern = re.compile(r"\b" + re.escape(target_name) + r"\s*\(")
         class_ref_pattern = re.compile(
             r"\b(new\s+" + re.escape(target_name) +
             r"|" + re.escape(target_name) + r"\." +
-            r"|\b" + re.escape(target_name) + r"\s*\(" +
-            r"|import\s+.*\b" + re.escape(target_name) + r"\b)"
+            r"|\b" + re.escape(target_name) + r"\s*\()"
         )
 
         for c in classes:
@@ -290,24 +306,32 @@ class ImpactAnalyzer:
 
             start = max(1, int(c.get("line_start", 1))) - 1
             end = min(len(lines), int(c.get("line_end", len(lines))))
-            body = "\n".join(lines[start:end])
 
-            invoked = False
-            if is_method_target and call_pattern.search(body):
-                invoked = True
-            elif not is_method_target and (class_ref_pattern.search(body) or target_name in _get_class_dependencies(c)):
-                invoked = True
+            # Find exact line of invocation, ignoring comments
+            exact_invoked_line = None
+            for idx in range(start, end):
+                raw_line = lines[idx]
+                code_line = raw_line.split("//")[0].split("#")[0].strip()
+                if not code_line:
+                    continue
+                if is_method_target and call_pattern.search(code_line):
+                    exact_invoked_line = idx + 1
+                    break
+                elif not is_method_target and (class_ref_pattern.search(code_line) or target_name in _get_class_dependencies(c)):
+                    exact_invoked_line = idx + 1
+                    break
 
-            if invoked:
+            if exact_invoked_line is not None:
                 is_test = is_test_file_or_symbol(cfile, cname)
+                # Regex-based textual match is marked INFERRED with exact line citation
                 entry = {
                     "symbol": cname,
                     "file": cfile,
-                    "line_start": int(c.get("line_start", 1)),
-                    "line_end": int(c.get("line_end", 20)),
-                    "relation": "CALLS",
-                    "confidence": "VERIFIED_CALL",
-                    "citation": f"{cfile}#L{c.get('line_start', 1)}-L{c.get('line_end', 20)}",
+                    "line_start": exact_invoked_line,
+                    "line_end": exact_invoked_line,
+                    "relation": "CALLS" if is_method_target else "REFERENCES",
+                    "confidence": "INFERRED",
+                    "citation": f"{cfile}#L{exact_invoked_line}",
                 }
                 if is_test:
                     test_callers.append(entry)
@@ -317,45 +341,53 @@ class ImpactAnalyzer:
 
         # C. Scan repository source files for unmodeled callers (JSX components, top-level scripts)
         for sfile in list(root_path.rglob("*.tsx")) + list(root_path.rglob("*.ts")) + list(root_path.rglob("*.py")) + list(root_path.rglob("*.java")):
+            sfile_str = str(sfile)
+            if "node_modules" in sfile_str or ".git" in sfile_str or ".gemini" in sfile_str or "dist" in sfile_str or ".pytest_cache" in sfile_str:
+                continue
             rel_sfile = str(sfile.relative_to(root_path)).replace("\\", "/")
             if rel_sfile == target_file or rel_sfile in [dc["file"] for dc in direct_callers]:
                 continue
-            try:
-                stext = sfile.read_text(encoding="utf-8", errors="ignore")
-                jsx_or_call = (
-                    f"<{target_name}" in stext or
-                    f"{target_name}(" in stext or
-                    f"new {target_name}" in stext or
-                    f"import {target_name}" in stext or
-                    f"from \"@/components/{Path(target_file).stem}\"" in stext or
-                    f"from './{Path(target_file).stem}'" in stext
-                )
-                if jsx_or_call:
-                    sym_name = sfile.stem
-                    if "-" in sym_name:
-                        sym_name = "".join(part.capitalize() for part in sym_name.split("-"))
-                    is_test = is_test_file_or_symbol(rel_sfile, sym_name)
-                    entry = {
-                        "symbol": sym_name,
-                        "file": rel_sfile,
-                        "line_start": 1,
-                        "line_end": min(50, len(stext.splitlines())),
-                        "relation": "CALLS",
-                        "confidence": "VERIFIED_CALL",
-                        "citation": f"{rel_sfile}#L1-L{min(50, len(stext.splitlines()))}",
-                    }
-                    if is_test:
-                        test_callers.append(entry)
-                    elif sym_name not in direct_caller_names:
-                        direct_caller_names.add(sym_name)
-                        direct_callers.append(entry)
-            except Exception:
-                pass
+            lines = _get_lines(rel_sfile)
+            if not lines:
+                continue
 
-        # 6. Transitive Impact (Hop >= 2)
+            exact_sfile_line = None
+            jsx_pat = re.compile(r"<\s*" + re.escape(target_name) + r"[\s/>]")
+            for idx, line in enumerate(lines):
+                code_line = line.split("//")[0].split("#")[0].strip()
+                if not code_line:
+                    continue
+                if jsx_pat.search(code_line) or (is_method_target and call_pattern.search(code_line)) or (not is_method_target and class_ref_pattern.search(code_line)):
+                    exact_sfile_line = idx + 1
+                    break
+
+            if exact_sfile_line is not None:
+                sym_name = sfile.stem
+                if "-" in sym_name:
+                    sym_name = "".join(part.capitalize() for part in sym_name.split("-"))
+                is_test = is_test_file_or_symbol(rel_sfile, sym_name)
+                entry = {
+                    "symbol": sym_name,
+                    "file": rel_sfile,
+                    "line_start": exact_sfile_line,
+                    "line_end": exact_sfile_line,
+                    "relation": "RENDERS" if "<" in lines[exact_sfile_line - 1] else "CALLS",
+                    "confidence": "INFERRED",
+                    "citation": f"{rel_sfile}#L{exact_sfile_line}",
+                }
+                if is_test:
+                    test_callers.append(entry)
+                elif sym_name not in direct_caller_names:
+                    direct_caller_names.add(sym_name)
+                    direct_callers.append(entry)
+
+        # 6. Transitive Impact (Hop >= 2) with hop-by-hop exact citation
         transitive_callers: List[Dict[str, Any]] = []
-        visited_symbols: Set[str] = {target_name} | direct_caller_names
-        queue: List[Tuple[str, int, List[str]]] = [(dc["symbol"], 1, [target_name, dc["symbol"]]) for dc in direct_callers]
+        visited_symbols: Set[str] = {target_name} | direct_caller_names | dep_seen
+        queue: List[Tuple[str, int, List[str]]] = (
+            [(dc["symbol"], 1, [target_name, dc["symbol"]]) for dc in direct_callers] +
+            [(dep["symbol"], 1, [target_name, dep["symbol"]]) for dep in dependencies]
+        )
 
         while queue and len(transitive_callers) < 30:
             curr_sym, curr_hop, curr_path = queue.pop(0)
@@ -374,28 +406,59 @@ class ImpactAnalyzer:
                 lines = _get_lines(cfile)
                 start = max(1, int(c.get("line_start", 1))) - 1
                 end = min(len(lines), int(c.get("line_end", len(lines))))
-                body = "\n".join(lines[start:end])
 
-                if curr_pattern.search(body) or curr_sym in _get_class_dependencies(c):
+                exact_trans_line = None
+                for idx in range(start, end):
+                    code_line = lines[idx].split("//")[0].split("#")[0].strip()
+                    if curr_pattern.search(code_line):
+                        exact_trans_line = idx + 1
+                        break
+
+                if exact_trans_line is not None or curr_sym in _get_class_dependencies(c):
                     visited_symbols.add(cname)
                     next_path = curr_path + [cname]
+                    cite_line = exact_trans_line if exact_trans_line is not None else int(c.get("line_start", 1))
                     transitive_callers.append({
                         "symbol": cname,
                         "file": cfile,
-                        "line_start": int(c.get("line_start", 1)),
-                        "line_end": int(c.get("line_end", 20)),
+                        "line_start": cite_line,
+                        "line_end": cite_line,
                         "relation": "TRANSITIVE_CALL",
                         "hop": curr_hop + 1,
                         "path": next_path,
-                        "confidence": "VERIFIED_CALL",
-                        "citation": f"{cfile}#L{c.get('line_start', 1)}-L{c.get('line_end', 20)}",
+                        "confidence": "INFERRED",
+                        "citation": f"{cfile}#L{cite_line}",
                     })
                     queue.append((cname, curr_hop + 1, next_path))
 
-        # 7. Structural Dependencies (EXTENDS, IMPLEMENTS, IMPORTS, INJECTS)
-        dependencies: List[Dict[str, Any]] = []
-        dep_seen: Set[str] = set()
+            # Also inspect explicit model relationships where target is curr_sym
+            for r in relationships:
+                if not isinstance(r, dict):
+                    continue
+                tgt = str(r.get("target", "")).split(".")[-1]
+                src = str(r.get("source", "")).split(".")[-1]
+                if tgt.lower() == curr_sym.lower() and src and src not in visited_symbols:
+                    src_c = next((c for c in classes if c.get("name") == src), None)
+                    cfile = (src_c.get("file", "") if src_c else "").replace("\\", "/")
+                    if is_test_file_or_symbol(cfile, src):
+                        continue
+                    visited_symbols.add(src)
+                    next_path = curr_path + [src]
+                    cite_line = int(src_c.get("line_start", 1)) if src_c else 1
+                    transitive_callers.append({
+                        "symbol": src,
+                        "file": cfile,
+                        "line_start": cite_line,
+                        "line_end": cite_line,
+                        "relation": "TRANSITIVE_CALL",
+                        "hop": curr_hop + 1,
+                        "path": next_path,
+                        "confidence": "INFERRED",
+                        "citation": f"{cfile}#L{cite_line}",
+                    })
+                    queue.append((src, curr_hop + 1, next_path))
 
+        # 7. Additional Structural Dependencies (EXTENDS, IMPLEMENTS, IMPORTS, INJECTS)
         for c in classes:
             cname = c.get("name", "")
             if not cname or cname == target_name or cname in dep_seen:
@@ -420,6 +483,7 @@ class ImpactAnalyzer:
                     "symbol": cname,
                     "file": cfile,
                     "relation": rel_type,
+                    "confidence": "VERIFIED_DEPENDENCY",
                     "detail": f"Structural {rel_type} contract referencing {target_name}",
                 })
 
@@ -441,8 +505,8 @@ class ImpactAnalyzer:
                     "relation": "TESTS",
                 })
 
-        # Add test classes specifically matching target or direct callers
-        affected_names = {target_name} | {dc["symbol"] for dc in direct_callers}
+        # Add test classes specifically matching target, direct callers, or direct dependencies
+        affected_names = {target_name} | {dc["symbol"] for dc in direct_callers} | {d["symbol"] for d in dependencies}
         for c in classes:
             cname = c.get("name", "")
             cfile = (c.get("file") or "").replace("\\", "/")
@@ -474,7 +538,8 @@ class ImpactAnalyzer:
             has_dynamic_dispatch = True
 
         # Check repository source code for dynamic behavior
-        sample_files = list(root_path.rglob("*.java"))[:10] + list(root_path.rglob("*.py"))[:10] + list(root_path.rglob("*.ts*"))[:10]
+        raw_samples = list(root_path.rglob("*.java"))[:10] + list(root_path.rglob("*.py"))[:10] + list(root_path.rglob("*.ts*"))[:10]
+        sample_files = [f for f in raw_samples if "node_modules" not in str(f) and ".git" not in str(f)]
         for f in sample_files:
             try:
                 txt = f.read_text(encoding="utf-8", errors="ignore")
@@ -503,11 +568,17 @@ class ImpactAnalyzer:
         else:
             execution_order_type = "INFERRED_ARCHITECTURE_ORDER"
 
-        # 10. Potential Regressions & Recommended Validation
+        # 10. Potential Regressions & Recommended Validation (Domain-Grounded)
         potential_regressions: List[str] = []
         recommended_validations: List[str] = []
 
-        if any(w in target_name.lower() for w in ("win", "terminal", "eval", "check", "valid")):
+        repo_name = str(model.get("repo", "")).lower()
+        repo_desc = str(model.get("repo_summary", {}).get("description", "")).lower()
+        is_game_domain = any(w in repo_name or w in repo_desc or w in str(snap.repo_path).lower() for w in ("game", "tictactoe", "board", "chess", "battleship", "minimax"))
+
+        is_game_win_symbol = is_game_domain and any(w in target_name.lower() for w in ("win", "terminal", "evaluateboard", "checkwinner"))
+
+        if is_game_win_symbol:
             potential_regressions.extend([
                 "Game state condition may trigger prematurely or fail to detect valid winning lines.",
                 "Boundary condition errors (e.g. off-by-one in grid coordinates) could cause False negatives or out-of-bounds exceptions.",
@@ -519,7 +590,7 @@ class ImpactAnalyzer:
                 "Test forward and backward diagonal winning lines.",
                 "Test empty board, incomplete board, and full-board draw termination boundaries."
             ])
-        elif any(w in target_name.lower() for w in ("minimax", "ai", "search", "bestmove")):
+        elif is_game_domain and any(w in target_name.lower() for w in ("minimax", "ai", "search", "bestmove")):
             potential_regressions.extend([
                 "Depth limit or heuristic calculation changes could alter decision tree evaluation, yielding suboptimal moves.",
                 "Alpha-beta pruning cutoffs could prune optimal winning branches if score evaluation polarity is inverted."
@@ -528,7 +599,7 @@ class ImpactAnalyzer:
                 "Verify optimal move selection against benchmark tactical scenario suites.",
                 "Run minimax depth tests to ensure pruning bounds remain sound across all turn depths."
             ])
-        elif any(w in target_name.lower() for w in ("place", "move", "ship", "cell")):
+        elif is_game_domain and any(w in target_name.lower() for w in ("place", "move", "ship", "cell")):
             potential_regressions.extend([
                 "State mutation without idempotency or validation may corrupt grid invariants or throw unexpected exceptions.",
                 "Caller state desynchronization if UI listeners or event buses fail to receive transition notifications."
@@ -537,13 +608,45 @@ class ImpactAnalyzer:
                 "Verify invalid coordinate rejection and occupied cell exception guarantees.",
                 "Test turn alternation and game-over state transitions with end-to-end event dispatch."
             ])
+        elif any(w in str(target_stereo).lower() for w in ("controller", "resource", "endpoint")):
+            potential_regressions.extend([
+                f"Modifications to {target_name} may alter HTTP response schemas, request parameter bindings, or status code contracts.",
+                "External API clients and frontend fetch handlers may fail to parse altered payload attributes."
+            ])
+            recommended_validations.extend([
+                "Verify HTTP 200, 400 (validation error), and 404 response codes for modified endpoints.",
+                "Test payload deserialization and parameter validation with edge-case and boundary inputs."
+            ])
+        elif any(w in str(target_stereo).lower() for w in ("service", "usecase", "manager")):
+            potential_regressions.extend([
+                f"Business rule alterations in {target_name} may cause caller state desynchronization or unhandled runtime exceptions.",
+                "Downstream services may receive unexpected null values if exception contracts or return types change."
+            ])
+            recommended_validations.extend([
+                "Validate method invariants and boundary edge-cases (null, empty, negative inputs).",
+                f"Run regression tests across verified callers: {', '.join([c['symbol'] for c in direct_callers[:3]]) or 'direct callers'}."
+            ])
+        elif any(w in str(target_stereo).lower() for w in ("repository", "entity", "dao")):
+            potential_regressions.extend([
+                f"Schema or query adjustments in {target_name} may corrupt data persistence invariants or trigger transaction rollbacks.",
+                "Database constraint violations if unique or foreign key requirements are modified."
+            ])
+            recommended_validations.extend([
+                "Verify database transaction commit/rollback behavior and constraint validation.",
+                "Execute integration test suites to confirm schema compatibility."
+            ])
         else:
             potential_regressions.append(
-                f"Modifications to {target_name} may impact {len(direct_callers)} direct caller(s) and {len(transitive_callers)} transitive downstream component(s)."
+                f"Modifications to {target_name} directly affect {len(direct_callers)} caller(s) and {len(transitive_callers)} transitive component(s)."
             )
-            recommended_validations.append(
-                f"Run regression test suite: {', '.join([t['symbol'] for t in tests[:3]]) or 'local unit tests'}."
-            )
+            if tests:
+                recommended_validations.append(
+                    f"Run discovered test suite(s): {', '.join([t['symbol'] for t in tests[:3]])}."
+                )
+            else:
+                recommended_validations.append(
+                    "Domain-specific regression rules cannot be conclusively inferred from static symbols alone without formal specification; author targeted unit tests for affected callers."
+                )
 
         # 11. Git Diff / Change Comparison
         diff_analysis: Optional[Dict[str, Any]] = None
@@ -640,11 +743,19 @@ class ImpactAnalyzer:
                 mermaid_lines.append(f'    {c_id}["{dc["symbol"]}"] -->|calls| T')
             mermaid_lines.append('  end')
 
+        if dependencies:
+            mermaid_lines.append('  subgraph Dependencies["Direct Dependencies"]')
+            for i, dep in enumerate(dependencies[:5]):
+                d_id = f"DEP_{i}"
+                mermaid_lines.append(f'    {d_id}["{dep["symbol"]}"] -->|{dep["relation"].lower()}| T')
+            mermaid_lines.append('  end')
+
         if transitive_callers:
             mermaid_lines.append('  subgraph Transitive["Transitive Downstream"]')
+            trans_anchor = "DC_0" if direct_callers else ("DEP_0" if dependencies else "T")
             for i, tc in enumerate(transitive_callers[:4]):
                 t_id = f"TC_{i}"
-                mermaid_lines.append(f'    {t_id}["{tc["symbol"]}"] -.->|transitive| DC_0')
+                mermaid_lines.append(f'    {t_id}["{tc["symbol"]}"] -.->|transitive| {trans_anchor}')
             mermaid_lines.append('  end')
 
         if tests:

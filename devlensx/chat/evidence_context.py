@@ -123,8 +123,8 @@ def collect_evidence(
         if sel_c and not any(s.get("name") == sel for s in matched_symbols):
             matched_symbols.insert(0, sel_c)
 
-    # Fallback to top production symbols or entrypoints when no token matched directly
-    if not matched_symbols:
+    # Fallback to top production symbols or entrypoints ONLY for repository overview or architecture intents
+    if not matched_symbols and intent in (ChatIntent.OVERVIEW, ChatIntent.ARCHITECTURE):
         matched_symbols = list(ranked_prod[:top_k]) if ranked_prod else list(classes[:top_k])
 
     # 5. Expand 1-hop relationships (callers and callees)

@@ -1,13 +1,20 @@
 {
   "release": "DevLensX",
   "status": "PASS",
-  "git_commit": "bc49474",
+  "verification_mode": "DETERMINISTIC_FOUNDATION_WITH_LIVE_GATE",
+  "git_commit": "f2624d1",
   "python_version": "3.13.14",
   "node_version": "v22.14.0",
   "npm_version": "10.9.2",
   "os": "Windows",
   "kuzu_config": "embedded",
   "llm_available": false,
+  "llm_gate": {
+    "live_provider_configured": "GeminiProvider",
+    "live_network_response_verified": false,
+    "fallback_deterministic_verified": true,
+    "policy": "Never silently fabricate answers. When live inference is unavailable, deterministic synthesis and verified AST/Graph evidence resolve user requests."
+  },
   "milestones": {
     "D1": "FROZEN",
     "D2": "FROZEN",
@@ -34,7 +41,11 @@
     "failed": 0
   },
   "polyglot": {
-    "validated": ["Java", "TypeScript", "Python"]
+    "validated": [
+      "Java",
+      "TypeScript",
+      "Python"
+    ]
   },
   "frontend_build": "PASS",
   "e2e": "PASS",

@@ -2,7 +2,7 @@
 DevLensX Copilot & Engineering Decision API Routes
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional, Any
 from devlensx.db import get_db, User
 from devlensx.schemas.copilot import CopilotAskRequest, EngineeringDecisionRequest
@@ -18,20 +18,36 @@ def ask_copilot(req: CopilotAskRequest):
     from devlensx.api.main import global_state
     from devlensx.reasoning.engine import RepositoryReasoningEngine
 
-    # Active run resolution
+    # Active run resolution — strictly isolated
     run_id = getattr(req, "analysis_run_id", None) or getattr(req, "repo_id", None)
     repo_model = {}
+    graph_store = None
+    retriever = None
+
     if run_id:
         try:
-            from devlensx.chat.orchestrator import _load_model
+            from devlensx.chat.orchestrator import _load_model, _intelligence_store
             repo_model = _load_model(run_id)
         except Exception:
             repo_model = {}
-    if not repo_model:
+        if not repo_model or not repo_model.get("classes"):
+            raise HTTPException(status_code=404, detail=f"UNKNOWN_RUN:{run_id} - Snapshot unavailable")
+        
+        try:
+            from devlensx.chat.orchestrator import _intelligence_store
+            intel = _intelligence_store.get(run_id)
+            if intel:
+                graph_store = getattr(intel, "graph_store", None)
+                retriever = getattr(intel, "retriever", None)
+        except Exception:
+            pass
+    else:
+        # Fallback to global_state only when caller did not specify an analysis_run_id
         repo_model = global_state.get("repo_model") or {}
-
-    graph_store = global_state.get("graph_store")
-    retriever = global_state.get("retriever")
+        if not repo_model:
+            raise HTTPException(status_code=400, detail="SNAPSHOT_UNAVAILABLE: No analysis_run_id specified and no repository loaded.")
+        graph_store = global_state.get("graph_store")
+        retriever = global_state.get("retriever")
 
     engine = RepositoryReasoningEngine()
     history = []
@@ -53,10 +69,36 @@ def ask_copilot(req: CopilotAskRequest):
 
     matched = result.get("matched_symbols", [])
     affected_names = [s.get("name") for s in matched if s.get("name")]
-    if not affected_names and repo_model.get("classes"):
-        from devlensx.understanding.profiling.repository_profiler import is_test_file_or_symbol
-        prod = [c["name"] for c in repo_model.get("classes", []) if not is_test_file_or_symbol(c.get("file", ""), c.get("name", ""))]
-        affected_names = prod[:3]
+
+    # Calculate evidence-grounded impact without artificial multiplication or dummy filler
+    if affected_names:
+        if run_id:
+            try:
+                from devlensx.impact.analyzer import ImpactAnalyzer
+                impact_res = ImpactAnalyzer.analyze(affected_names[0], run_id)
+                impact_data = {
+                    "directly_affected": len(impact_res.direct_callers),
+                    "potentially_affected": len(impact_res.downstream),
+                    "affected_names": [dc["symbol"] for dc in impact_res.direct_callers] or affected_names
+                }
+            except Exception:
+                impact_data = {
+                    "directly_affected": len(affected_names),
+                    "potentially_affected": len(affected_names),
+                    "affected_names": affected_names
+                }
+        else:
+            impact_data = {
+                "directly_affected": len(affected_names),
+                "potentially_affected": len(affected_names),
+                "affected_names": affected_names
+            }
+    else:
+        impact_data = {
+            "directly_affected": 0,
+            "potentially_affected": 0,
+            "affected_names": []
+        }
 
     ans_text = result.get("answer", "")
     return {
@@ -67,18 +109,14 @@ def ask_copilot(req: CopilotAskRequest):
         "verdict": result.get("verdict", "VERIFIED_EVIDENCE"),
         "where_to_edit": result.get("where_to_edit"),
         "concept_info": result.get("concept_info"),
-        "affected_names": affected_names,
+        "affected_names": impact_data["affected_names"],
         "suggested_follow_ups": [
             "Explain how the application starts and executes its main workflow.",
             "Where should I modify the code to add a feature?",
             "Which tests cover this module?",
             "What could break if I modify this module?"
         ],
-        "impact": {
-            "directly_affected": len(affected_names),
-            "potentially_affected": len(affected_names) * 2,
-            "affected_names": affected_names
-        },
+        "impact": impact_data,
         "evidence": {
             "graph": True,
             "ast": True,
@@ -104,19 +142,33 @@ def where_to_edit(req: dict):
     query = req.get("query") or req.get("question") or req.get("desired_change") or ""
     analysis_run_id = req.get("analysis_run_id")
     repo_model = {}
+    graph_store = None
+
     if analysis_run_id:
         try:
-            from devlensx.chat.orchestrator import _load_model
+            from devlensx.chat.orchestrator import _load_model, _intelligence_store
             repo_model = _load_model(analysis_run_id)
         except Exception:
             repo_model = {}
-    if not repo_model:
+        if not repo_model or not repo_model.get("classes"):
+            raise HTTPException(status_code=404, detail=f"UNKNOWN_RUN:{analysis_run_id} - Snapshot unavailable")
+        try:
+            from devlensx.chat.orchestrator import _intelligence_store
+            intel = _intelligence_store.get(analysis_run_id)
+            if intel:
+                graph_store = getattr(intel, "graph_store", None)
+        except Exception:
+            pass
+    else:
         repo_model = global_state.get("repo_model") or {}
+        if not repo_model:
+            raise HTTPException(status_code=400, detail="SNAPSHOT_UNAVAILABLE: No repository loaded")
+        graph_store = global_state.get("graph_store")
 
     return engine.locate_where_to_edit(
         desired_change=query,
         repo_model=repo_model,
-        graph_store=global_state.get("graph_store")
+        graph_store=graph_store
     )
 
 
@@ -129,19 +181,33 @@ def explain_concept(req: dict):
     concept = req.get("concept") or req.get("query") or ""
     analysis_run_id = req.get("analysis_run_id")
     repo_model = {}
+    graph_store = None
+
     if analysis_run_id:
         try:
-            from devlensx.chat.orchestrator import _load_model
+            from devlensx.chat.orchestrator import _load_model, _intelligence_store
             repo_model = _load_model(analysis_run_id)
         except Exception:
             repo_model = {}
-    if not repo_model:
+        if not repo_model or not repo_model.get("classes"):
+            raise HTTPException(status_code=404, detail=f"UNKNOWN_RUN:{analysis_run_id} - Snapshot unavailable")
+        try:
+            from devlensx.chat.orchestrator import _intelligence_store
+            intel = _intelligence_store.get(analysis_run_id)
+            if intel:
+                graph_store = getattr(intel, "graph_store", None)
+        except Exception:
+            pass
+    else:
         repo_model = global_state.get("repo_model") or {}
+        if not repo_model:
+            raise HTTPException(status_code=400, detail="SNAPSHOT_UNAVAILABLE: No repository loaded")
+        graph_store = global_state.get("graph_store")
 
     return engine.explain_concept_in_repo(
         concept=concept,
         repo_model=repo_model,
-        graph_store=global_state.get("graph_store")
+        graph_store=graph_store
     )
 
 
@@ -158,16 +224,29 @@ def get_guided_tour(
     from devlensx.reasoning.engine import RepositoryReasoningEngine
 
     repo_model = {}
+    graph_store = None
+
     if analysis_run_id:
         try:
-            from devlensx.chat.orchestrator import _load_model
+            from devlensx.chat.orchestrator import _load_model, _intelligence_store
             repo_model = _load_model(analysis_run_id)
         except Exception:
             repo_model = {}
-    if not repo_model:
+        if not repo_model or not repo_model.get("classes"):
+            raise HTTPException(status_code=404, detail=f"UNKNOWN_RUN:{analysis_run_id} - Snapshot unavailable")
+        try:
+            from devlensx.chat.orchestrator import _intelligence_store
+            intel = _intelligence_store.get(analysis_run_id)
+            if intel:
+                graph_store = getattr(intel, "graph_store", None)
+        except Exception:
+            pass
+    else:
         repo_model = global_state.get("repo_model") or {}
+        if not repo_model:
+            raise HTTPException(status_code=400, detail="SNAPSHOT_UNAVAILABLE: No repository loaded")
+        graph_store = global_state.get("graph_store")
 
-    graph_store = global_state.get("graph_store")
     engine = RepositoryReasoningEngine()
     return engine.trace_execution_flow(
         symbol_name=symbol,
@@ -183,15 +262,17 @@ def get_change_impact(class_name: str = "OwnerController", analysis_run_id: Opti
     from devlensx.api.main import global_state
 
     if analysis_run_id:
+        from devlensx.impact.analyzer import ImpactAnalyzer
         try:
-            from devlensx.impact.analyzer import ImpactAnalyzer
             impact = ImpactAnalyzer.analyze(class_name, analysis_run_id)
             d = impact.to_dict()
             d["target_class"] = class_name
             d["status"] = "success"
             return d
-        except Exception:
-            pass
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
     graph_store = global_state.get("graph_store")
     callers = []
@@ -208,7 +289,7 @@ def get_change_impact(class_name: str = "OwnerController", analysis_run_id: Opti
         "direct_callers": callers,
         "impact": {
             "directly_affected": len(callers),
-            "potentially_affected": len(callers) * 2,
+            "potentially_affected": len(callers),
             "affected_names": callers
         },
         "status": "success"

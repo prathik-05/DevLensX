@@ -30,6 +30,7 @@ import asyncio
 import os
 import urllib.request
 import json
+import time
 from typing import Optional, Dict, Any, List, AsyncGenerator
 from dotenv import load_dotenv
 
@@ -307,11 +308,12 @@ class _ChatCompletionsProvider(LLMProvider):
 
 class GeminiProvider(LLMProvider):
     _FALLBACK_MODELS = (
-        "gemini-1.5-flash",
-        "gemini-2.0-flash",
         "gemini-2.5-flash",
+        "gemini-3.8-flash",
         "gemini-flash-latest",
-        "gemini-1.5-pro",
+        "gemini-2.5-pro",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
     )
     _CACHE: Dict[str, str] = {}
 
@@ -320,7 +322,7 @@ class GeminiProvider(LLMProvider):
         self.api_key = api_key if api_key is not None else (
             os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
         )
-        self._model = model or os.environ.get("GEMINI_MODEL") or os.environ.get("GOOGLE_MODEL") or "gemini-1.5-flash"
+        self._model = model or os.environ.get("GEMINI_MODEL") or os.environ.get("GOOGLE_MODEL") or "gemini-2.5-flash"
 
     def model(self) -> str:
         return self._model

@@ -27,6 +27,14 @@ class AnalysisService:
         # Store in global brain_registry map
         brain_registry[brain.analysis_run_id] = brain
 
+        # Register per-run model and intelligence in orchestrator stores
+        try:
+            from devlensx.chat.orchestrator import store_model, store_intelligence
+            store_model(brain.analysis_run_id, model)
+            store_intelligence(brain.analysis_run_id, intelligence)
+        except Exception:
+            pass
+
         # Also store in global_state for backward compatibility
         from devlensx.api.main import global_state
         global_state["brain"] = brain
