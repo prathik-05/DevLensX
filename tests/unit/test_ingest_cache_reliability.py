@@ -10,6 +10,7 @@ Verifies:
 """
 
 import os
+import json
 import shutil
 import tempfile
 import threading
@@ -112,3 +113,105 @@ def test_corrupt_cache_rebuilt(sample_source_repo):
     assert os.path.isdir(path)
     assert os.path.isfile(os.path.join(path, ".complete"))
     assert os.path.isfile(os.path.join(path, "src", "Main.java"))
+
+
+def test_stale_marker_commit_mismatch_never_reused(sample_source_repo):
+    """If .complete marker exists with a mismatched commit SHA, it must be replaced, not reused."""
+    import json
+    owner = "org"
+    repo = "stale_test"
+    target_commit = "target_commit_sha_9999"
+    stale_commit = "old_stale_commit_sha_1111"
+
+    cache_root = Path(tempfile.gettempdir()) / "devlensx_ingest_cache"
+    cache_dir = cache_root / f"{owner}_{repo}_{target_commit[:16]}"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    # Write a stale marker with different commit_sha
+    stale_marker = {
+        "owner": owner,
+        "repo": repo,
+        "commit_sha": stale_commit,
+        "cached_at": 1000.0,
+    }
+    (cache_dir / ".complete").write_text(json.dumps(stale_marker), encoding="utf-8")
+    (cache_dir / "old_stale.txt").write_text("old file", encoding="utf-8")
+
+    path = _publish_cached_clone(sample_source_repo, owner, repo, target_commit)
+    assert os.path.isdir(path)
+    # The new marker must reflect target_commit
+    marker_data = json.loads(Path(path, ".complete").read_text(encoding="utf-8"))
+    assert marker_data["commit_sha"] == target_commit
+    # The new source file must exist
+    assert os.path.isfile(os.path.join(path, "src", "Main.java"))
+
+
+def _run_worker_process(repo_str, owner, repo, commit_sha, q):
+    from devlensx.ingest import _publish_cached_clone
+    from pathlib import Path
+    try:
+        res = _publish_cached_clone(Path(repo_str), owner, repo, commit_sha)
+        q.put(("OK", res))
+    except Exception as e:
+        q.put(("ERR", str(e)))
+
+
+def test_process_level_concurrency(sample_source_repo):
+    """Multiple independent processes publishing the same repo/commit must safely coordinate."""
+    import multiprocessing
+    owner = "multiproc_org"
+    repo = "test_repo"
+    commit_sha = "proc_commit_123456"
+
+    ctx = multiprocessing.get_context("spawn")
+    q = ctx.Queue()
+    procs = []
+
+    for _ in range(3):
+        p = ctx.Process(target=_run_worker_process, args=(str(sample_source_repo), owner, repo, commit_sha, q))
+        procs.append(p)
+        p.start()
+
+    for p in procs:
+        p.join(timeout=15)
+
+    results = []
+    errors = []
+    while not q.empty():
+        status, val = q.get()
+        if status == "OK":
+            results.append(val)
+        else:
+            errors.append(val)
+
+    assert len(errors) == 0, f"Process errors: {errors}"
+    assert len(results) == 3
+    assert len(set(results)) == 1
+    assert os.path.isfile(os.path.join(results[0], ".complete"))
+
+
+def test_locked_stale_destination_fails_closed_explicitly(sample_source_repo):
+    """If cache destination is locked by an open file handle and has a stale commit, it must fail explicitly."""
+    owner = "org"
+    repo = "locked_stale"
+    target_commit = "target_commit_2222"
+    stale_commit = "stale_commit_1111"
+
+    cache_root = Path(tempfile.gettempdir()) / "devlensx_ingest_cache"
+    cache_dir = cache_root / f"{owner}_{repo}_{target_commit[:16]}"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    stale_marker = {
+        "owner": owner,
+        "repo": repo,
+        "commit_sha": stale_commit,
+        "cached_at": 1000.0,
+    }
+    (cache_dir / ".complete").write_text(json.dumps(stale_marker), encoding="utf-8")
+    locked_file = cache_dir / "locked_file.txt"
+    locked_file.write_text("locked", encoding="utf-8")
+
+    # Hold an open read/write handle on Windows to simulate a locked destination
+    with open(locked_file, "r+", encoding="utf-8") as handle:
+        # Publishing a different commit when destination is locked and stale must fail with RuntimeError
+        with pytest.raises(RuntimeError) as exc_info:
+            _publish_cached_clone(sample_source_repo, owner, repo, target_commit)
+        assert "Cannot replace stale cache" in str(exc_info.value) or "Failed to publish clone cache" in str(exc_info.value)

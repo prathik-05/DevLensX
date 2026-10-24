@@ -21,7 +21,9 @@ class EvidenceDiagramGenerator:
 
         for s in key_symbols:
             clean_name = s.name.replace("-", "_").replace(".", "_")
-            label = f"{s.name} (L{s.line_start}-L{s.line_end})"
+            line_start = getattr(s, "line_start", getattr(getattr(s, "location", None), "start_line", 1))
+            line_end = getattr(s, "line_end", getattr(getattr(s, "location", None), "end_line", line_start))
+            label = f"{s.name} (L{line_start}-L{line_end})"
             lines.append(f'    {clean_name}["{label}"]')
 
         for r in relationships:

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ShieldCheck, GitPullRequest, Loader2, Copy, CheckCircle2, AlertTriangle,
+  ShieldCheck, GitPullRequest, Loader2, Copy, CheckCircle2, AlertTriangle, AlertCircle,
   FileCode, Cpu, FolderGit2, Square, Eye, GitBranch, Hammer,
   Layers, Search, FileText, ChevronDown, ChevronRight, ArrowRight,
   Sparkles, Zap, Check, CornerDownRight,
@@ -727,13 +727,13 @@ export const CodeTurtleView: React.FC = () => {
 
   // Build list of unique files from active repository classes, graph nodes, and files
   const activeRepoFiles = React.useMemo(() => {
-    const map = new Map<string, { path: string; status: string; additions: number; deletions: number; lang: string }>();
+    const map = new Map<string, { path: string; status: string; additions?: number; deletions?: number; lang: string }>();
     for (const c of (analysisData?.classes || [])) {
       if (!c.file) continue;
       const p = String(c.file).replace(/\\/g, '/').replace(/^\/+/, '');
       if (!map.has(p)) {
         const ext = p.split('.').pop()?.toUpperCase() || 'SRC';
-        map.set(p, { path: p, status: 'M', additions: 15, deletions: 2, lang: ext });
+        map.set(p, { path: p, status: 'CATALOGED', lang: ext });
       }
     }
     for (const n of (analysisData?.knowledge_graph?.nodes || [])) {
@@ -741,14 +741,14 @@ export const CodeTurtleView: React.FC = () => {
       const p = String(n.file).replace(/\\/g, '/').replace(/^\/+/, '');
       if (!map.has(p)) {
         const ext = p.split('.').pop()?.toUpperCase() || 'SRC';
-        map.set(p, { path: p, status: 'M', additions: 10, deletions: 1, lang: ext });
+        map.set(p, { path: p, status: 'CATALOGED', lang: ext });
       }
     }
     for (const f of (analysisData?.files || [])) {
       const p = String(typeof f === 'string' ? f : (f.path || f.file || '')).replace(/\\/g, '/').replace(/^\/+/, '');
       if (p && !map.has(p)) {
         const ext = p.split('.').pop()?.toUpperCase() || 'SRC';
-        map.set(p, { path: p, status: 'M', additions: 8, deletions: 0, lang: ext });
+        map.set(p, { path: p, status: 'CATALOGED', lang: ext });
       }
     }
     return Array.from(map.values());
@@ -799,6 +799,8 @@ export const CodeTurtleView: React.FC = () => {
   const [activeInitialCode, setActiveInitialCode] = useState<string>('');
   const [editorCode, setEditorCode] = useState<string>(PRESET_SCENARIOS[0].initialCode);
   const [appliedFixSuccess, setAppliedFixSuccess] = useState<string | null>(null);
+  const [activeFileError, setActiveFileError] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [isAnalyzingCode, setIsAnalyzingCode] = useState(false);
   const [liveFindings, setLiveFindings] = useState<Record<string, any[]>>({});
   const [chatInput, setChatInput] = useState('');
@@ -817,22 +819,40 @@ export const CodeTurtleView: React.FC = () => {
   // Load real active repository file content when in active mode
   useEffect(() => {
     if (reviewSource === 'active') {
+      setEditorCode('');
+      setActiveInitialCode('');
+      setActiveFindings([]);
+      setActiveFileError(null);
+      setReviewError(null);
+
       if (activeRepoFiles.length > 0) {
         const fileToLoad = selectedActiveFile || activeRepoFiles[0].path;
         const effectiveRunId = (analysisRunId || analysisId) || undefined;
+        if (!effectiveRunId) {
+          setActiveFileError('No active analysis snapshot selected.');
+          return;
+        }
         fetchFileContent(fileToLoad, effectiveRunId)
           .then(res => {
             if (res && res.content) {
               setEditorCode(res.content);
               setActiveInitialCode(res.content);
+              setActiveFileError(null);
             } else if (res && res.lines && res.lines.length > 0) {
               const joined = res.lines.join('\n');
               setEditorCode(joined);
               setActiveInitialCode(joined);
+              setActiveFileError(null);
+            } else {
+              setEditorCode('');
+              setActiveInitialCode('');
+              setActiveFileError(`Source file "${fileToLoad}" is empty or not available in active snapshot.`);
             }
           })
           .catch(err => {
-            console.warn('Notice: active file content not found in snapshot:', err);
+            setEditorCode('');
+            setActiveInitialCode('');
+            setActiveFileError(`Failed to load file source from snapshot: ${err?.message || 'File not found'}`);
           });
       } else {
         setEditorCode('');
@@ -840,6 +860,8 @@ export const CodeTurtleView: React.FC = () => {
       }
     } else {
       setEditorCode(activeScenario.initialCode);
+      setActiveFileError(null);
+      setReviewError(null);
     }
   }, [reviewSource, selectedActiveFile, activeRepoFiles, analysisRunId, analysisId, activeScenario]);
 
@@ -859,8 +881,28 @@ export const CodeTurtleView: React.FC = () => {
   };
 
   const commitFixToEditor = (findingId: string) => {
-    if (activeScenario) {
-      setEditorCode(activeScenario.fixedCode);
+    if (reviewSource === 'active') {
+      const f = activeFindings.find(finding => finding.id === findingId);
+      if (f && f.committableSuggestion) {
+        setEditorCode(prev => {
+          if (f.evidenceRef?.line_start && f.evidenceRef?.line_end) {
+            const lines = prev.split('\n');
+            const startIdx = Math.max(0, f.evidenceRef.line_start - 1);
+            const endIdx = Math.max(startIdx, f.evidenceRef.line_end - 1);
+            const newLines = [
+              ...lines.slice(0, startIdx),
+              f.committableSuggestion,
+              ...lines.slice(endIdx + 1),
+            ];
+            return newLines.join('\n');
+          }
+          return f.committableSuggestion;
+        });
+      }
+    } else {
+      if (activeScenario) {
+        setEditorCode(activeScenario.fixedCode);
+      }
     }
     setAppliedSuggestions(prev => ({ ...prev, [findingId]: true }));
     setAppliedFixSuccess('✓ Changes committed directly to live code editor! The code buffer has been updated.');
@@ -870,51 +912,115 @@ export const CodeTurtleView: React.FC = () => {
   };
 
   const triggerLiveCodeReview = async () => {
+    if (reviewSource === 'active' && activeFileError) {
+      setReviewError(`Cannot review: ${activeFileError}`);
+      return;
+    }
     setIsAnalyzingCode(true);
+    setReviewError(null);
     try {
       const effectiveRunId = (analysisRunId || analysisId) || undefined;
       const targetFileName = reviewSource === 'active'
         ? (selectedActiveFile || (activeRepoFiles[0]?.path) || 'RepositoryComponent')
         : activeScenario.fileName;
-      if (effectiveRunId) {
-        const diffText = `diff --git a/${targetFileName} b/${targetFileName}\n--- a/${targetFileName}\n+++ b/${targetFileName}\n@@ -1,10 +1,15 @@\n+${editorCode.split('\n').slice(0, 30).join('\n+')}`;
-        const res = await reviewCodeTurtle(effectiveRunId, diffText, {
-          provider: codeReviewConfig?.provider || 'auto',
-          api_key: codeReviewConfig?.apiKey,
-        });
-        if (res && res.comments && res.comments.length > 0) {
-          const transformed = res.comments.map((c: any, idx: number) => ({
-            id: `live-${idx}`,
-            severity: c.severity || 'MEDIUM',
-            verdict: c.verdict || 'AI_SUGGESTION',
-            category: c.category || 'Quality',
-            evidenceCitation: c.evidenceCitation || c.citation || `${c.file || activeScenario.fileName}#L${c.line_start || 1}`,
-            title: c.title || 'Review Finding',
-            description: c.explanation || c.description || '',
-            rationale: c.rationale || 'Grounded in repository AST evidence',
-            diffSnippet: c.diff_snippet || {
-              header: `@@ -${c.line_start || 1},1 +${c.line_start || 1},1 @@`,
-              deleted: c.existing_code ? [c.existing_code] : [],
-              added: c.suggested_fix ? [typeof c.suggested_fix === 'string' ? c.suggested_fix : c.suggested_fix.text] : [],
-            },
-            committableSuggestion: c.committable_suggestion || (typeof c.suggested_fix === 'string' ? c.suggested_fix : ''),
-          }));
-          if (reviewSource === 'active') {
-            setActiveFindings(transformed);
-          } else {
-            setLiveFindings(prev => ({ ...prev, [selectedScenario]: transformed }));
-          }
-          setAppliedFixSuccess(`✓ Live CodeTurtle Review: ${res.comments.length} finding(s) verified (${res.stats?.suppressed_count || 0} false positives suppressed by OCR rules)`);
+
+      if (!effectiveRunId) {
+        setReviewError('No active analysis snapshot selected. Select a repository to run review.');
+        return;
+      }
+
+      let diffText = '';
+      if (reviewSource === 'active') {
+        if (!editorCode.trim()) {
+          setReviewError(`Editor buffer is empty for ${targetFileName}.`);
           return;
         }
+        if (editorCode === activeInitialCode || !activeInitialCode) {
+          const lines = editorCode.split('\n');
+          diffText = [
+            `diff --git a/${targetFileName} b/${targetFileName}`,
+            `--- /dev/null`,
+            `+++ b/${targetFileName}`,
+            `@@ -0,0 +1,${Math.min(lines.length, 500)} @@`,
+            ...lines.slice(0, 500).map(l => `+${l}`),
+          ].join('\n');
+        } else {
+          const oldLines = activeInitialCode.split('\n');
+          const newLines = editorCode.split('\n');
+          let start = 0;
+          while (start < oldLines.length && start < newLines.length && oldLines[start] === newLines[start]) {
+            start++;
+          }
+          let oldEnd = oldLines.length - 1;
+          let newEnd = newLines.length - 1;
+          while (oldEnd >= start && newEnd >= start && oldLines[oldEnd] === newLines[newEnd]) {
+            oldEnd--;
+            newEnd--;
+          }
+          const contextStart = Math.max(0, start - 2);
+          const oldHunkCount = oldEnd - contextStart + 1;
+          const newHunkCount = newEnd - contextStart + 1;
+          diffText = [
+            `diff --git a/${targetFileName} b/${targetFileName}`,
+            `--- a/${targetFileName}`,
+            `+++ b/${targetFileName}`,
+            `@@ -${contextStart + 1},${oldHunkCount} +${contextStart + 1},${newHunkCount} @@`,
+            ...oldLines.slice(contextStart, start).map(l => ` ${l}`),
+            ...oldLines.slice(start, oldEnd + 1).map(l => `-${l}`),
+            ...newLines.slice(start, newEnd + 1).map(l => `+${l}`),
+          ].join('\n');
+        }
+      } else {
+        diffText = `diff --git a/${targetFileName} b/${targetFileName}\n--- a/${targetFileName}\n+++ b/${targetFileName}\n@@ -1,10 +1,15 @@\n+${editorCode.split('\n').slice(0, 30).join('\n+')}`;
       }
-      setAppliedFixSuccess('✓ AST Context & Semgrep analysis complete. All findings verified against current codebase knowledge graph.');
+
+      const res = await reviewCodeTurtle(effectiveRunId, diffText, {
+        provider: codeReviewConfig?.provider || 'auto',
+        api_key: codeReviewConfig?.apiKey,
+      });
+
+      if (res && res.comments && res.comments.length > 0) {
+        const transformed = res.comments.map((c: any, idx: number) => ({
+          id: `live-${idx}`,
+          severity: c.severity || 'MEDIUM',
+          verdict: c.rule_id ? 'VERIFIED' : (c.verdict || 'AI_SUGGESTION'),
+          category: c.category || (c.rule_id ? 'Security' : 'Quality'),
+          evidenceCitation: c.evidenceCitation || c.citation || `${c.file || targetFileName}#L${c.line_start || 1}`,
+          title: c.title || (c.rule_id ? `Static Analysis Rule: ${c.rule_id}` : 'Review Finding'),
+          description: c.explanation || c.description || '',
+          rationale: c.rationale || (c.rule_id ? `Grounded in static invariant rule ${c.rule_id}` : 'Grounded in repository AST evidence'),
+          isStaticAnalysis: Boolean(c.rule_id),
+          diffSnippet: c.diff_snippet || {
+            header: `@@ -${c.line_start || 1},1 +${c.line_start || 1},1 @@`,
+            deleted: c.existing_code ? [c.existing_code] : [],
+            added: c.suggested_fix ? [typeof c.suggested_fix === 'string' ? c.suggested_fix : c.suggested_fix.text] : [],
+          },
+          committableSuggestion: c.committable_suggestion || (typeof c.suggested_fix === 'string' ? c.suggested_fix : ''),
+          evidenceRef: {
+            file_path: c.file || targetFileName,
+            line_start: c.line_start || 1,
+            line_end: c.line_end || (c.line_start || 1) + 5,
+            symbol_name: c.existing_code || targetFileName,
+          },
+        }));
+
+        if (reviewSource === 'active') {
+          setActiveFindings(transformed);
+        } else {
+          setLiveFindings(prev => ({ ...prev, [selectedScenario]: transformed }));
+        }
+        setAppliedFixSuccess(`✓ Live CodeTurtle Review: ${res.comments.length} finding(s) verified (${res.stats?.suppressed_count || 0} false positives suppressed by OCR rules)`);
+        setTimeout(() => setAppliedFixSuccess(null), 5000);
+      } else {
+        if (reviewSource === 'active') setActiveFindings([]);
+        setAppliedFixSuccess('✓ CodeTurtle analysis complete: No security violations or regressions detected in analyzed buffer.');
+        setTimeout(() => setAppliedFixSuccess(null), 5000);
+      }
     } catch (err: any) {
-      console.warn('Live CodeTurtle review fallback:', err);
-      setAppliedFixSuccess('✓ CodeTurtle analysis complete: validated against snapshot model.');
+      console.warn('Live CodeTurtle review error:', err);
+      setReviewError(`Code review failed: ${err?.message || 'Server error during AST analysis'}`);
     } finally {
       setIsAnalyzingCode(false);
-      setTimeout(() => setAppliedFixSuccess(null), 5000);
     }
   };
 
@@ -1422,6 +1528,31 @@ export const CodeTurtleView: React.FC = () => {
                 })}
               </div>
             </GlassPanel>
+          )}
+
+          {/* Error Banners */}
+          {reviewError && (
+            <div className="p-3.5 rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-800 dark:text-rose-200 text-xs font-mono flex items-center justify-between shadow-sm animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                <span className="font-semibold">{reviewError}</span>
+              </div>
+              <button
+                onClick={() => setReviewError(null)}
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs font-mono ml-4"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {activeFileError && (
+            <div className="p-3.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200 text-xs font-mono flex items-center justify-between shadow-sm animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                <span className="font-semibold">{activeFileError}</span>
+              </div>
+            </div>
           )}
 
           {/* Success Banner when Committable Suggestion is applied */}
@@ -2126,10 +2257,16 @@ export const CodeTurtleView: React.FC = () => {
                       <div className="text-[10px] text-slate-400 truncate mt-0.5">
                         {file.path}
                       </div>
-                      <div className="text-[10px] font-mono mt-1 text-slate-400">
-                        <span className="text-emerald-500">+{file.additions}</span> /{' '}
-                        <span className="text-rose-500">-{file.deletions}</span>
-                      </div>
+                      {file.additions !== undefined && file.deletions !== undefined ? (
+                        <div className="text-[10px] font-mono mt-1 text-slate-400">
+                          <span className="text-emerald-500">+{file.additions}</span> /{' '}
+                          <span className="text-rose-500">-{file.deletions}</span>
+                        </div>
+                      ) : (
+                        <div className="text-[10px] font-mono mt-1 text-slate-500">
+                          Snapshot Source File
+                        </div>
+                      )}
                     </button>
                   );
                 })}

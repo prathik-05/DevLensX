@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import fnmatch
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -85,75 +86,136 @@ def _safe_rmtree_windows(path: Path, max_retries: int = 3) -> bool:
     return not path.exists()
 
 
+def _is_valid_cache(cache_dest: Path, owner: str, repo: str, commit_sha: str) -> bool:
+    """Verifies that the cache directory exists, is non-empty, and has a matching .complete marker."""
+    if not cache_dest.is_dir():
+        return False
+    marker_file = cache_dest / ".complete"
+    if not marker_file.is_file():
+        return False
+    try:
+        data = json.loads(marker_file.read_text(encoding="utf-8"))
+        if data.get("owner", "").lower() != (owner or "").lower():
+            return False
+        if data.get("repo", "").lower() != (repo or "").lower():
+            return False
+        if commit_sha and data.get("commit_sha") != commit_sha:
+            return False
+        if not any(cache_dest.iterdir()):
+            return False
+        return True
+    except Exception:
+        return False
+
+
+class _ProcessFileLock:
+    """Cross-process file lock using atomic filesystem creation semantics."""
+    def __init__(self, lock_file: Path, timeout: float = 20.0):
+        self.lock_file = lock_file
+        self.timeout = timeout
+        self.fd: Optional[int] = None
+
+    def __enter__(self):
+        start = time.time()
+        while True:
+            try:
+                self.fd = os.open(str(self.lock_file), os.O_CREAT | os.O_EXCL | os.O_RDWR)
+                return self
+            except FileExistsError:
+                try:
+                    if self.lock_file.exists() and (time.time() - self.lock_file.stat().st_mtime > 45.0):
+                        self.lock_file.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                if time.time() - start > self.timeout:
+                    return self
+                time.sleep(0.05)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.fd is not None:
+            try:
+                os.close(self.fd)
+            except Exception:
+                pass
+            try:
+                self.lock_file.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+
 def _publish_cached_clone(temp_path: Path, owner: str, repo: str, commit_sha: str) -> str:
     """
     Safely publishes a cloned repository to a managed persistent cache location.
     - Uses unique staging directory first.
-    - Verifies completion marker.
-    - Thread-safe and process/filesystem race-free (avoids Windows WinError 183).
-    - Scoped by owner + repo + commit to prevent cross-repository collisions.
+    - Validates owner, repo, and full commit SHA before cache reuse.
+    - Process-safe via atomic file locks and thread-safe via threading locks.
+    - If replacement of stale cache fails, raises error; never returns mismatched cache.
     """
     import uuid
-    import json
 
     safe_owner = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', owner or 'local')
     safe_repo = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', repo or 'repo')
-    short_commit = (commit_sha or 'head')[:10]
+    short_commit = (commit_sha or 'head')[:16]
 
     cache_root = Path(tempfile.gettempdir()) / "devlensx_ingest_cache"
     cache_root.mkdir(parents=True, exist_ok=True)
 
     cache_key = f"{safe_owner}_{safe_repo}_{short_commit}"
     key_lock = _get_key_lock(cache_key)
+    lock_file = cache_root / f".lock_{cache_key}"
 
     with key_lock:
-        cache_dest = cache_root / cache_key
-        marker_file = cache_dest / ".complete"
+        with _ProcessFileLock(lock_file):
+            cache_dest = cache_root / cache_key
 
-        # Check if an existing published cache directory is already complete and valid
-        if cache_dest.exists() and marker_file.exists():
-            try:
-                marker_data = json.loads(marker_file.read_text(encoding="utf-8"))
-                if marker_data.get("commit_sha") == commit_sha or not commit_sha:
-                    return str(cache_dest)
-            except Exception:
-                pass
-
-        # Use an isolated unique staging directory
-        staging_dir = cache_root / f"staging_{uuid.uuid4().hex[:12]}_{safe_repo}"
-        try:
-            shutil.copytree(temp_path, staging_dir)
-            marker_content = {
-                "owner": owner,
-                "repo": repo,
-                "commit_sha": commit_sha,
-                "cached_at": time.time(),
-            }
-            (staging_dir / ".complete").write_text(json.dumps(marker_content), encoding="utf-8")
-
-            # Clean up stale or corrupt destination before publishing
-            if cache_dest.exists():
-                removed = _safe_rmtree_windows(cache_dest)
-                if not removed:
-                    # Locked handle fallback: rename aside
-                    fallback_old = cache_root / f"old_{uuid.uuid4().hex[:8]}_{safe_repo}"
-                    try:
-                        cache_dest.rename(fallback_old)
-                        _safe_rmtree_windows(fallback_old)
-                    except Exception:
-                        pass
-
-            try:
-                staging_dir.rename(cache_dest)
-            except Exception:
-                shutil.move(str(staging_dir), str(cache_dest))
-
-            return str(cache_dest)
-        except Exception as e:
-            _safe_rmtree_windows(staging_dir)
-            if cache_dest.exists() and marker_file.exists():
+            # Fast-path: Check if an existing published cache directory is complete and matches this commit
+            if _is_valid_cache(cache_dest, owner, repo, commit_sha):
                 return str(cache_dest)
-            raise e
+
+            # Use an isolated unique staging directory
+            staging_dir = cache_root / f"staging_{uuid.uuid4().hex[:12]}_{safe_repo}"
+            try:
+                shutil.copytree(temp_path, staging_dir)
+                marker_content = {
+                    "owner": owner,
+                    "repo": repo,
+                    "commit_sha": commit_sha,
+                    "cached_at": time.time(),
+                }
+                (staging_dir / ".complete").write_text(json.dumps(marker_content), encoding="utf-8")
+
+                # Clean up stale or corrupt destination before publishing
+                if cache_dest.exists():
+                    removed = _safe_rmtree_windows(cache_dest)
+                    if not removed:
+                        fallback_old = cache_root / f"old_{uuid.uuid4().hex[:8]}_{safe_repo}"
+                        try:
+                            cache_dest.rename(fallback_old)
+                            _safe_rmtree_windows(fallback_old)
+                        except Exception:
+                            raise RuntimeError(
+                                f"Cannot replace stale cache for {owner}/{repo}: "
+                                f"destination {cache_dest} is locked by an active process handle."
+                            )
+
+                try:
+                    staging_dir.rename(cache_dest)
+                except Exception:
+                    shutil.move(str(staging_dir), str(cache_dest))
+
+                if not _is_valid_cache(cache_dest, owner, repo, commit_sha):
+                    raise RuntimeError(f"Published cache at {cache_dest} failed integrity verification.")
+
+                return str(cache_dest)
+            except Exception as e:
+                _safe_rmtree_windows(staging_dir)
+                # NEVER return old cache if it does not match current requested commit
+                if _is_valid_cache(cache_dest, owner, repo, commit_sha):
+                    return str(cache_dest)
+                raise RuntimeError(
+                    f"Failed to publish clone cache for {owner}/{repo}@{commit_sha}: {e}"
+                ) from e
+
 
 
 LANGUAGE_MAP: Dict[str, str] = {

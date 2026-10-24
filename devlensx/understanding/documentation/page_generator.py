@@ -1,3 +1,4 @@
+import re
 """
 DevLensX Documentation Intelligence - Page Generator
 Generates verified documentation pages from DocumentationTree and evidence scopes.
@@ -269,45 +270,78 @@ EVIDENCE CONTEXT:
         return "\n".join(lines)
 
     def _verify_section_claims(self, content: str, evidence_context: Dict[str, Any]) -> Dict[str, Any]:
-        """Verifies claims in generated content against evidence."""
-        # Use existing ClaimVerifierEngine
-        classes_list = list(evidence_context.get("symbols", {}).values())
-        
-        # Convert to format expected by claim verifier
-        verifier_input = {
-            "claims": content,
-            "classes": classes_list,
-            "graph_edges": [],  # Would come from Kuzu
-        }
-        
-        # Extract citations from evidence context
-        citations = []
-        for name, details in evidence_context.get("symbols", {}).items():
-            file_path = details.get("file", "")
-            line_start = details.get("line_start", 1)
-            line_end = details.get("line_end", line_start + 10)
-            if file_path:
-                citations.append({
-                    "symbol": name,
-                    "file": file_path,
-                    "line_start": line_start,
-                    "line_end": line_end,
-                    "citation_str": f"{file_path}#L{line_start}-{line_end}",
-                    "evidence_type": "AST",
+        """
+        Verifies individual claims in generated content against evidence context.
+        Ties each verified claim to specific source citations.
+        """
+        symbols_map = evidence_context.get("symbols", {})
+        if not content or not symbols_map:
+            return {
+                "overall_verdict": "INSUFFICIENT EVIDENCE",
+                "citations": [],
+                "claims": [],
+            }
+
+        # Break content into individual statements / claims
+        sentences = [
+            s.strip() for s in re.split(r'[.\n]+', content)
+            if len(s.strip()) > 15 and not s.strip().startswith("#")
+        ]
+
+        verified_claims = []
+        unverified_claims = []
+        active_citations = []
+        seen_symbols = set()
+
+        for sentence in sentences:
+            sentence_lower = sentence.lower()
+            matched_symbols = []
+            for name, details in symbols_map.items():
+                if name.lower() in sentence_lower:
+                    matched_symbols.append((name, details))
+
+            if matched_symbols:
+                for sym_name, details in matched_symbols:
+                    file_path = details.get("file", "")
+                    line_start = details.get("line_start", 1)
+                    line_end = details.get("line_end", line_start + 10)
+                    citation_str = f"{file_path}#L{line_start}-{line_end}"
+                    verified_claims.append({
+                        "claim": sentence[:120],
+                        "symbol": sym_name,
+                        "citation": citation_str,
+                        "verdict": "VERIFIED",
+                    })
+                    if sym_name not in seen_symbols and file_path:
+                        seen_symbols.add(sym_name)
+                        active_citations.append({
+                            "symbol": sym_name,
+                            "file": file_path,
+                            "line_start": line_start,
+                            "line_end": line_end,
+                            "citation_str": citation_str,
+                            "evidence_type": "AST",
+                        })
+            else:
+                unverified_claims.append({
+                    "claim": sentence[:120],
+                    "verdict": "UNVERIFIED",
                 })
-        
-        # Run claim verification if we have content to verify
-        verified_claims = 0
-        total_claims = 0
-        
-        # Simple heuristic: count sentences that mention symbol names
-        symbols_in_content = [name for name in evidence_context.get("symbols", {}).keys() 
-                             if name.lower() in content.lower()]
-        
+
+        total_claims = len(verified_claims) + len(unverified_claims)
+        if total_claims == 0:
+            verdict = "INSUFFICIENT EVIDENCE"
+        elif len(unverified_claims) == 0:
+            verdict = "VERIFIED"
+        elif len(verified_claims) > 0:
+            verdict = "PARTIALLY_VERIFIED"
+        else:
+            verdict = "INSUFFICIENT EVIDENCE"
+
         return {
-            "overall_verdict": "VERIFIED" if len(symbols_in_content) > 0 else "INSUFFICIENT EVIDENCE",
-            "citations": citations[:10],  # Limit citations
-            "claims": [{"symbol": s, "verdict": "VERIFIED"} for s in symbols_in_content],
+            "overall_verdict": verdict,
+            "citations": active_citations[:10],
+            "claims": verified_claims + unverified_claims,
         }
 
     def _generate_diagrams(self, page: DocumentationPage, evidence_context: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -330,32 +364,49 @@ EVIDENCE CONTEXT:
             return []
 
         # Convert evidence symbols to URM symbols for diagram generation
+        from devlensx.urm.models import SourceLocation
         symbols = []
         for name, details in evidence_context.get("symbols", {}).items():
-            symbols.append(URMSymbol(
-                id=f"sym_{name}",
+            loc = SourceLocation(
+                file_path=details.get("file", ""),
+                start_line=details.get("line_start", 1),
+                end_line=details.get("line_end", details.get("line_start", 1) + 10),
+            )
+            sym = URMSymbol(
+                id=name,
                 name=name,
                 qualified_name=f"{details.get('file', '')}:{name}",
-                kind=SymbolKind.TYPE,
+                kind=SymbolKind.CLASS,
                 language=details.get("language", "unknown"),
-                file=details.get("file", ""),
-                line_start=details.get("line_start", 1),
-                line_end=details.get("line_end", 1),
+                location=loc,
                 stereotype=details.get("stereotype"),
-                injected_dependencies=details.get("injected_dependencies", []),
-            ))
+            )
+            symbols.append(sym)
 
         if not symbols:
             return []
 
         # Extract real relationships if present in brain
-        relationships: List[URMRelationship] = []
+        all_relationships: List[URMRelationship] = []
         if hasattr(self.brain, "relationships") and self.brain.relationships:
-            relationships = list(self.brain.relationships)
+            all_relationships = list(self.brain.relationships)
+
+        def _filter_relationships(syms: List[URMSymbol]) -> List[URMRelationship]:
+            """Strictly filter relationships so both source and target exist in the page scope."""
+            sym_names = {s.name for s in syms}
+            sym_ids = {s.id for s in syms}
+            res = []
+            for r in all_relationships:
+                src = getattr(r, "source_id", getattr(r, "source_symbol_id", ""))
+                tgt = getattr(r, "target_id", getattr(r, "target_symbol_id", ""))
+                if (src in sym_ids or src in sym_names) and (tgt in sym_ids or tgt in sym_names):
+                    res.append(r)
+            return res
 
         diagrams = []
         if page.page_type in (PageType.OVERVIEW, PageType.CORE_ARCHITECTURE, PageType.DOMAIN_ARCHITECTURE):
-            mermaid = EvidenceDiagramGenerator.generate_architecture_diagram(symbols, relationships)
+            page_rel = _filter_relationships(symbols)
+            mermaid = EvidenceDiagramGenerator.generate_architecture_diagram(symbols, page_rel)
             diagrams.append({
                 "diagram_type": "ARCHITECTURE",
                 "title": f"{page.title} Architecture",
@@ -363,26 +414,41 @@ EVIDENCE CONTEXT:
                 "node_citations": {s.name: f"{s.file}#L{s.line_start}-{s.line_end}" for s in symbols},
             })
         elif page.page_type in (PageType.DATA_LAYER, PageType.STATE_MANAGEMENT):
-            mermaid = EvidenceDiagramGenerator.generate_architecture_diagram(
-                [s for s in symbols if s.stereotype in ("Entity", "Model", "Repository", "DAO", "Component")] or symbols[:8],
-                relationships
-            )
+            data_symbols = [
+                s for s in symbols
+                if s.stereotype in ("Entity", "Model", "Repository", "DAO", "State", "Store", "Schema")
+                or any(term in (s.file or "").lower() for term in ("model", "entity", "schema", "store", "state", "dao", "repository"))
+            ]
+            if not data_symbols:
+                # Insufficient data evidence: return empty diagram list rather than misleading arbitrary symbols
+                return []
+            page_rel = _filter_relationships(data_symbols)
+            mermaid = EvidenceDiagramGenerator.generate_architecture_diagram(data_symbols, page_rel)
             diagrams.append({
                 "diagram_type": "DATA_FLOW",
                 "title": f"{page.title} Data Model",
                 "mermaid_code": mermaid,
-                "node_citations": {s.name: f"{s.file}#L{s.line_start}-{s.line_end}" for s in symbols},
+                "node_citations": {s.name: f"{s.file}#L{s.line_start}-{s.line_end}" for s in data_symbols},
             })
         elif page.page_type in (PageType.COMPONENTS, PageType.RUNTIME_FLOW):
-            mermaid = EvidenceDiagramGenerator.generate_architecture_diagram(symbols[:12], relationships)
+            comp_symbols = [
+                s for s in symbols
+                if s.stereotype in ("Controller", "Service", "Component", "View", "Handler")
+                or any(term in (s.file or "").lower() for term in ("controller", "service", "component", "view", "handler"))
+            ]
+            if not comp_symbols:
+                comp_symbols = symbols[:12]
+            page_rel = _filter_relationships(comp_symbols)
+            mermaid = EvidenceDiagramGenerator.generate_architecture_diagram(comp_symbols, page_rel)
             diagrams.append({
                 "diagram_type": "COMPONENTS",
                 "title": f"{page.title} Interaction Map",
                 "mermaid_code": mermaid,
-                "node_citations": {s.name: f"{s.file}#L{s.line_start}-{s.line_end}" for s in symbols},
+                "node_citations": {s.name: f"{s.file}#L{s.line_start}-{s.line_end}" for s in comp_symbols},
             })
 
         return diagrams
+
 
 
 def generate_documentation(tree: DocumentationTree, brain: RepositoryBrain) -> Dict[str, GeneratedPage]:

@@ -55,18 +55,6 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
   const nodes = data.knowledge_graph?.nodes || [];
   const rawClasses = data.classes || [];
 
-  const detectedLang = (data.repo_summary?.language || '').toLowerCase();
-  const langExtMap: Record<string, string> = {
-    java: '.java',
-    python: '.py',
-    typescript: '.ts',
-    javascript: '.js',
-    go: '.go',
-    rust: '.rs',
-    'c#': '.cs',
-    'c++': '.cpp',
-  };
-  const defaultExt = langExtMap[detectedLang] || '.java';
   const langLabel = data.repo_summary?.language || 'Source';
 
   const isTestItem = (n: any) => {
@@ -92,7 +80,23 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
   const [explainError, setExplainError] = useState<string | null>(null);
   const [copiedCitation, setCopiedCitation] = useState<string | null>(null);
 
+  const repoKey = `${data.analysis_run_id || ''}:${(data as any).repository_id || data.repository || ''}`;
+
+  // Reset file selection, source content, summaries, and explanations when active snapshot changes
   useEffect(() => {
+    const validProd = (data.knowledge_graph?.nodes || []).find((n: any) => n.file && !isTestItem(n))?.file;
+    const validAny = (data.knowledge_graph?.nodes || []).find((n: any) => n.file)?.file;
+    const rawFile = validProd || validAny || '';
+    const norm = normalizeRepoPath(rawFile);
+    setSelectedFile(norm);
+    setSummary(null);
+    setRealLines(null);
+    setExplanation(null);
+    setFileError(null);
+    setExplainError(null);
+  }, [repoKey]);
+
+useEffect(() => {
     async function loadSummaryAndContent() {
       if (!selectedFile) return;
       setContentLoading(true);
@@ -138,7 +142,24 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
     }
   };
 
-  interface CanonicalFile {
+  function normalizeRepoPath(rawPath: string): string {
+  if (!rawPath) return '';
+  const parts = rawPath.replace(/\\/g, '/').split('/');
+  const resolved: string[] = [];
+  for (const part of parts) {
+    if (!part || part === '.') continue;
+    if (part === '..') {
+      if (resolved.length > 0 && resolved[resolved.length - 1] !== '..') {
+        resolved.pop();
+      }
+    } else {
+      resolved.push(part);
+    }
+  }
+  return resolved.join('/');
+}
+
+interface CanonicalFile {
     file: string;
     displayName: string;
     stereotype: string;
@@ -149,13 +170,21 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
     package?: string;
   }
 
-  // Deduplicate AST nodes into unique canonical files by normalized repository-relative path
-  const canonicalFiles = useMemo<CanonicalFile[]>(() => {
+  // Deduplicate AST nodes into unique canonical files by canonical repository-relative path
+  const { canonicalFiles, unmappedSymbols } = useMemo<{ canonicalFiles: CanonicalFile[]; unmappedSymbols: any[] }>(() => {
     const fileMap = new Map<string, CanonicalFile>();
+    const unmapped: any[] = [];
 
     for (const n of nodes) {
-      const rawPath = n.file || `${n.name}${defaultExt}`;
-      const normPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+      if (!n.file || !String(n.file).trim()) {
+        unmapped.push(n);
+        continue;
+      }
+      const normPath = normalizeRepoPath(String(n.file));
+      if (!normPath) {
+        unmapped.push(n);
+        continue;
+      }
       const isTest = isTestItem(n);
 
       if (!fileMap.has(normPath)) {
@@ -180,8 +209,8 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
       }
     }
 
-    return Array.from(fileMap.values());
-  }, [nodes, defaultExt]);
+    return { canonicalFiles: Array.from(fileMap.values()), unmappedSymbols: unmapped };
+  }, [nodes]);
 
   const filteredFiles = useMemo(() => {
     if (!searchQuery.trim()) return canonicalFiles;
@@ -494,6 +523,22 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
                       </button>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {unmappedSymbols.length > 0 && (
+              <div className="space-y-1">
+                <div className="flex items-center space-x-1.5 text-slate-500 font-black py-0.5 font-sans">
+                  <Folder className="w-4 h-4" />
+                  <span>Unmapped AST Symbols ({unmappedSymbols.length})</span>
+                </div>
+                <div className="pl-2 space-y-1 border-l-2 border-slate-300 dark:border-slate-800 ml-1.5">
+                  {unmappedSymbols.map((u, i) => (
+                    <div key={i} className="py-1 px-2 text-[11px] text-slate-500 font-mono truncate">
+                      {u.name} ({u.stereotype || 'Symbol'})
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
