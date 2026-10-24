@@ -7,19 +7,22 @@ import {
   ShieldCheck,
   Layers,
   HelpCircle,
-  Cpu
+  Cpu,
+  FileCode
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import {
   askCopilot,
   askWhereToEdit,
   askExplainConcept,
-  getChangeImpact
+  getChangeImpact,
+  resolveEvidence
 } from '../apiClient';
 import type {
   WhereToEditResult,
   ConceptExplanationResult
 } from '../apiClient';
+import { SourceViewer, useEvidenceResolver } from './SourceViewer';
 
 type AssistantTab = 'ask' | 'where-to-edit' | 'explain' | 'blast-radius';
 
@@ -52,7 +55,7 @@ const whereToEditPresets = [
 
 const conceptPresets = ['Gemini', 'GPT', 'RAG', 'FAISS', 'Postgres', 'Spring', 'Redis', 'Docker'];
 
-const renderAssistantMessage = (content: string) => {
+const renderAssistantMessage = (content: string, onCitationClick?: (cite: string) => void) => {
   const lines = (content || '').split('\n');
   const elements: React.ReactNode[] = [];
   let inCode = false;
@@ -72,10 +75,18 @@ const renderAssistantMessage = (content: string) => {
       const linkMatch = part.match(/^\[(.*?)\]\((.*?)\)$/);
       if (linkMatch) {
         const label = linkMatch[1];
+        const rawTarget = linkMatch[2] || label;
+        const targetCitation = label.includes('.java') || label.includes('.py') || label.includes('.ts') || label.includes('#L') ? label : (rawTarget || label);
         return (
-          <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded font-mono text-[10px] bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800">
+          <button
+            key={idx}
+            type="button"
+            onClick={() => onCitationClick?.(targetCitation)}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded font-mono text-[10px] bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800 transition-colors cursor-pointer"
+            title={`Inspect verified source: ${label}`}
+          >
             📍 {label}
-          </span>
+          </button>
         );
       }
       return part;
@@ -140,6 +151,38 @@ export const AIAssistantView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AssistantTab>('ask');
 
   // 1. Ask Repository State
+  const { evidence, setEvidence, loading: resolvingSource, setLoading: setResolvingSource } = useEvidenceResolver();
+
+  const handleOpenCitation = async (rawCitation: string) => {
+    if (!rawCitation || resolvingSource) return;
+    setResolvingSource(true);
+    const cleaned = rawCitation.replace(/^📍\s*/, '').trim();
+    const match = cleaned.match(/^([^#]+)(?:#L?(\d+)(?:-L?(\d+))?)?/);
+    const filePath = match ? match[1] : cleaned;
+    const lineStart = match && match[2] ? parseInt(match[2], 10) : 1;
+    const lineEnd = match && match[3] ? parseInt(match[3], 10) : lineStart + 20;
+
+    const effectiveRunId = analysisId || analysisData?.analysis_run_id || 'active_run';
+    const effectiveRepo = analysisData?.repository || repoPath || 'Repository';
+
+    try {
+      const ref = {
+        repository_id: effectiveRepo,
+        analysis_run_id: effectiveRunId,
+        file_path: filePath,
+        line_start: lineStart,
+        line_end: lineEnd,
+        symbol_name: filePath.split('/').pop() || '',
+        evidence_type: 'AST' as const,
+      };
+      const resolved = await resolveEvidence(ref);
+      setEvidence(resolved);
+    } catch (err) {
+      console.warn('Failed to resolve citation evidence:', err);
+    } finally {
+      setResolvingSource(false);
+    }
+  };
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
@@ -369,24 +412,29 @@ export const AIAssistantView: React.FC = () => {
                       {msg.role === 'user' ? (
                         <div className="whitespace-pre-wrap">{msg.content}</div>
                       ) : (
-                        renderAssistantMessage(msg.content)
+                        renderAssistantMessage(msg.content, handleOpenCitation)
                       )}
                     </div>
 
                     {/* Citations */}
                     {msg.citations && msg.citations.length > 0 && (
                       <div className="mt-3 pt-2 border-t border-neutral-200 dark:border-zinc-800">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-zinc-400 mb-1">
-                          Verified Code Citations:
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-zinc-400 mb-1 flex items-center justify-between">
+                          <span>Verified Code Citations (click to inspect source):</span>
+                          {resolvingSource && <span className="text-[9px] text-sky-500 animate-pulse">Resolving AST snapshot...</span>}
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {msg.citations.map((cite, i) => (
-                            <span
+                            <button
                               key={i}
-                              className="text-[10px] font-mono px-1.5 py-0.5 border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors rounded-sm"
+                              type="button"
+                              onClick={() => handleOpenCitation(cite)}
+                              className="text-[10px] font-mono px-2 py-0.5 border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors rounded-sm cursor-pointer shadow-xs flex items-center gap-1"
+                              title={`Inspect verified source for ${cite}`}
                             >
-                              📍 {cite}
-                            </span>
+                              <span>📍</span>
+                              <span>{cite}</span>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -406,6 +454,13 @@ export const AIAssistantView: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Inline Verified Source Viewer */}
+            {evidence && (
+              <div className="p-3 border-t border-black/20 dark:border-zinc-800 bg-neutral-900">
+                <SourceViewer evidence={evidence} onClose={() => setEvidence(null)} />
+              </div>
+            )}
 
             {/* Input Bar */}
             <div className="p-3 border-t border-black/20 dark:border-zinc-800 bg-neutral-50 dark:bg-[#16171d] rounded-b-sm">
@@ -545,9 +600,15 @@ export const AIAssistantView: React.FC = () => {
                     <span className="text-xs font-bold uppercase text-neutral-500 dark:text-zinc-400">
                       Stereotype: {editResult.primary_file.stereotype}
                     </span>
-                    <h3 className="text-lg font-bold text-black dark:text-zinc-100 mt-1 font-mono">
-                      {editResult.primary_file.path}
-                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenCitation(editResult.primary_file.citation || `${editResult.primary_file.path}#L${editResult.primary_file.line_start}-L${editResult.primary_file.line_end}`)}
+                      className="text-lg font-bold text-sky-700 dark:text-sky-400 hover:underline mt-1 font-mono text-left flex items-center gap-1.5 cursor-pointer"
+                      title="Inspect primary file in source viewer"
+                    >
+                      <FileCode className="w-4 h-4 text-sky-500 shrink-0" />
+                      <span>{editResult.primary_file.path}</span>
+                    </button>
                   </div>
                   <div className="text-right">
                     <span className="text-xs font-bold px-2 py-1 border border-black/20 dark:border-zinc-700 bg-neutral-100 dark:bg-[#181920] text-black dark:text-zinc-300 rounded-sm">
@@ -555,6 +616,13 @@ export const AIAssistantView: React.FC = () => {
                     </span>
                   </div>
                 </div>
+
+                {/* Inline Source Viewer for Where Should I Edit */}
+                {evidence && activeTab === 'where-to-edit' && (
+                  <div className="mt-4 p-3 border border-black/20 dark:border-zinc-800 bg-neutral-900 rounded-sm">
+                    <SourceViewer evidence={evidence} onClose={() => setEvidence(null)} />
+                  </div>
+                )}
 
                 <div className="mt-4 space-y-4 font-sans text-xs">
                   <div>
@@ -619,8 +687,16 @@ export const AIAssistantView: React.FC = () => {
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         {editResult.related_files.map((rf, idx) => (
-                          <div key={idx} className="p-2 border border-black/20 dark:border-zinc-800 bg-white dark:bg-[#16171d] rounded-sm">
-                            <div className="font-mono font-bold text-xs text-black dark:text-zinc-200">{rf.path}</div>
+                          <div
+                            key={idx}
+                            onClick={() => handleOpenCitation(rf.path)}
+                            className="p-2 border border-black/20 dark:border-zinc-800 bg-white dark:bg-[#16171d] rounded-sm cursor-pointer hover:border-sky-500 transition-colors"
+                            title={`Inspect ${rf.path}`}
+                          >
+                            <div className="font-mono font-bold text-xs text-sky-700 dark:text-sky-300 flex items-center gap-1">
+                              <span>📍</span>
+                              <span className="truncate">{rf.path}</span>
+                            </div>
                             <div className="text-[10px] font-mono text-neutral-500 dark:text-zinc-400 uppercase">{rf.symbol} ({rf.role})</div>
                             <div className="text-[11px] text-neutral-600 dark:text-zinc-400 mt-1">{rf.reason}</div>
                           </div>
@@ -754,13 +830,27 @@ export const AIAssistantView: React.FC = () => {
                   </h4>
                   <div className="space-y-1 mt-2">
                     {conceptResult.where.map((loc, idx) => (
-                      <div key={idx} className="font-mono text-xs text-black dark:text-zinc-200 border-b border-neutral-200 dark:border-zinc-800/80 pb-1">
-                        - `{loc}`
-                      </div>
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleOpenCitation(loc)}
+                        className="font-mono text-xs text-sky-700 dark:text-sky-300 hover:underline flex items-center gap-1 text-left cursor-pointer border-b border-neutral-200 dark:border-zinc-800/80 pb-1 w-full"
+                        title={`Inspect source for ${loc}`}
+                      >
+                        <span>📍</span>
+                        <span>{loc}</span>
+                      </button>
                     ))}
                   </div>
                 </div>
               </div>
+
+              {/* Inline Source Viewer for Concept Explanation */}
+              {evidence && activeTab === 'explain' && (
+                <div className="mt-4 p-3 border border-black/20 dark:border-zinc-800 bg-neutral-900 rounded-sm">
+                  <SourceViewer evidence={evidence} onClose={() => setEvidence(null)} />
+                </div>
+              )}
             </div>
           )}
         </div>

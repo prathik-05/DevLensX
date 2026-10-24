@@ -59,39 +59,49 @@ class RepositoryIntelligenceEngine:
                         "relationships": [],
                         "repo_summary": {"language": "Unknown", "total_classes": 0, "total_relationships": 0, "total_endpoints": 0},
                     }
-                # Extract structural declarations from Gitingest text if native classes are empty
+                # Extract structural declarations from Gitingest text without fabricating verified AST line ranges
                 if not model.get("classes") and _content:
                     import re
                     synth = []
                     curr_file = ""
+                    file_line = 0
                     for l in _content.splitlines():
                         fm = re.search(r"^={3,}\s*File:\s*(.*?)\s*={3,}$", l)
                         if fm:
                             curr_file = fm.group(1).strip()
+                            file_line = 0
                             continue
+                        file_line += 1
                         dm = re.search(r"^\s*(?:public\s+|export\s+|async\s+)*(?:class|interface|def|function)\s+([A-Za-z0-9_]{2,})", l)
                         if dm and curr_file:
                             sym_name = dm.group(1)
-                            if not any(x["name"] == sym_name for x in synth):
+                            # Key on (file, name) to preserve distinct symbols across different files
+                            if not any(x["file"] == curr_file and x["name"] == sym_name for x in synth):
                                 synth.append({
                                     "name": sym_name,
                                     "file": curr_file,
-                                    "stereotype": "Component",
-                                    "line_start": 1,
-                                    "line_end": 20,
+                                    "stereotype": "InferredDeclaration",
+                                    "line_start": file_line if file_line > 0 else None,
+                                    "line_end": file_line if file_line > 0 else None,
+                                    "provenance": "GITINGEST_TEXT_FALLBACK",
+                                    "confidence": "INFERRED",
+                                    "is_ast_verified": False,
                                     "methods": []
                                 })
                     if synth:
-                        model["classes"] = synth[:60]
-                        model["stats"]["symbols_extracted"] = len(model["classes"])
-                        _log.info("[Engine] Extracted %d synthetic AST components from Gitingest context.", len(model["classes"]))
+                        model["inferred_declarations"] = synth[:100]
+                        model["classes"] = synth[:100]
+                        model["stats"]["symbols_extracted"] = len(synth)
+                        _log.info("[Engine] Extracted %d inferred declarations (provenance: GITINGEST_TEXT_FALLBACK).", len(synth))
 
                 model["gitingest_fallback"] = {
                     "used": True,
                     "summary": _summary,
                     "tree": _tree,
                     "content_length": len(_content or ""),
-                    "provenance": "LOCAL_FALLBACK"
+                    "inferred_symbol_count": len(model.get("inferred_declarations", [])),
+                    "provenance": "GITINGEST_TEXT_FALLBACK",
+                    "confidence": "INFERRED"
                 }
             except Exception as _git_err:
                 _log.warning("[Engine] Gitingest fallback not available: %s", _git_err)

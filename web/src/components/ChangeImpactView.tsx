@@ -27,7 +27,7 @@ export const ChangeImpactView: React.FC = () => {
   const [_error, setError] = useState<string | null>(null);
   const { evidence, setEvidence, loading: resolvingSource, setLoading: setResolvingSource } = useEvidenceResolver();
 
-  // Extract candidate components/methods from AST / Knowledge Graph (excluding tests and signatures)
+  // Extract candidate components from AST / Knowledge Graph (excluding tests and fixtures, ranking production entrypoints)
   const candidateComponents = useMemo(() => {
     const nodes: any[] = data?.knowledge_graph?.nodes || [];
     const list: any[] = nodes.length > 0 ? nodes : ((data as any)?.classes || []);
@@ -35,15 +35,14 @@ export const ChangeImpactView: React.FC = () => {
       .filter((c: any) => {
         const file = String(c.file || '').replace(/\\/g, '/').toLowerCase();
         const rawName = String(c.name || c.id || '');
-        if (file.includes('/test/') || file.includes('test') || c.is_test) return false;
-        if (['setup', 'teardown', 'initpvp', 'main'].includes(rawName.toLowerCase())) return false;
-        if (/^(?:test|init[A-Z]|[A-Z].*(?:Scenario|Wins|Draw|Rejected|Restart|When|Move))/i.test(rawName) && c.stereotype !== 'Controller') return false;
+        if (file.includes('/test/') || file.includes('/tests/') || file.includes('test.java') || file.includes('spec.ts') || file.includes('test.py') || c.is_test) return false;
+        if (['setup', 'teardown', 'initpvp', 'before', 'after', 'beforeeach', 'aftereach'].includes(rawName.toLowerCase())) return false;
+        if (/^(?:test[A-Z_]|init[A-Z]|.*(?:Scenario|Wins|Draw|Rejected|Restart|WhenHuman|WhenAi))/i.test(rawName) && c.stereotype !== 'Controller') return false;
         return true;
       })
       .map((c: any) => {
         let cleanName = String(c.name || c.id || '').trim();
-        // Strip trailing signatures, braces, throws, and cutoffs
-        cleanName = cleanName.replace(/\(.*?\)/g, '').replace(/[\{\}\(\)]/g, '').replace(/\bthrows\b.*/i, '').trim();
+        cleanName = cleanName.replace(/\(.*?\)/g, '').replace(/[{]()}]/g, '').replace(/\bthrows\b.*/i, '').trim();
         cleanName = cleanName.replace(/\s*(?:thr|throw|thro)$/i, '').trim();
         return {
           name: cleanName,
@@ -53,6 +52,12 @@ export const ChangeImpactView: React.FC = () => {
       })
       .filter((c: any) => c.name && !c.name.includes('$') && !c.name.includes('Test') && c.name.length > 1)
       .filter((c: any, index: number, arr: any[]) => arr.findIndex(x => x.name === c.name) === index)
+      .sort((a: any, b: any) => {
+        // Prioritize production entrypoints and controllers
+        const isEntryA = /^(main|app|application|index|game|gamecontroller)$/i.test(a.name) ? 1 : 0;
+        const isEntryB = /^(main|app|application|index|game|gamecontroller)$/i.test(b.name) ? 1 : 0;
+        return isEntryB - isEntryA;
+      })
       .slice(0, 10);
   }, [data]);
 
@@ -63,108 +68,83 @@ export const ChangeImpactView: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    const effectiveRunId = analysisId || data?.analysis_run_id || 'latest';
+    // Require exact active snapshot analysis_run_id (no 'latest' fallback)
+    const effectiveRunId = analysisId || data?.analysis_run_id;
+    if (!effectiveRunId) {
+      setError('Active analysis run ID required. Please select or ingest a repository snapshot first.');
+      setImpactResult({
+        repository_id: data?.repository || 'repo',
+        analysis_run_id: 'MISSING_SNAPSHOT',
+        commit_hash: null,
+        target_symbol: sym,
+        status: 'UNAVAILABLE',
+        risk_level: 'LOW',
+        direct: [],
+        downstream: [],
+        direct_callers: [],
+        transitive_callers: [],
+        dependencies: [],
+        tests: [],
+        configs: [],
+        evidence_refs: [],
+        diagram: null,
+        potential_regressions: [],
+        recommended_validations: ['Ingest or select an active repository snapshot before calculating impact.'],
+        coverage_limitations: ['Snapshot isolation enforced: analysis rejected because no verified run ID was supplied.'],
+        execution_order_type: 'UNRESOLVED_RUNTIME_BEHAVIOR',
+        risk_assessment: {
+          risk_level: 'LOW',
+          risk_score: 0,
+          reasons: ['No active snapshot analysis run specified.'],
+          caller_count: 0,
+          transitive_count: 0,
+          test_count: 0,
+        }
+      });
+      setLoading(false);
+      return;
+    }
 
     try {
       const res = await getWorkspaceImpact(effectiveRunId, sym, gitDiff.trim() || undefined);
       setImpactResult(res);
     } catch (err: any) {
-      console.warn('Backend impact call failed, attempting client-side fallback:', err);
-      // Fallback: build from in-memory knowledge graph if backend offline
-      const nodes: any[] = data?.knowledge_graph?.nodes || [];
-      const edges: any[] = data?.knowledge_graph?.edges || [];
-
-      const targetNode = nodes.find(
-        (n: any) =>
-          n.name === sym ||
-          n.id === sym ||
-          String(n.name || '').toLowerCase() === sym.toLowerCase()
-      );
-
-      const targetNameResolved = targetNode?.name || sym;
-      const targetFile = targetNode?.file || '';
-
-      const direct: any[] = [];
-      const directSet = new Set<string>();
-      edges.forEach((e: any) => {
-        if (e.target === targetNameResolved || e.target === targetNode?.id) {
-          if (!directSet.has(e.source)) {
-            directSet.add(e.source);
-            direct.push({
-              symbol: e.source,
-              file: targetFile,
-              line_start: 1,
-              line_end: 20,
-              relation: e.relationship || 'CALLS',
-              confidence: 'INFERRED_CALL',
-            });
-          }
-        }
-      });
-
-      const transitive: any[] = [];
-      const transSet = new Set<string>();
-      edges.forEach((e: any) => {
-        if (directSet.has(e.target) && !directSet.has(e.source) && e.source !== targetNameResolved && !transSet.has(e.source)) {
-          transSet.add(e.source);
-          transitive.push({
-            symbol: e.source,
-            file: '',
-            relation: 'TRANSITIVE_CALL',
-            hop: 2,
-            path: [targetNameResolved, e.target, e.source],
-          });
-        }
-      });
-
-      const tests: any[] = [];
-      nodes.forEach((n: any) => {
-        const nName = n.name || n.id || '';
-        if (nName.toLowerCase().includes('test') && (nName.toLowerCase().includes(sym.toLowerCase()) || directSet.has(nName))) {
-          tests.push({
-            symbol: nName,
-            file: n.file || '',
-            relation: 'TESTS',
-            status: 'VERIFIED',
-          });
-        }
-      });
-
+      console.warn('Backend impact call failed:', err);
+      setError(err?.message || 'Backend impact service unreachable.');
       setImpactResult({
         repository_id: data?.repository || 'repo',
         analysis_run_id: effectiveRunId,
         commit_hash: null,
-        target_symbol: targetNameResolved,
-        status: targetNode ? 'OK' : 'TARGET_NOT_FOUND',
-        risk_level: direct.length >= 4 ? 'HIGH' : direct.length >= 1 ? 'MEDIUM' : 'LOW',
-        direct: [{ symbol: targetNameResolved, file: targetFile, status: 'VERIFIED' }],
-        downstream: direct.map(d => ({ symbol: d.symbol, file: d.file, status: 'VERIFIED' })),
-        direct_callers: direct,
-        transitive_callers: transitive,
+        target_symbol: sym,
+        status: 'UNAVAILABLE',
+        risk_level: 'LOW',
+        direct: [],
+        downstream: [],
+        direct_callers: [],
+        transitive_callers: [],
         dependencies: [],
-        tests,
+        tests: [],
         configs: [],
         evidence_refs: [],
         diagram: null,
         potential_regressions: [
-          `Modifications to ${targetNameResolved} may alter behavior for ${direct.length} direct caller(s).`,
-          'Boundary condition checks and return value contracts must be maintained.'
+          `Impact analysis is unavailable for '${sym}': backend service could not be reached.`
         ],
         recommended_validations: [
-          `Execute unit tests covering ${targetNameResolved}.`,
-          'Validate edge conditions and callers across adjacent architectural boundaries.'
+          'Verify backend API server is running on http://127.0.0.1:8000.',
+          'Retry request once the active analysis snapshot is accessible.'
         ],
         coverage_limitations: [
-          'Client-side fallback: full AST call hierarchy requires active backend server.'
+          'Impact analysis cannot be verified offline: client-side fallback does not manufacture artificial callers or synthetic line ranges.'
         ],
-        execution_order_type: direct.length > 0 ? 'VERIFIED_CALL_ORDER' : 'INFERRED_ARCHITECTURE_ORDER',
+        execution_order_type: 'UNRESOLVED_RUNTIME_BEHAVIOR',
         risk_assessment: {
-          risk_level: direct.length >= 4 ? 'HIGH' : direct.length >= 1 ? 'MEDIUM' : 'LOW',
-          risk_score: direct.length * 10,
-          reasons: [`${direct.length} direct caller(s) depend on this symbol.`],
-          caller_count: direct.length,
-          transitive_count: transitive.length,
-          test_count: tests.length,
+          risk_level: 'LOW',
+          risk_score: 0,
+          reasons: ['Backend impact analysis service unreachable.'],
+          caller_count: 0,
+          transitive_count: 0,
+          test_count: 0,
         }
       });
     } finally {
