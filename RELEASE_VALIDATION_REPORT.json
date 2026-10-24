@@ -37,8 +37,11 @@
   },
   "security": "PASS",
   "golden_evaluation": {
-    "passed": 33,
-    "failed": 0
+    "total_cases": 33,
+    "passed": 20,
+    "failed": 13,
+    "evidence_resolution_failures": 0,
+    "snapshot_isolation_failures": 0
   },
   "polyglot": {
     "validated": [

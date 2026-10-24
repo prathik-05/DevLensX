@@ -11,7 +11,7 @@
     "files_parsed": 49,
     "parse_failures": 0,
     "symbols": 435,
-    "relationships": 0,
+    "relationships": 38,
     "evidence_resolution": true,
     "wiki_generation": true,
     "diagram_generation": true,
@@ -20,7 +20,7 @@
     "status": "VALIDATED",
     "failure_stage": null,
     "commit_hash": "f182358d02e4",
-    "validation_timestamp": "2026-08-29T15:07:58Z"
+    "validation_timestamp": "2026-10-24T08:44:47Z"
   },
   "TypeScript": {
     "language": "TypeScript",
@@ -33,8 +33,8 @@
     "files_discovered": 59,
     "files_parsed": 59,
     "parse_failures": 0,
-    "symbols": 98,
-    "relationships": 0,
+    "symbols": 124,
+    "relationships": 244,
     "evidence_resolution": true,
     "wiki_generation": true,
     "diagram_generation": true,
@@ -43,7 +43,7 @@
     "status": "VALIDATED",
     "failure_stage": null,
     "commit_hash": "1653fa99de1b",
-    "validation_timestamp": "2026-08-29T15:08:04Z"
+    "validation_timestamp": "2026-10-24T08:45:47Z"
   },
   "JavaScript": {
     "language": "JavaScript",
@@ -76,8 +76,8 @@
     "files_discovered": 5,
     "files_parsed": 5,
     "parse_failures": 0,
-    "symbols": 25,
-    "relationships": 0,
+    "symbols": 34,
+    "relationships": 3,
     "evidence_resolution": true,
     "wiki_generation": true,
     "diagram_generation": true,
@@ -85,8 +85,8 @@
     "workspace_validation": true,
     "status": "VALIDATED",
     "failure_stage": null,
-    "commit_hash": "bc49474b7ae6",
-    "validation_timestamp": "2026-08-29T15:08:05Z"
+    "commit_hash": "96e9cfe39c9b",
+    "validation_timestamp": "2026-10-24T08:46:45Z"
   },
   "Go": {
     "language": "Go",

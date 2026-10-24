@@ -1,148 +1,164 @@
 {
   "eval_repos\\battleship-python": {
     "repo": "eval_repos\\battleship-python",
-    "files": 0,
-    "symbols": 0,
-    "relationships": 0,
+    "files": 5,
+    "symbols": 34,
+    "relationships": 3,
     "parse": {
-      "wall_clock_ms": 620.34,
-      "cpu_time_ms": 406.25,
+      "wall_clock_ms": 344.24,
+      "cpu_time_ms": 281.25,
       "files_processed": 5,
-      "symbols_processed": 25,
-      "relationships_processed": 0,
+      "symbols_processed": 34,
+      "relationships_processed": 3,
       "bytes_processed": 0,
-      "memory_peak_mb": 121.13
+      "memory_peak_mb": 126.2
     },
     "graph": {
       "timings_ms": {
-        "parse_ast_ms": 296.39,
-        "graph_build_ms": 320.52,
-        "retrieval_index_ms": 3.27
+        "parse_ast_ms": 143.63,
+        "graph_build_ms": 197.64,
+        "retrieval_index_ms": 2.58
       }
     },
     "wiki": {
-      "wall_clock_ms": 3173.35,
-      "cpu_time_ms": 1546.88,
+      "wall_clock_ms": 6166.67,
+      "cpu_time_ms": 250.0,
       "files_processed": 0,
       "symbols_processed": 0,
       "relationships_processed": 0,
       "bytes_processed": 0,
-      "memory_peak_mb": 141.76,
-      "pages_generated": 0
+      "memory_peak_mb": 131.24,
+      "pages_generated": 8
     },
     "diagrams": {
-      "wall_clock_ms": 112.37,
-      "cpu_time_ms": 140.62,
+      "wall_clock_ms": 36230.59,
+      "cpu_time_ms": 593.75,
       "files_processed": 0,
       "symbols_processed": 0,
       "relationships_processed": 0,
       "bytes_processed": 0,
-      "memory_peak_mb": 146.01,
-      "diagrams_generated": 1
+      "memory_peak_mb": 131.52,
+      "diagrams_generated": 6
     },
     "chat": {
-      "wall_clock_ms": 0.07,
-      "cpu_time_ms": 0.0,
+      "wall_clock_ms": 14746.31,
+      "cpu_time_ms": 203.12,
       "files_processed": 0,
       "symbols_processed": 0,
       "relationships_processed": 0,
       "bytes_processed": 0,
-      "memory_peak_mb": 146.02
+      "memory_peak_mb": 131.63,
+      "fast": 6430.66,
+      "codemap": 8315.53
     },
     "workspace": {
-      "wall_clock_ms": 0.04,
-      "cpu_time_ms": 0.0,
+      "wall_clock_ms": 59.86,
+      "cpu_time_ms": 62.5,
       "files_processed": 0,
       "symbols_processed": 0,
       "relationships_processed": 0,
       "bytes_processed": 0,
-      "memory_peak_mb": 146.02
+      "memory_peak_mb": 132.0,
+      "impact_ms": 23.7,
+      "build_ms": 19.74
     },
     "total": {
-      "wall_clock_ms": 3906.73,
-      "cpu_time_ms": 2093.75,
+      "wall_clock_ms": 57675.61,
+      "cpu_time_ms": 1468.75,
       "files_processed": 0,
       "symbols_processed": 0,
       "relationships_processed": 0,
       "bytes_processed": 0,
-      "memory_peak_mb": 146.02,
-      "parse_ms": 620.34,
-      "graph_ms": 320.52,
-      "wiki_ms": 3173.35,
-      "diagram_ms": 112.37
+      "memory_peak_mb": 132.0,
+      "parse_ms": 344.24,
+      "graph_ms": 197.64,
+      "wiki_ms": 6166.67,
+      "diagram_ms": 36230.59,
+      "fast": 6430.66,
+      "codemap": 8315.53,
+      "impact_ms": 23.7,
+      "build_ms": 19.74
     }
   },
   "eval_repos\\spring-petclinic": {
     "repo": "eval_repos\\spring-petclinic",
-    "files": 0,
-    "symbols": 0,
-    "relationships": 0,
+    "files": 49,
+    "symbols": 435,
+    "relationships": 38,
     "parse": {
-      "wall_clock_ms": 2521.72,
-      "cpu_time_ms": 1281.25,
+      "wall_clock_ms": 1546.51,
+      "cpu_time_ms": 1109.38,
       "files_processed": 49,
       "symbols_processed": 435,
-      "relationships_processed": 0,
+      "relationships_processed": 38,
       "bytes_processed": 0,
-      "memory_peak_mb": 150.65
+      "memory_peak_mb": 158.52
     },
     "graph": {
       "timings_ms": {
-        "parse_ast_ms": 2286.11,
-        "graph_build_ms": 149.38,
-        "retrieval_index_ms": 86.09
+        "parse_ast_ms": 720.45,
+        "graph_build_ms": 787.61,
+        "retrieval_index_ms": 38.2
       }
     },
     "wiki": {
-      "wall_clock_ms": 0.07,
-      "cpu_time_ms": 0.0,
+      "wall_clock_ms": 14826.56,
+      "cpu_time_ms": 2109.38,
       "files_processed": 0,
       "symbols_processed": 0,
       "relationships_processed": 0,
       "bytes_processed": 0,
-      "memory_peak_mb": 150.65,
-      "pages_generated": 0
+      "memory_peak_mb": 160.86,
+      "pages_generated": 49
     },
     "diagrams": {
-      "wall_clock_ms": 76.73,
-      "cpu_time_ms": 0.0,
+      "wall_clock_ms": 36887.15,
+      "cpu_time_ms": 531.25,
       "files_processed": 0,
       "symbols_processed": 0,
       "relationships_processed": 0,
       "bytes_processed": 0,
-      "memory_peak_mb": 154.83,
-      "diagrams_generated": 1
+      "memory_peak_mb": 160.76,
+      "diagrams_generated": 6
     },
     "chat": {
-      "wall_clock_ms": 0.07,
-      "cpu_time_ms": 0.0,
+      "wall_clock_ms": 12196.47,
+      "cpu_time_ms": 187.5,
       "files_processed": 0,
       "symbols_processed": 0,
       "relationships_processed": 0,
       "bytes_processed": 0,
-      "memory_peak_mb": 154.84
+      "memory_peak_mb": 160.7,
+      "fast": 6158.07,
+      "codemap": 6038.31
     },
     "workspace": {
-      "wall_clock_ms": 0.05,
-      "cpu_time_ms": 0.0,
+      "wall_clock_ms": 581.99,
+      "cpu_time_ms": 578.12,
       "files_processed": 0,
       "symbols_processed": 0,
       "relationships_processed": 0,
       "bytes_processed": 0,
-      "memory_peak_mb": 154.84
+      "memory_peak_mb": 161.04,
+      "impact_ms": 294.84,
+      "build_ms": 287.0
     },
     "total": {
-      "wall_clock_ms": 2599.08,
-      "cpu_time_ms": 1281.25,
+      "wall_clock_ms": 66121.0,
+      "cpu_time_ms": 4531.25,
       "files_processed": 0,
       "symbols_processed": 0,
       "relationships_processed": 0,
       "bytes_processed": 0,
-      "memory_peak_mb": 154.84,
-      "parse_ms": 2521.72,
-      "graph_ms": 149.38,
-      "wiki_ms": 0.07,
-      "diagram_ms": 76.73
+      "memory_peak_mb": 161.04,
+      "parse_ms": 1546.51,
+      "graph_ms": 787.61,
+      "wiki_ms": 14826.56,
+      "diagram_ms": 36887.15,
+      "fast": 6158.07,
+      "codemap": 6038.31,
+      "impact_ms": 294.84,
+      "build_ms": 287.0
     }
   }
 }

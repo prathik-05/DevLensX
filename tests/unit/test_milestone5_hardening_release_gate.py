@@ -348,3 +348,101 @@ class TestCrossRepositoryScenarios:
         # Dynamic route limitations disclosed
         assert any("Dynamic routing" in lim for lim in impact.coverage_limitations)
         assert impact.execution_order_type == "UNRESOLVED_RUNTIME_BEHAVIOR"
+
+
+class TestReleaseAuditHardeningRemediation:
+    """Remediation tests for the combined release audit findings."""
+
+    def test_ai_assistant_impact_fallback_unavailable(self, monkeypatch):
+        """When impact analysis fails, assistant must report UNAVAILABLE with zero counts and empty names."""
+        run_id = "test_run_copilot_impact_fallback"
+        repo_path = "eval_repos/Tic-Tac-Toe-with-Minimax-AI"
+        get_snapshot_registry().register("FallbackRepo", run_id, repo_path, "c0ffee")
+        store_model(run_id, {
+            "repo": "FallbackRepo",
+            "classes": [{"name": "Board", "file": "src/Board.java", "kind": "class", "line_start": 1, "line_end": 50}],
+            "relationships": []
+        })
+
+        # Monkeypatch ImpactAnalyzer.analyze to raise an error
+        def mock_failing_analyze(*args, **kwargs):
+            raise RuntimeError("Database query failed during impact computation")
+
+        monkeypatch.setattr("devlensx.impact.analyzer.ImpactAnalyzer.analyze", mock_failing_analyze)
+
+        resp = client.post("/api/copilot/ask", json={
+            "question": "Where is Board defined?",
+            "analysis_run_id": run_id
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+
+        # Natural language answer must be preserved
+        assert data["answer"] and len(data["answer"]) > 0
+
+        # Impact must be UNAVAILABLE with zero counts and no hallucinated symbol names
+        impact = data.get("impact", {})
+        assert impact.get("status") == "UNAVAILABLE"
+        assert impact.get("directly_affected") == 0
+        assert impact.get("potentially_affected") == 0
+        assert impact.get("affected_names") == []
+        assert "Database query failed" in impact.get("reason", "") or "unavailable" in impact.get("reason", "").lower()
+
+    def test_character_scanner_handles_urls_hashes_escapes(self):
+        """Character-by-character scanner must not truncate code on URLs, hashes, or escaped quotes in strings."""
+        from devlensx.impact.analyzer import _clean_code_lines
+
+        sample_source = (
+            'var apiUrl = "https://example.com/api"; board.isWinner();\n'
+            'const red = "#ff0000"; testFunction();\n'
+            'String escaped = "escaped \\" quote // not comment"; game.start();\n'
+            '/* block comment */ target.execute();\n'
+            '// simple comment\n'
+            '/* multiline\n'
+            ' comment */ target2.execute();\n'
+        )
+
+        cleaned = _clean_code_lines(sample_source)
+        assert len(cleaned) == 7
+
+        # Line 1: board.isWinner() preserved
+        assert "board.isWinner()" in cleaned[0]
+        # Line 2: testFunction() preserved
+        assert "testFunction()" in cleaned[1]
+        # Line 3: game.start() preserved
+        assert "game.start()" in cleaned[2]
+        # Line 4: target.execute() preserved
+        assert "target.execute()" in cleaned[3]
+        # Line 5: empty because it was a full line comment
+        assert cleaned[4].strip() == ""
+        # Line 7: target2.execute() preserved on line 7
+        assert "target2.execute()" in cleaned[6]
+
+    def test_transitive_caller_edge_by_edge_provenance(self):
+        """Transitive callers must contain edge provenance and Mermaid must not use a shared anchor."""
+        run_id = "test_run_transitive_edges"
+        repo_path = "eval_repos/Tic-Tac-Toe-with-Minimax-AI"
+        from devlensx.repository_memory import RepositoryIntelligenceEngine
+        intel = RepositoryIntelligenceEngine().analyze(repo_path)
+        get_snapshot_registry().register("TicTacToeTransitive", run_id, repo_path, "ttt001")
+        store_model(run_id, intel.model)
+
+        impact = ImpactAnalyzer.analyze("isTerminal", run_id)
+        assert impact.status == "OK"
+
+        if impact.transitive_callers:
+            for tc in impact.transitive_callers:
+                assert "edges" in tc
+                assert len(tc["edges"]) >= 1
+                for edge in tc["edges"]:
+                    assert "source" in edge
+                    assert "target" in edge
+                    assert "relation" in edge
+                    assert "confidence" in edge
+                    assert "citation" in edge
+
+        # Check mermaid diagram
+        mermaid = impact.diagram.get("mermaid", "")
+        assert "DC_0" not in mermaid or "-.->|transitive| DC_0" not in mermaid
+        assert "graph TD" in mermaid
+

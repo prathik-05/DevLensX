@@ -36,7 +36,7 @@ class PolyglotValidator:
             rec.files_parsed = model.get("stats", {}).get("files_parsed", 0)
             rec.parse_failures = model.get("stats", {}).get("files_failed", 0)
             rec.symbols = len(model.get("classes", []))
-            rec.relationships = intel.graph_edge_stats.get("DEPENDS_ON", 0) + intel.graph_edge_stats.get("EXTENDS", 0)
+            rec.relationships = len(model.get("relationships", [])) or (intel.graph_edge_stats.get("DEPENDS_ON", 0) + intel.graph_edge_stats.get("EXTENDS", 0))
             # Evidence
             try:
                 from devlensx.understanding.model.repository_brain import RepositoryBrain

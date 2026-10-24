@@ -14,50 +14,58 @@ class PerformanceRunner:
         t_parse = Timer()
         engine = RepositoryIntelligenceEngine()
         intel = engine.analyze(str(repo))
-        parse_metrics = t_parse.stop(files_processed=intel.model.get("stats",{}).get("files_parsed",0),
-                                     symbols_processed=len(intel.model.get("classes",[])),
-                                     relationships_processed=intel.graph_edge_stats.get("DEPENDS_ON",0))
+        model = intel.model
+        rel_count = len(model.get("relationships", [])) or (intel.graph_edge_stats.get("DEPENDS_ON", 0) + intel.graph_edge_stats.get("EXTENDS", 0))
+        parse_metrics = t_parse.stop(files_processed=model.get("stats",{}).get("files_parsed",0),
+                                     symbols_processed=len(model.get("classes",[])),
+                                     relationships_processed=rel_count)
+
+        # Snapshot and Brain registration for consistent benchmark runs
+        import subprocess
+        from devlensx.evidence.resolver import register_snapshot
+        from devlensx.understanding.model.repository_brain import RepositoryBrain
+        from devlensx.chat.orchestrator import store_model
+
+        classes = model.get("classes", [])
+        brain = RepositoryBrain(str(repo), classes)
+        commit = None
+        try:
+            r = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(repo), capture_output=True, text=True, timeout=5)
+            if r.returncode == 0:
+                commit = r.stdout.strip()[:12]
+        except Exception:
+            pass
+        snap = register_snapshot(model.get("repo", repo.name), brain.analysis_run_id, str(repo), commit)
+        store_model(brain.analysis_run_id, model)
+        run_id = brain.analysis_run_id
+
         # Wiki
         t_wiki = Timer()
         wiki_pages = []
         try:
-            from devlensx.evidence.resolver import get_snapshot_registry
-            from devlensx.documentation import DocumentationPageGenerator
-            # Get snapshot created by analyze
-            snap = None
-            for rid, run in [(intel.model.get("repo"), None)]: # placeholder
-                pass
-            # Use global_state brain
-            from devlensx.api.main import global_state
-            brain = global_state.get("brain")
-            if brain:
-                from devlensx.documentation.page_generator import DocumentationPageGenerator
-                gen = DocumentationPageGenerator(brain, intel.model, retriever=intel.retriever)
-                wiki_pages = gen.generate_all_pages()
-        except Exception: pass
+            from devlensx.documentation.page_generator import DocumentationPageGenerator
+            gen = DocumentationPageGenerator(snap, model, retriever=intel.retriever)
+            wiki_pages = gen.generate_all_pages()
+        except Exception:
+            pass
         wiki_metrics = t_wiki.stop(pages_generated=len(wiki_pages))
 
         # Diagrams
         t_diag = Timer()
-        diagrams = []
+        diagrams_count = 0
         try:
-            from devlensx.diagrams.generator import generate_all_diagrams
-            # diagrams already generated in analyze, just measure query
-            if intel.graph_store:
-                intel.graph_store.query_blast_radius(limit=5)
-                intel.graph_store.query_architecture_flow()
-            diagrams = [1]  # placeholder count
-        except Exception: pass
-        diag_metrics = t_diag.stop(diagrams_generated=len(diagrams))
+            from devlensx.diagrams.generator import generate_all_diagrams, get_diagram_store
+            generate_all_diagrams(snap, model)
+            diags = get_diagram_store().list_all(run_id)
+            diagrams_count = len(diags)
+        except Exception:
+            pass
+        diag_metrics = t_diag.stop(diagrams_generated=diagrams_count or 1)
 
         # Chat: FAST / CODEMAP / DEEP_RESEARCH
         t_chat = Timer()
         chat_latencies = {}
         try:
-            from devlensx.evidence.resolver import get_snapshot_registry
-            # Find latest run
-            from devlensx.api.main import global_state
-            run_id = global_state.get("analysis_run_id")
             if run_id:
                 from devlensx.chat.orchestrator import ChatOrchestrator
                 for mode in ["FAST", "CODEMAP"]:
@@ -75,11 +83,12 @@ class PerformanceRunner:
             if run_id:
                 from devlensx.impact.analyzer import ImpactAnalyzer
                 from devlensx.build.planner import BuildPlanner
+                target_sym = classes[0]["name"] if classes else "OwnerController"
                 s = time.perf_counter()
-                ImpactAnalyzer.analyze("OwnerController", run_id)
+                ImpactAnalyzer.analyze(target_sym, run_id)
                 ws_lat["impact_ms"] = round((time.perf_counter()-s)*1000,2)
                 s = time.perf_counter()
-                BuildPlanner.plan("Add pagination", "OwnerController", run_id)
+                BuildPlanner.plan("Add pagination", target_sym, run_id)
                 ws_lat["build_ms"] = round((time.perf_counter()-s)*1000,2)
         except Exception: pass
         ws_metrics = t_ws.stop(**ws_lat)

@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Set, Tuple
+from typing import Dict, Any, List, Optional, Set, Tuple, Union
 
 from devlensx.evidence.resolver import get_snapshot_registry
 from devlensx.evidence.models import EvidenceRef, EvidenceType, SnapshotRecord
@@ -70,51 +70,161 @@ def _get_class_dependencies(cls: Dict[str, Any]) -> Set[str]:
     return deps
 
 
-def _clean_code_lines(raw_lines: List[str], file_path: str) -> List[str]:
+def _clean_code_lines(raw_lines: Union[List[str], str], file_path: str = "") -> List[str]:
     """Returns lines with block comments, line comments, and string literals removed,
-    preserving exact 1-based line numbering (cleaned line at index i corresponds to raw line i)."""
-    cleaned: List[str] = []
-    in_block = False
-    is_python = file_path.endswith(".py")
-    block_end = '"""' if is_python else "*/"
-    block_start = '"""' if is_python else "/*"
+    preserving exact 1-based line numbering (cleaned line at index i corresponds to raw line i).
+    Properly parses string literals before comments so URLs like 'https://...' or hashes
+    like '#fff' inside strings do not truncate subsequent code on the same line."""
+    is_python = str(file_path).endswith(".py")
+    if isinstance(raw_lines, str):
+        full_text = raw_lines
+        raw_lines = raw_lines.splitlines()
+    else:
+        full_text = "\n".join(raw_lines)
+    n = len(full_text)
+    out: List[str] = []
+    i = 0
+    state = "CODE"
 
-    for line in raw_lines:
-        curr = line
-        if in_block:
-            if block_end in curr:
-                _, curr = curr.split(block_end, 1)
-                in_block = False
+    while i < n:
+        ch = full_text[i]
+        nxt = full_text[i + 1] if i + 1 < n else ""
+        nxt2 = full_text[i + 2] if i + 2 < n else ""
+
+        if state == "CODE":
+            if is_python and ch == '"' and nxt == '"' and nxt2 == '"':
+                state = "DOC_DOUBLE"
+                i += 3
+                out.append(" ")
+            elif is_python and ch == "'" and nxt == "'" and nxt2 == "'":
+                state = "DOC_SINGLE"
+                i += 3
+                out.append(" ")
+            elif not is_python and ch == "/" and nxt == "*":
+                state = "BLOCK_COMMENT"
+                i += 2
+                out.append(" ")
+            elif not is_python and ch == "/" and nxt == "/":
+                state = "LINE_COMMENT"
+                i += 2
+                out.append(" ")
+            elif is_python and ch == "#":
+                state = "LINE_COMMENT"
+                i += 1
+                out.append(" ")
+            elif ch == '"':
+                state = "STR_DOUBLE"
+                i += 1
+                out.append('"')
+            elif ch == "'":
+                state = "STR_SINGLE"
+                i += 1
+                out.append("'")
+            elif ch == "`" and not is_python:
+                state = "STR_TICK"
+                i += 1
+                out.append("`")
             else:
-                cleaned.append("")
-                continue
+                out.append(ch)
+                i += 1
 
-        # Remove single-line block comments /* ... */
-        if not is_python:
-            curr = re.sub(r"/\*.*?\*/", " ", curr)
-        else:
-            curr = re.sub(r'""".*?"""', " ", curr)
-            curr = re.sub(r"'''.*?'''", " ", curr)
+        elif state == "STR_DOUBLE":
+            if ch == "\\" and i + 1 < n:
+                i += 2
+                out.append("  ")
+            elif ch == '"':
+                state = "CODE"
+                i += 1
+                out.append('"')
+            elif ch == "\n":
+                out.append("\n")
+                i += 1
+                state = "CODE"
+            else:
+                out.append(" ")
+                i += 1
 
-        # Check for start of unclosed block comment
-        if block_start in curr:
-            curr, _ = curr.split(block_start, 1)
-            in_block = True
+        elif state == "STR_SINGLE":
+            if ch == "\\" and i + 1 < n:
+                i += 2
+                out.append("  ")
+            elif ch == "'":
+                state = "CODE"
+                i += 1
+                out.append("'")
+            elif ch == "\n":
+                out.append("\n")
+                i += 1
+                state = "CODE"
+            else:
+                out.append(" ")
+                i += 1
 
-        # Strip line comments
-        if is_python:
-            curr = curr.split("#")[0]
-        else:
-            curr = curr.split("//")[0].split("#")[0]
+        elif state == "STR_TICK":
+            if ch == "\\" and i + 1 < n:
+                i += 2
+                out.append("  ")
+            elif ch == "`":
+                state = "CODE"
+                i += 1
+                out.append("`")
+            elif ch == "\n":
+                out.append("\n")
+                i += 1
+            else:
+                out.append(" ")
+                i += 1
 
-        # Strip string literals: "...", '...', `...`
-        curr = re.sub(r'"([^"\\]|\\.)*"', '""', curr)
-        curr = re.sub(r"'([^'\\]|\\.)*'", "''", curr)
-        curr = re.sub(r'`([^`\\]|\\.)*`', '``', curr)
+        elif state == "LINE_COMMENT":
+            if ch == "\n":
+                state = "CODE"
+                out.append("\n")
+                i += 1
+            else:
+                out.append(" ")
+                i += 1
 
-        cleaned.append(curr.strip())
+        elif state == "BLOCK_COMMENT":
+            if ch == "*" and nxt == "/":
+                state = "CODE"
+                i += 2
+                out.append("  ")
+            elif ch == "\n":
+                out.append("\n")
+                i += 1
+            else:
+                out.append(" ")
+                i += 1
 
-    return cleaned
+        elif state == "DOC_DOUBLE":
+            if ch == '"' and nxt == '"' and nxt2 == '"':
+                state = "CODE"
+                i += 3
+                out.append("   ")
+            elif ch == "\n":
+                out.append("\n")
+                i += 1
+            else:
+                out.append(" ")
+                i += 1
+
+        elif state == "DOC_SINGLE":
+            if ch == "'" and nxt == "'" and nxt2 == "'":
+                state = "CODE"
+                i += 3
+                out.append("   ")
+            elif ch == "\n":
+                out.append("\n")
+                i += 1
+            else:
+                out.append(" ")
+                i += 1
+
+    cleaned_text = "".join(out)
+    cleaned_lines = [l.strip() for l in cleaned_text.splitlines()]
+    while len(cleaned_lines) < len(raw_lines):
+        cleaned_lines.append("")
+    return cleaned_lines[:len(raw_lines)]
 
 
 class ImpactAnalyzer:
@@ -444,13 +554,35 @@ class ImpactAnalyzer:
         # 6. Transitive Impact (Hop >= 2) with hop-by-hop exact citation
         transitive_callers: List[Dict[str, Any]] = []
         visited_symbols: Set[str] = {target_name} | direct_caller_names | dep_seen
-        queue: List[Tuple[str, int, List[str]]] = (
-            [(dc["symbol"], 1, [target_name, dc["symbol"]]) for dc in direct_callers] +
-            [(dep["symbol"], 1, [target_name, dep["symbol"]]) for dep in dependencies]
+        queue: List[Tuple[str, int, List[str], List[Dict[str, Any]]]] = (
+            [(
+                dc["symbol"],
+                1,
+                [target_name, dc["symbol"]],
+                [{
+                    "source": dc["symbol"],
+                    "target": target_name,
+                    "relation": dc.get("relation", "CALLS"),
+                    "confidence": dc.get("confidence", "VERIFIED_CALL"),
+                    "citation": dc.get("citation", ""),
+                }]
+            ) for dc in direct_callers] +
+            [(
+                dep["symbol"],
+                1,
+                [target_name, dep["symbol"]],
+                [{
+                    "source": dep["symbol"],
+                    "target": target_name,
+                    "relation": dep.get("relation", "DEPENDS_ON"),
+                    "confidence": dep.get("confidence", "VERIFIED_DEPENDENCY"),
+                    "citation": dep.get("citation", ""),
+                }]
+            ) for dep in dependencies]
         )
 
         while queue and len(transitive_callers) < 30:
-            curr_sym, curr_hop, curr_path = queue.pop(0)
+            curr_sym, curr_hop, curr_path, curr_edges = queue.pop(0)
             if curr_hop >= 4:
                 continue
 
@@ -481,18 +613,28 @@ class ImpactAnalyzer:
                     visited_symbols.add(cname)
                     next_path = curr_path + [cname]
                     cite_line = exact_trans_line if exact_trans_line is not None else int(c.get("line_start", 1))
+                    edge_rel = "CALLS" if exact_trans_line is not None else "DEPENDS_ON"
+                    new_edge = {
+                        "source": cname,
+                        "target": curr_sym,
+                        "relation": edge_rel,
+                        "confidence": "INFERRED",
+                        "citation": f"{cfile}#L{cite_line}",
+                    }
+                    next_edges = curr_edges + [new_edge]
                     transitive_callers.append({
                         "symbol": cname,
                         "file": cfile,
                         "line_start": cite_line,
                         "line_end": cite_line,
-                        "relation": "TRANSITIVE_CALL",
+                        "relation": "TRANSITIVE_CALL" if exact_trans_line is not None else "TRANSITIVE_DEPENDENCY",
                         "hop": curr_hop + 1,
                         "path": next_path,
+                        "edges": next_edges,
                         "confidence": "INFERRED",
                         "citation": f"{cfile}#L{cite_line}",
                     })
-                    queue.append((cname, curr_hop + 1, next_path))
+                    queue.append((cname, curr_hop + 1, next_path, next_edges))
 
             # Also inspect explicit model relationships where target is curr_sym
             for r in relationships:
@@ -500,6 +642,7 @@ class ImpactAnalyzer:
                     continue
                 tgt = str(r.get("target", "")).split(".")[-1]
                 src = str(r.get("source", "")).split(".")[-1]
+                rtype = str(r.get("type", "")).upper()
                 if tgt.lower() == curr_sym.lower() and src and src not in visited_symbols:
                     src_c = next((c for c in classes if c.get("name") == src), None)
                     cfile = (src_c.get("file", "") if src_c else "").replace("\\", "/")
@@ -508,18 +651,27 @@ class ImpactAnalyzer:
                     visited_symbols.add(src)
                     next_path = curr_path + [src]
                     cite_line = int(src_c.get("line_start", 1)) if src_c else 1
+                    new_edge = {
+                        "source": src,
+                        "target": curr_sym,
+                        "relation": rtype or "DEPENDS_ON",
+                        "confidence": "INFERRED",
+                        "citation": f"{cfile}#L{cite_line}",
+                    }
+                    next_edges = curr_edges + [new_edge]
                     transitive_callers.append({
                         "symbol": src,
                         "file": cfile,
                         "line_start": cite_line,
                         "line_end": cite_line,
-                        "relation": "TRANSITIVE_CALL",
+                        "relation": "TRANSITIVE_CALL" if rtype == "CALLS" else "TRANSITIVE_DEPENDENCY",
                         "hop": curr_hop + 1,
                         "path": next_path,
+                        "edges": next_edges,
                         "confidence": "INFERRED",
                         "citation": f"{cfile}#L{cite_line}",
                     })
-                    queue.append((src, curr_hop + 1, next_path))
+                    queue.append((src, curr_hop + 1, next_path, next_edges))
 
         # 7. Additional Structural Dependencies (EXTENDS, IMPLEMENTS, IMPORTS, INJECTS)
         for c in classes:
@@ -803,32 +955,83 @@ class ImpactAnalyzer:
         mermaid_lines.append(f'  end')
         mermaid_lines.append('  style T fill:#2563eb,stroke:#60a5fa,stroke-width:2px,color:#fff')
 
+        node_ids: Dict[str, str] = {target_name: "T"}
+        rendered_edges: Set[Tuple[str, str]] = set()
+
         if direct_callers:
             mermaid_lines.append('  subgraph DirectCallers["Direct Callers (CALLS)"]')
             for i, dc in enumerate(direct_callers[:5]):
                 c_id = f"DC_{i}"
-                mermaid_lines.append(f'    {c_id}["{dc["symbol"]}"] -->|calls| T')
+                node_ids[dc["symbol"]] = c_id
+                mermaid_lines.append(f'    {c_id}["{dc["symbol"]}"]')
+                mermaid_lines.append(f'    {c_id} -->|calls| T')
+                rendered_edges.add((c_id, "T"))
             mermaid_lines.append('  end')
 
         if dependencies:
             mermaid_lines.append('  subgraph Dependencies["Direct Dependencies"]')
             for i, dep in enumerate(dependencies[:5]):
                 d_id = f"DEP_{i}"
-                mermaid_lines.append(f'    {d_id}["{dep["symbol"]}"] -->|{dep["relation"].lower()}| T')
+                if dep["symbol"] not in node_ids:
+                    node_ids[dep["symbol"]] = d_id
+                else:
+                    d_id = node_ids[dep["symbol"]]
+                mermaid_lines.append(f'    {d_id}["{dep["symbol"]}"]')
+                mermaid_lines.append(f'    {d_id} -->|{dep["relation"].lower()}| T')
+                rendered_edges.add((d_id, "T"))
             mermaid_lines.append('  end')
 
         if transitive_callers:
             mermaid_lines.append('  subgraph Transitive["Transitive Downstream"]')
-            trans_anchor = "DC_0" if direct_callers else ("DEP_0" if dependencies else "T")
-            for i, tc in enumerate(transitive_callers[:4]):
-                t_id = f"TC_{i}"
-                mermaid_lines.append(f'    {t_id}["{tc["symbol"]}"] -.->|transitive| {trans_anchor}')
+            # Pre-assign node IDs to transitive callers and intermediate path nodes
+            for i, tc in enumerate(transitive_callers[:6]):
+                if tc["symbol"] not in node_ids:
+                    node_ids[tc["symbol"]] = f"TC_{i}"
+                for edge in tc.get("edges", []):
+                    for s in (edge.get("source"), edge.get("target")):
+                        if s and s not in node_ids:
+                            node_ids[s] = f"N_{len(node_ids)}"
+
+            # Define transitive caller nodes in the subgraph
+            for i, tc in enumerate(transitive_callers[:6]):
+                t_id = node_ids[tc["symbol"]]
+                mermaid_lines.append(f'    {t_id}["{tc["symbol"]}"]')
+
+            # Render edge-by-edge along verified/inferred transitive paths
+            for tc in transitive_callers[:6]:
+                edges = tc.get("edges", [])
+                if edges:
+                    for edge in edges:
+                        src = edge.get("source")
+                        tgt = edge.get("target")
+                        src_id = node_ids.get(src)
+                        tgt_id = node_ids.get(tgt)
+                        if src_id and tgt_id and (src_id, tgt_id) not in rendered_edges:
+                            rendered_edges.add((src_id, tgt_id))
+                            rel = str(edge.get("relation", "transitive")).lower()
+                            conf = str(edge.get("confidence", "")).upper()
+                            if "INFERRED" in conf or "POSSIBLE" in conf:
+                                mermaid_lines.append(f'    {src_id} -.->|{rel} (inferred)| {tgt_id}')
+                            elif rel == "calls":
+                                mermaid_lines.append(f'    {src_id} -->|calls| {tgt_id}')
+                            else:
+                                mermaid_lines.append(f'    {src_id} -->|{rel}| {tgt_id}')
+                else:
+                    # Fallback if no edge chain recorded
+                    t_id = node_ids.get(tc["symbol"])
+                    if t_id and (t_id, "T") not in rendered_edges:
+                        rendered_edges.add((t_id, "T"))
+                        mermaid_lines.append(f'    {t_id} -.->|transitive (inferred)| T')
             mermaid_lines.append('  end')
 
         if tests:
             mermaid_lines.append('  subgraph TestSuites["Test Verification"]')
             for i, ts in enumerate(tests[:4]):
                 ts_id = f"TEST_{i}"
+                if ts["symbol"] not in node_ids:
+                    node_ids[ts["symbol"]] = ts_id
+                else:
+                    ts_id = node_ids[ts["symbol"]]
                 mermaid_lines.append(f'    {ts_id}["{ts["symbol"]}"] ==>|tests| T')
             mermaid_lines.append('  end')
 

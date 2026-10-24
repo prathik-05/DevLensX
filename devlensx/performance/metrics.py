@@ -36,7 +36,19 @@ class Timer:
             try:
                 mem_peak = self.proc.memory_info().rss / (1024*1024)
             except: pass
-        m = BenchmarkMetrics(wall_clock_ms=round(wall,2), cpu_time_ms=round(cpu,2), memory_peak_mb=round(mem_peak,2))
+        files = extra.pop("files_processed", 0)
+        symbols = extra.pop("symbols_processed", 0)
+        relationships = extra.pop("relationships_processed", 0)
+        bytes_proc = extra.pop("bytes_processed", 0)
+        m = BenchmarkMetrics(
+            wall_clock_ms=round(wall,2),
+            cpu_time_ms=round(cpu,2),
+            memory_peak_mb=round(mem_peak,2),
+            files_processed=files,
+            symbols_processed=symbols,
+            relationships_processed=relationships,
+            bytes_processed=bytes_proc,
+        )
         for k,v in extra.items():
             m.extra[k] = v
         return m

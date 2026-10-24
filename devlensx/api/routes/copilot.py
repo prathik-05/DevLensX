@@ -76,28 +76,48 @@ def ask_copilot(req: CopilotAskRequest):
             try:
                 from devlensx.impact.analyzer import ImpactAnalyzer
                 impact_res = ImpactAnalyzer.analyze(affected_names[0], run_id)
+                if getattr(impact_res, "status", None) == "OK":
+                    impact_data = {
+                        "status": "AVAILABLE",
+                        "target_symbol": affected_names[0],
+                        "directly_affected": len(impact_res.direct_callers),
+                        "potentially_affected": len(impact_res.downstream),
+                        "affected_names": [dc["symbol"] for dc in impact_res.direct_callers] or [d["symbol"] for d in impact_res.downstream],
+                    }
+                else:
+                    impact_data = {
+                        "status": "UNAVAILABLE",
+                        "target_symbol": affected_names[0],
+                        "directly_affected": 0,
+                        "potentially_affected": 0,
+                        "affected_names": [],
+                        "reason": f"Impact analysis status: {getattr(impact_res, 'status', 'UNKNOWN')} for target '{affected_names[0]}'",
+                    }
+            except Exception as e:
                 impact_data = {
-                    "directly_affected": len(impact_res.direct_callers),
-                    "potentially_affected": len(impact_res.downstream),
-                    "affected_names": [dc["symbol"] for dc in impact_res.direct_callers] or affected_names
-                }
-            except Exception:
-                impact_data = {
-                    "directly_affected": len(affected_names),
-                    "potentially_affected": len(affected_names),
-                    "affected_names": affected_names
+                    "status": "UNAVAILABLE",
+                    "target_symbol": affected_names[0],
+                    "directly_affected": 0,
+                    "potentially_affected": 0,
+                    "affected_names": [],
+                    "reason": f"Impact analysis unavailable: {str(e)}",
                 }
         else:
             impact_data = {
-                "directly_affected": len(affected_names),
-                "potentially_affected": len(affected_names),
-                "affected_names": affected_names
+                "status": "UNAVAILABLE",
+                "target_symbol": affected_names[0],
+                "directly_affected": 0,
+                "potentially_affected": 0,
+                "affected_names": [],
+                "reason": "No active analysis run specified for change impact derivation",
             }
     else:
         impact_data = {
+            "status": "UNAVAILABLE",
             "directly_affected": 0,
             "potentially_affected": 0,
-            "affected_names": []
+            "affected_names": [],
+            "reason": "No repository components matched in query",
         }
 
     ans_text = result.get("answer", "")

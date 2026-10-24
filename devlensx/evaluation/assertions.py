@@ -9,7 +9,7 @@ def assert_verified(case: GoldenCase, result):
     elif isinstance(result, dict) and "claims" in result:
         verdicts = [c.get("verdict","") for c in result["claims"]]
     # Must have at least one VERIFIED claim
-    assert any("VERIFIED" in v for v in verdicts) or result, f"{case.id}: expected VERIFIED, got {verdicts}"
+    assert any("VERIFIED" in str(v).upper() for v in verdicts), f"{case.id}: expected VERIFIED, got {verdicts}"
     # Must have evidence
     evidence = getattr(result, "evidence_refs", None) if hasattr(result, "evidence_refs") else result.get("evidence_refs", []) if isinstance(result, dict) else []
     assert len(evidence) >= 1, f"{case.id}: VERIFIED requires evidence_refs"
@@ -55,10 +55,11 @@ def assert_insufficient(case: GoldenCase, result):
 def assert_suggestion(case: GoldenCase, result):
     verdicts = []
     if hasattr(result, "claims"):
-        verdicts = [c.verdict for c in result.claims]
+        verdicts = [str(getattr(c, "verdict", c)).upper() for c in result.claims]
     elif isinstance(result, dict) and "claims" in result:
-        verdicts = [c.get("verdict","") for c in result["claims"]]
-    assert any("SUGGESTION" in v for v in verdicts) or "suggestion" in str(getattr(result, "answer", "")).lower() or True  # lenient
+        verdicts = [str(c.get("verdict","")).upper() for c in result["claims"]]
+    ans_text = str(getattr(result, "answer", "")).lower() if hasattr(result, "answer") else str(result.get("answer","")).lower() if isinstance(result, dict) else ""
+    assert any("SUGGESTION" in v for v in verdicts) or "suggest" in ans_text or "could" in ans_text or "option" in ans_text, f"{case.id}: expected SUGGESTION, got {verdicts}"
 
 def assert_evidence_bound(case: GoldenCase, result):
     # Evidence must be snapshot-bound
