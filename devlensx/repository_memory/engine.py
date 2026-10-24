@@ -59,6 +59,33 @@ class RepositoryIntelligenceEngine:
                         "relationships": [],
                         "repo_summary": {"language": "Unknown", "total_classes": 0, "total_relationships": 0, "total_endpoints": 0},
                     }
+                # Extract structural declarations from Gitingest text if native classes are empty
+                if not model.get("classes") and _content:
+                    import re
+                    synth = []
+                    curr_file = ""
+                    for l in _content.splitlines():
+                        fm = re.search(r"^={3,}\s*File:\s*(.*?)\s*={3,}$", l)
+                        if fm:
+                            curr_file = fm.group(1).strip()
+                            continue
+                        dm = re.search(r"^\s*(?:public\s+|export\s+|async\s+)*(?:class|interface|def|function)\s+([A-Za-z0-9_]{2,})", l)
+                        if dm and curr_file:
+                            sym_name = dm.group(1)
+                            if not any(x["name"] == sym_name for x in synth):
+                                synth.append({
+                                    "name": sym_name,
+                                    "file": curr_file,
+                                    "stereotype": "Component",
+                                    "line_start": 1,
+                                    "line_end": 20,
+                                    "methods": []
+                                })
+                    if synth:
+                        model["classes"] = synth[:60]
+                        model["stats"]["symbols_extracted"] = len(model["classes"])
+                        _log.info("[Engine] Extracted %d synthetic AST components from Gitingest context.", len(model["classes"]))
+
                 model["gitingest_fallback"] = {
                     "used": True,
                     "summary": _summary,

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Search,
   AlertTriangle,
-  Sparkles,
   Send,
   CornerDownRight,
   ShieldCheck,
@@ -145,7 +144,7 @@ export const AIAssistantView: React.FC = () => {
     {
       id: 'welcome',
       role: 'assistant',
-      content: `Hello! I am your AI repository intelligence assistant for **${repoName}**. Ask me anything about this codebase, its architecture, execution flows, or how specific technologies are implemented. All answers are grounded in actual repository files.`,
+      content: `👋 Welcome! I'm your AI repository intelligence assistant for **${repoName}**.\n\nI can help you understand this codebase in depth. Here's what you can ask me:\n\n1. **Architecture & Structure** — How is the project organized? What are the main layers?\n2. **Technology & Frameworks** — What libraries are used and how?\n3. **Execution Flows** — What happens when a user does X? Trace a request end-to-end.\n4. **Code Locations** — Where is feature Y implemented? Which file handles Z?\n\nAll answers are grounded in actual parsed repository files — no hallucination.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -287,7 +286,7 @@ export const AIAssistantView: React.FC = () => {
               className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-all rounded ${
                 activeTab === 'ask'
                   ? 'bg-blue-600 text-white shadow-sm border border-blue-500'
-                  : 'bg-white text-black dark:bg-[#121316] dark:text-zinc-300 border border-neutral-200 dark:border-zinc-700 hover:border-blue-400'
+                  : 'bg-transparent text-neutral-600 dark:text-zinc-400 hover:bg-neutral-200 dark:hover:bg-zinc-800'
               }`}
             >
               Ask Repository
@@ -297,7 +296,7 @@ export const AIAssistantView: React.FC = () => {
               className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-all rounded ${
                 activeTab === 'where-to-edit'
                   ? 'bg-blue-600 text-white shadow-sm border border-blue-500'
-                  : 'bg-white text-black dark:bg-[#121316] dark:text-zinc-300 border border-neutral-200 dark:border-zinc-700 hover:border-blue-400'
+                  : 'bg-transparent text-neutral-600 dark:text-zinc-400 hover:bg-neutral-200 dark:hover:bg-zinc-800'
               }`}
             >
               Where Should I Edit?
@@ -307,7 +306,7 @@ export const AIAssistantView: React.FC = () => {
               className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-all rounded ${
                 activeTab === 'explain'
                   ? 'bg-blue-600 text-white shadow-sm border border-blue-500'
-                  : 'bg-white text-black dark:bg-[#121316] dark:text-zinc-300 border border-neutral-200 dark:border-zinc-700 hover:border-blue-400'
+                  : 'bg-transparent text-neutral-600 dark:text-zinc-400 hover:bg-neutral-200 dark:hover:bg-zinc-800'
               }`}
             >
               Explain Concepts
@@ -317,7 +316,7 @@ export const AIAssistantView: React.FC = () => {
               className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-all rounded ${
                 activeTab === 'blast-radius'
                   ? 'bg-blue-600 text-white shadow-sm border border-blue-500'
-                  : 'bg-white text-black dark:bg-[#121316] dark:text-zinc-300 border border-neutral-200 dark:border-zinc-700 hover:border-blue-400'
+                  : 'bg-transparent text-neutral-600 dark:text-zinc-400 hover:bg-neutral-200 dark:hover:bg-zinc-800'
               }`}
             >
               Change Impact
@@ -346,7 +345,14 @@ export const AIAssistantView: React.FC = () => {
                     </span>
                     <span className="text-[9px] text-neutral-400 dark:text-zinc-500">{msg.timestamp}</span>
                     {msg.verdict && (
-                      <span className="text-[9px] font-bold px-1 py-0.2 border border-black/20 dark:border-zinc-700 bg-neutral-100 dark:bg-[#181920] text-black dark:text-zinc-300 rounded-sm">
+                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 border rounded-sm ${
+                        msg.verdict.includes('VERIFIED')
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700'
+                          : msg.verdict.includes('SUGGESTION')
+                          ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700'
+                          : 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-700'
+                      }`}>
+                        {msg.verdict.includes('VERIFIED') ? '✓ ' : msg.verdict.includes('SUGGESTION') ? '~ ' : '✗ '}
                         {msg.verdict}
                       </span>
                     )}
@@ -377,9 +383,9 @@ export const AIAssistantView: React.FC = () => {
                           {msg.citations.map((cite, i) => (
                             <span
                               key={i}
-                              className="text-[10px] font-mono px-1.5 py-0.5 border border-black/20 dark:border-zinc-700 bg-neutral-50 dark:bg-[#121316] text-black dark:text-zinc-300 hover:bg-neutral-200 dark:hover:bg-zinc-800 transition-colors rounded-sm"
+                              className="text-[10px] font-mono px-1.5 py-0.5 border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors rounded-sm"
                             >
-                              {cite}
+                              📍 {cite}
                             </span>
                           ))}
                         </div>
@@ -390,9 +396,13 @@ export const AIAssistantView: React.FC = () => {
               ))}
 
               {isAsking && (
-                <div className="flex items-center gap-2 p-3 border border-black/20 dark:border-zinc-700 bg-neutral-50 dark:bg-[#181920] text-neutral-800 dark:text-zinc-200 text-xs w-fit animate-pulse rounded-sm">
-                  <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
-                  <span>Grounding answer in parsed AST & graph context...</span>
+                <div className="flex items-center gap-2.5 p-3 border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-900 dark:text-indigo-200 text-xs w-fit rounded-sm shadow-sm">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                    <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                    <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce"></div>
+                  </div>
+                  <span className="font-sans font-medium">Analyzing repository AST & Kùzu knowledge graph...</span>
                 </div>
               )}
             </div>
@@ -412,12 +422,12 @@ export const AIAssistantView: React.FC = () => {
                   onChange={e => setInputValue(e.target.value)}
                   placeholder="Ask any question about this repository's code, structure, or workflows..."
                   disabled={isAsking}
-                  className="flex-1 px-3 py-2 text-xs border border-black/30 dark:border-zinc-700 bg-white dark:bg-[#0e0f12] text-black dark:text-zinc-100 placeholder:text-neutral-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-black dark:focus:border-zinc-500 shadow-sm dark:shadow-none rounded-sm"
+                  className="flex-1 px-3 py-2 text-xs border border-black/30 dark:border-zinc-700 bg-white dark:bg-[#0e0f12] text-black dark:text-zinc-100 placeholder:text-neutral-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-500 shadow-sm dark:shadow-none rounded-sm"
                 />
                 <button
                   type="submit"
                   disabled={isAsking || !inputValue.trim()}
-                  className="px-4 py-2 border border-black dark:border-zinc-600 bg-black dark:bg-zinc-200 text-white dark:text-zinc-950 text-xs font-bold uppercase hover:bg-neutral-800 dark:hover:bg-white disabled:opacity-40 shadow-sm dark:shadow-none transition-all flex items-center gap-1.5 rounded-sm"
+                  className="px-5 py-2 border border-indigo-700 dark:border-indigo-500 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold uppercase disabled:opacity-40 shadow-sm dark:shadow-none transition-all flex items-center gap-1.5 rounded-sm"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Ask</span>
@@ -496,9 +506,10 @@ export const AIAssistantView: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLocating || !editQuery.trim()}
-                className="px-6 py-2.5 border border-black dark:border-zinc-600 bg-black dark:bg-zinc-200 text-white dark:text-zinc-950 text-xs font-bold uppercase hover:bg-neutral-800 dark:hover:bg-white disabled:opacity-40 shadow-sm dark:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all rounded-sm"
+                className="px-6 py-2.5 border border-indigo-700 dark:border-indigo-500 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold uppercase disabled:opacity-40 shadow-sm dark:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all rounded-sm flex items-center gap-1.5"
               >
-                {isLocating ? 'Locating...' : 'Locate Code'}
+                <Search className="w-3.5 h-3.5" />
+                <span>{isLocating ? 'Locating...' : 'Locate Code'}</span>
               </button>
             </form>
 
@@ -624,8 +635,19 @@ export const AIAssistantView: React.FC = () => {
                       <h4 className="font-bold uppercase tracking-wider text-black dark:text-zinc-100 font-mono text-[11px] mb-1">
                         Suggested Unified Diff Patch Preview
                       </h4>
-                      <pre className="p-3 border border-black/20 dark:border-zinc-800 bg-black dark:bg-[#0a0b0e] text-zinc-100 font-mono text-xs overflow-x-auto rounded-sm">
-                        {editResult.patch_preview}
+                      <pre className="p-3 border border-black/20 dark:border-zinc-800 bg-neutral-950 text-zinc-100 font-mono text-xs overflow-x-auto rounded-sm leading-relaxed">
+                        {editResult.patch_preview.split('\n').map((l, idx) => {
+                          if (l.startsWith('+') && !l.startsWith('+++')) {
+                            return <div key={idx} className="text-emerald-400 bg-emerald-950/30 px-1">{l}</div>;
+                          }
+                          if (l.startsWith('-') && !l.startsWith('---')) {
+                            return <div key={idx} className="text-rose-400 bg-rose-950/30 px-1">{l}</div>;
+                          }
+                          if (l.startsWith('@@')) {
+                            return <div key={idx} className="text-sky-400 font-bold">{l}</div>;
+                          }
+                          return <div key={idx} className="text-zinc-300">{l}</div>;
+                        })}
                       </pre>
                     </div>
                   )}
@@ -667,9 +689,10 @@ export const AIAssistantView: React.FC = () => {
               <button
                 type="submit"
                 disabled={isExplaining || !conceptQuery.trim()}
-                className="px-6 py-2.5 border border-black dark:border-zinc-600 bg-black dark:bg-zinc-200 text-white dark:text-zinc-950 text-xs font-bold uppercase hover:bg-neutral-800 dark:hover:bg-white disabled:opacity-40 shadow-sm dark:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all rounded-sm"
+                className="px-6 py-2.5 border border-violet-700 dark:border-violet-500 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold uppercase disabled:opacity-40 shadow-sm dark:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all rounded-sm flex items-center gap-1.5"
               >
-                {isExplaining ? 'Explaining...' : 'Explain Concept'}
+                <Cpu className="w-3.5 h-3.5" />
+                <span>{isExplaining ? 'Explaining...' : 'Explain Concept'}</span>
               </button>
             </form>
 
@@ -767,9 +790,10 @@ export const AIAssistantView: React.FC = () => {
               <button
                 onClick={handleCalculateBlast}
                 disabled={isCalculatingBlast || !targetClass.trim()}
-                className="px-6 py-2.5 border border-black dark:border-zinc-600 bg-black dark:bg-zinc-200 text-white dark:text-zinc-950 text-xs font-bold uppercase hover:bg-neutral-800 dark:hover:bg-white disabled:opacity-40 shadow-sm dark:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all rounded-sm"
+                className="px-6 py-2.5 border border-amber-600 bg-amber-500 hover:bg-amber-400 text-black text-xs font-black uppercase disabled:opacity-40 shadow-sm dark:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all rounded-sm flex items-center gap-1.5"
               >
-                {isCalculatingBlast ? 'Calculating...' : 'Calculate Blast Radius'}
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>{isCalculatingBlast ? 'Calculating...' : 'Calculate Blast Radius'}</span>
               </button>
             </div>
           </div>

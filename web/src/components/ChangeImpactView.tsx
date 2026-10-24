@@ -27,15 +27,23 @@ export const ChangeImpactView: React.FC = () => {
   const [_error, setError] = useState<string | null>(null);
   const { evidence, setEvidence, loading: resolvingSource, setLoading: setResolvingSource } = useEvidenceResolver();
 
-  // Extract candidate components/methods from AST / Knowledge Graph
+  // Extract candidate components/methods from AST / Knowledge Graph (excluding tests and signatures)
   const candidateComponents = useMemo(() => {
     const nodes: any[] = data?.knowledge_graph?.nodes || [];
     const list: any[] = nodes.length > 0 ? nodes : ((data as any)?.classes || []);
     return list
+      .filter((c: any) => {
+        const file = String(c.file || '').replace(/\\/g, '/').toLowerCase();
+        const rawName = String(c.name || c.id || '');
+        if (file.includes('/test/') || file.includes('test') || c.is_test) return false;
+        if (['setup', 'teardown', 'initpvp', 'main'].includes(rawName.toLowerCase())) return false;
+        if (/^(?:test|init[A-Z]|[A-Z].*(?:Scenario|Wins|Draw|Rejected|Restart|When|Move))/i.test(rawName) && c.stereotype !== 'Controller') return false;
+        return true;
+      })
       .map((c: any) => {
         let cleanName = String(c.name || c.id || '').trim();
         // Strip trailing signatures, braces, throws, and cutoffs
-        cleanName = cleanName.replace(/\(.*?\)/g, '').replace(/\{/g, '').replace(/\bthrows\b.*/i, '').trim();
+        cleanName = cleanName.replace(/\(.*?\)/g, '').replace(/[\{\}\(\)]/g, '').replace(/\bthrows\b.*/i, '').trim();
         cleanName = cleanName.replace(/\s*(?:thr|throw|thro)$/i, '').trim();
         return {
           name: cleanName,
@@ -277,7 +285,7 @@ export const ChangeImpactView: React.FC = () => {
           <button
             onClick={() => runAnalysis()}
             disabled={loading || !query.trim()}
-            className="px-5 py-2 bg-black dark:bg-sky-600 text-white font-mono text-xs font-black shadow-[2px_2px_0px_0px_#000000] dark:shadow-none hover:bg-neutral-800 dark:hover:bg-sky-500 disabled:opacity-50 transition-all flex items-center gap-1.5"
+            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-xs font-black shadow-[2px_2px_0px_0px_#000000] dark:shadow-none disabled:opacity-50 transition-all flex items-center gap-1.5 rounded-sm"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             <span>Calculate Impact</span>
@@ -308,7 +316,7 @@ export const ChangeImpactView: React.FC = () => {
               <button
                 key={c.name}
                 onClick={() => runAnalysis(c.name)}
-                className="px-2 py-0.5 text-[11px] font-mono font-bold bg-white dark:bg-[#181a24] text-black dark:text-slate-200 border border-black dark:border-slate-700 hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-all"
+                className="px-2.5 py-1 text-[11px] font-mono font-bold bg-white dark:bg-[#181a24] text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded transition-all shadow-sm"
               >
                 {c.name}
               </button>
@@ -316,6 +324,19 @@ export const ChangeImpactView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Initial state: Unknown regression risk placeholder */}
+      {!impactResult && !loading && (
+        <div className="p-6 border-2 border-dashed border-slate-300 dark:border-slate-800 bg-slate-50/50 dark:bg-[#12131a]/50 text-center rounded-sm">
+          <div className="inline-flex p-3 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 mb-2">
+            <GitBranch className="w-6 h-6 text-indigo-500" />
+          </div>
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide">UNKNOWN REGRESSION RISK</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+            Select a target function, class, or method above or click one of the Top Symbols chips to calculate callers, blast radius cascade, downstream impact, and affected tests.
+          </p>
+        </div>
+      )}
 
       {/* Target Not Found Notice */}
       {impactResult?.status === 'TARGET_NOT_FOUND' && (
@@ -397,7 +418,9 @@ export const ChangeImpactView: React.FC = () => {
                     </div>
                   ))
                 ) : (
-                  <div className="text-xs text-slate-500 italic py-2">No direct callers found in graph.</div>
+                  <div className="text-xs text-slate-500 italic py-2">
+                    No direct callers detected in graph. (May be an entrypoint, leaf component, or invoked via dynamic dispatch).
+                  </div>
                 )}
               </div>
             </div>
@@ -425,7 +448,7 @@ export const ChangeImpactView: React.FC = () => {
                     </div>
                   ))
                 ) : (
-                  <div className="text-xs text-slate-500 italic py-2">No indirect upstream dependents.</div>
+                  <div className="text-xs text-slate-500 italic py-2">No indirect upstream dependents found.</div>
                 )}
               </div>
             </div>
@@ -453,7 +476,7 @@ export const ChangeImpactView: React.FC = () => {
                     </div>
                   ))
                 ) : (
-                  <div className="text-xs text-slate-500 italic py-2">No tests specifically covering this symbol.</div>
+                  <div className="text-xs text-slate-500 italic py-2">No test suites specifically referencing this symbol.</div>
                 )}
               </div>
             </div>
