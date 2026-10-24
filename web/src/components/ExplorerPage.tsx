@@ -138,31 +138,76 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
     }
   };
 
-  // Group files dynamically
-  const filteredNodes = useMemo(() => {
-    if (!searchQuery.trim()) return nodes;
+  interface CanonicalFile {
+    file: string;
+    displayName: string;
+    stereotype: string;
+    symbolCount: number;
+    primaryNode: any;
+    symbols: any[];
+    isTest: boolean;
+    package?: string;
+  }
+
+  // Deduplicate AST nodes into unique canonical files by normalized repository-relative path
+  const canonicalFiles = useMemo<CanonicalFile[]>(() => {
+    const fileMap = new Map<string, CanonicalFile>();
+
+    for (const n of nodes) {
+      const rawPath = n.file || `${n.name}${defaultExt}`;
+      const normPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+      const isTest = isTestItem(n);
+
+      if (!fileMap.has(normPath)) {
+        fileMap.set(normPath, {
+          file: normPath,
+          displayName: normPath.split('/').pop() || normPath,
+          stereotype: n.stereotype || (isTest ? 'Test' : 'Component'),
+          symbolCount: 1,
+          primaryNode: n,
+          symbols: [n],
+          isTest,
+          package: n.package || '',
+        });
+      } else {
+        const entry = fileMap.get(normPath)!;
+        entry.symbolCount += 1;
+        entry.symbols.push(n);
+        if (['Controller', 'Service', 'Repository', 'Entity'].includes(n.stereotype) && !['Controller', 'Service', 'Repository'].includes(entry.stereotype)) {
+          entry.stereotype = n.stereotype;
+          entry.primaryNode = n;
+        }
+      }
+    }
+
+    return Array.from(fileMap.values());
+  }, [nodes, defaultExt]);
+
+  const filteredFiles = useMemo(() => {
+    if (!searchQuery.trim()) return canonicalFiles;
     const q = searchQuery.toLowerCase();
-    return nodes.filter(n =>
-      n.name.toLowerCase().includes(q) ||
-      (n.file && n.file.toLowerCase().includes(q)) ||
-      (n.package && n.package.toLowerCase().includes(q))
+    return canonicalFiles.filter(f =>
+      f.displayName.toLowerCase().includes(q) ||
+      f.file.toLowerCase().includes(q) ||
+      (f.package && f.package.toLowerCase().includes(q)) ||
+      f.symbols.some(s => s.name?.toLowerCase().includes(q))
     );
-  }, [nodes, searchQuery]);
+  }, [canonicalFiles, searchQuery]);
 
-  const testNodes = filteredNodes.filter(isTestItem);
-  const productionNodes = filteredNodes.filter(n => !isTestItem(n));
+  const testFiles = filteredFiles.filter(f => f.isTest);
+  const prodFiles = filteredFiles.filter(f => !f.isTest);
 
-  const controllers = productionNodes.filter(
-    n => n.stereotype === 'Controller' || n.name.toLowerCase().includes('controller') || n.name.toLowerCase().includes('router') || n.name.toLowerCase().includes('api')
+  const controllers = prodFiles.filter(
+    f => f.stereotype === 'Controller' || f.file.toLowerCase().includes('controller') || f.displayName.toLowerCase().includes('controller') || f.symbols.some(s => s.stereotype === 'Controller')
   );
-  const services = productionNodes.filter(
-    n => n.stereotype === 'Service' || n.name.toLowerCase().includes('service') || n.name.toLowerCase().includes('handler') || n.name.toLowerCase().includes('manager')
+  const services = prodFiles.filter(
+    f => !controllers.includes(f) && (f.stereotype === 'Service' || f.file.toLowerCase().includes('service') || f.displayName.toLowerCase().includes('service') || f.symbols.some(s => s.stereotype === 'Service'))
   );
-  const repositories = productionNodes.filter(
-    n => n.stereotype === 'Repository' || n.stereotype === 'Entity' || n.name.toLowerCase().includes('repo') || n.name.toLowerCase().includes('db') || n.name.toLowerCase().includes('model')
+  const repositories = prodFiles.filter(
+    f => !controllers.includes(f) && !services.includes(f) && (f.stereotype === 'Repository' || f.stereotype === 'Entity' || f.file.toLowerCase().includes('model') || f.file.toLowerCase().includes('entity') || f.file.toLowerCase().includes('repo') || f.symbols.some(s => s.stereotype === 'Repository' || s.stereotype === 'Entity'))
   );
-  const others = productionNodes.filter(
-    n => !controllers.includes(n) && !services.includes(n) && !repositories.includes(n)
+  const others = prodFiles.filter(
+    f => !controllers.includes(f) && !services.includes(f) && !repositories.includes(f)
   );
 
   const baseFileName = selectedFile.split('/').pop() || selectedFile;
@@ -256,7 +301,7 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
         <div className="lg:col-span-3 border-2 border-black dark:border-slate-800 bg-white dark:bg-[#12131a] p-3.5 space-y-3 shadow-[3px_3px_0px_0px_#000000] dark:shadow-none select-none">
           <div className="flex items-center justify-between border-b-2 border-black dark:border-slate-800 pb-2 text-xs font-sans text-black dark:text-white uppercase tracking-wider font-black">
             <span>Files & Modules</span>
-            <span className="text-slate-600 dark:text-slate-400 font-bold">{filteredNodes.length} items</span>
+            <span className="text-slate-600 dark:text-slate-400 font-bold">{filteredFiles.length} files</span>
           </div>
 
           {/* Search box */}
@@ -281,23 +326,27 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
                 </div>
                 <div className="pl-2 space-y-1 border-l-2 border-slate-200 dark:border-slate-800 ml-1.5">
                   {controllers.map(c => {
-                    const fname = c.file || `${c.name}${defaultExt}`;
-                    const isSel = selectedFile === fname;
+                    const isSel = selectedFile === c.file;
                     return (
                       <button
-                        key={c.id}
+                        key={c.file}
                         onClick={() => {
-                          setSelectedFile(fname);
+                          setSelectedFile(c.file);
                           setExplanation(null);
                         }}
-                        className={`w-full text-left py-1.5 px-2 rounded-none truncate flex items-center space-x-1.5 transition-all text-xs ${
+                        className={`w-full text-left py-1.5 px-2 rounded-none truncate flex items-center justify-between transition-all text-xs ${
                           isSel
                             ? 'bg-sky-100 dark:bg-sky-950/60 text-black dark:text-sky-300 border-2 border-black dark:border-sky-500 font-bold shadow-[2px_2px_0px_0px_#000000]'
                             : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium'
                         }`}
                       >
-                        <FileCode className="w-3.5 h-3.5 shrink-0 text-[#0284c7]" />
-                        <span className="truncate">{c.file ? c.file.split('/').pop() : `${c.name}${defaultExt}`}</span>
+                        <div className="flex items-center space-x-1.5 truncate">
+                          <FileCode className="w-3.5 h-3.5 shrink-0 text-[#0284c7]" />
+                          <span className="truncate">{c.displayName}</span>
+                        </div>
+                        {c.symbolCount > 1 && (
+                          <span className="text-[10px] text-slate-500 ml-1 font-mono">({c.symbolCount})</span>
+                        )}
                       </button>
                     );
                   })}
@@ -313,23 +362,27 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
                 </div>
                 <div className="pl-2 space-y-1 border-l-2 border-slate-200 dark:border-slate-800 ml-1.5">
                   {services.map(s => {
-                    const fname = s.file || `${s.name}${defaultExt}`;
-                    const isSel = selectedFile === fname;
+                    const isSel = selectedFile === s.file;
                     return (
                       <button
-                        key={s.id}
+                        key={s.file}
                         onClick={() => {
-                          setSelectedFile(fname);
+                          setSelectedFile(s.file);
                           setExplanation(null);
                         }}
-                        className={`w-full text-left py-1.5 px-2 rounded-none truncate flex items-center space-x-1.5 transition-all text-xs ${
+                        className={`w-full text-left py-1.5 px-2 rounded-none truncate flex items-center justify-between transition-all text-xs ${
                           isSel
                             ? 'bg-emerald-100 dark:bg-emerald-950/60 text-black dark:text-emerald-300 border-2 border-black dark:border-emerald-500 font-bold shadow-[2px_2px_0px_0px_#000000]'
                             : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium'
                         }`}
                       >
-                        <FileCode className="w-3.5 h-3.5 shrink-0 text-[#059669]" />
-                        <span className="truncate">{s.file ? s.file.split('/').pop() : `${s.name}${defaultExt}`}</span>
+                        <div className="flex items-center space-x-1.5 truncate">
+                          <FileCode className="w-3.5 h-3.5 shrink-0 text-[#059669]" />
+                          <span className="truncate">{s.displayName}</span>
+                        </div>
+                        {s.symbolCount > 1 && (
+                          <span className="text-[10px] text-slate-500 ml-1 font-mono">({s.symbolCount})</span>
+                        )}
                       </button>
                     );
                   })}
@@ -345,23 +398,27 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
                 </div>
                 <div className="pl-2 space-y-1 border-l-2 border-slate-200 dark:border-slate-800 ml-1.5">
                   {repositories.map(r => {
-                    const fname = r.file || `${r.name}${defaultExt}`;
-                    const isSel = selectedFile === fname;
+                    const isSel = selectedFile === r.file;
                     return (
                       <button
-                        key={r.id}
+                        key={r.file}
                         onClick={() => {
-                          setSelectedFile(fname);
+                          setSelectedFile(r.file);
                           setExplanation(null);
                         }}
-                        className={`w-full text-left py-1.5 px-2 rounded-none truncate flex items-center space-x-1.5 transition-all text-xs ${
+                        className={`w-full text-left py-1.5 px-2 rounded-none truncate flex items-center justify-between transition-all text-xs ${
                           isSel
                             ? 'bg-purple-100 dark:bg-purple-950/60 text-black dark:text-purple-300 border-2 border-black dark:border-purple-500 font-bold shadow-[2px_2px_0px_0px_#000000]'
                             : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium'
                         }`}
                       >
-                        <FileCode className="w-3.5 h-3.5 shrink-0 text-[#7c3aed]" />
-                        <span className="truncate">{r.file ? r.file.split('/').pop() : `${r.name}${defaultExt}`}</span>
+                        <div className="flex items-center space-x-1.5 truncate">
+                          <FileCode className="w-3.5 h-3.5 shrink-0 text-[#7c3aed]" />
+                          <span className="truncate">{r.displayName}</span>
+                        </div>
+                        {r.symbolCount > 1 && (
+                          <span className="text-[10px] text-slate-500 ml-1 font-mono">({r.symbolCount})</span>
+                        )}
                       </button>
                     );
                   })}
@@ -377,23 +434,27 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
                 </div>
                 <div className="pl-2 space-y-1 border-l-2 border-slate-200 dark:border-slate-800 ml-1.5">
                   {others.map(o => {
-                    const fname = o.file || `${o.name}${defaultExt}`;
-                    const isSel = selectedFile === fname;
+                    const isSel = selectedFile === o.file;
                     return (
                       <button
-                        key={o.id}
+                        key={o.file}
                         onClick={() => {
-                          setSelectedFile(fname);
+                          setSelectedFile(o.file);
                           setExplanation(null);
                         }}
-                        className={`w-full text-left py-1.5 px-2 rounded-none truncate flex items-center space-x-1.5 transition-all text-xs ${
+                        className={`w-full text-left py-1.5 px-2 rounded-none truncate flex items-center justify-between transition-all text-xs ${
                           isSel
                             ? 'bg-slate-200 dark:bg-slate-800 text-black dark:text-white border-2 border-black font-bold'
                             : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium'
                         }`}
                       >
-                        <FileCode className="w-3.5 h-3.5 shrink-0 text-slate-500" />
-                        <span className="truncate">{o.file ? o.file.split('/').pop() : `${o.name}${defaultExt}`}</span>
+                        <div className="flex items-center space-x-1.5 truncate">
+                          <FileCode className="w-3.5 h-3.5 shrink-0 text-slate-500" />
+                          <span className="truncate">{o.displayName}</span>
+                        </div>
+                        {o.symbolCount > 1 && (
+                          <span className="text-[10px] text-slate-500 ml-1 font-mono">({o.symbolCount})</span>
+                        )}
                       </button>
                     );
                   })}
@@ -401,31 +462,35 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
               </div>
             )}
 
-            {testNodes.length > 0 && (
+            {testFiles.length > 0 && (
               <div className="space-y-1">
                 <div className="flex items-center space-x-1.5 text-amber-600 dark:text-amber-400 font-black py-0.5 font-sans">
                   <Folder className="w-4 h-4" />
-                  <span>Tests & Fixtures ({testNodes.length})</span>
+                  <span>Tests & Fixtures ({testFiles.length})</span>
                 </div>
                 <div className="pl-2 space-y-1 border-l-2 border-amber-300 dark:border-amber-800 ml-1.5">
-                  {testNodes.map(t => {
-                    const fname = t.file || `${t.name}${defaultExt}`;
-                    const isSel = selectedFile === fname;
+                  {testFiles.map(t => {
+                    const isSel = selectedFile === t.file;
                     return (
                       <button
-                        key={t.id}
+                        key={t.file}
                         onClick={() => {
-                          setSelectedFile(fname);
+                          setSelectedFile(t.file);
                           setExplanation(null);
                         }}
-                        className={`w-full text-left py-1.5 px-2 rounded-none truncate flex items-center space-x-1.5 transition-all text-xs ${
+                        className={`w-full text-left py-1.5 px-2 rounded-none truncate flex items-center justify-between transition-all text-xs ${
                           isSel
                             ? 'bg-amber-100 dark:bg-amber-950/60 text-black dark:text-amber-200 border-2 border-black dark:border-amber-500 font-bold shadow-[2px_2px_0px_0px_#000000]'
                             : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium'
                         }`}
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-amber-500" />
-                        <span className="truncate">{t.file ? t.file.split('/').pop() : `${t.name}${defaultExt}`}</span>
+                        <div className="flex items-center space-x-1.5 truncate">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                          <span className="truncate">{t.displayName}</span>
+                        </div>
+                        {t.symbolCount > 1 && (
+                          <span className="text-[10px] text-slate-500 ml-1 font-mono">({t.symbolCount})</span>
+                        )}
                       </button>
                     );
                   })}
@@ -570,7 +635,7 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
               ) : explanation ? (
                 <div className="space-y-3 font-mono text-xs">
                   {/* Narrative Text */}
-                  <div className="text-black dark:text-slate-100 leading-relaxed font-sans text-xs bg-white dark:bg-[#12131a] p-3 border-2 border-black dark:border-slate-800 font-medium">
+                  <div className="text-black dark:text-slate-100 leading-relaxed font-sans text-xs bg-white dark:bg-[#12131a] p-3 border-2 border-black dark:border-slate-800 font-medium whitespace-pre-wrap">
                     {explanation.explanation}
                   </div>
 

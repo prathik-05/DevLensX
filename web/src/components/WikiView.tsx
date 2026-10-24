@@ -10,6 +10,7 @@ import {
   BookOpen, ChevronDown, ChevronRight, GitCommit, FileCode, ArrowRight,
   Layers, Zap, AlertTriangle, Compass, Sparkles, Send, Loader2, Key,
   ShieldCheck, HelpCircle, Rocket, Cpu, Database, Settings as SettingsIcon, Link as LinkIcon,
+  Package, CheckCircle2, GitBranch, List, ZoomIn, ZoomOut, Maximize2, RotateCcw, Code,
 } from 'lucide-react';
 import { useWikiContext, type WikiPageTreeItem } from '../wikiContext';
 import { useWorkspaceContext } from '../workspaceContext';
@@ -36,12 +37,17 @@ function ensureWikiMermaidTheme() {
   }
 }
 
-type Category =
+export type Category =
   | 'Overview'
   | 'Getting Started'
   | 'Architecture'
   | 'Components'
   | 'Modules'
+  | 'Features'
+  | 'Dependencies'
+  | 'Testing'
+  | 'Git History'
+  | 'Glossary'
   | 'API Reference'
   | 'Data Model'
   | 'Configuration'
@@ -54,6 +60,11 @@ const CATEGORY_ORDER: Category[] = [
   'Architecture',
   'Components',
   'Modules',
+  'Features',
+  'Dependencies',
+  'Testing',
+  'Git History',
+  'Glossary',
   'API Reference',
   'Data Model',
   'Configuration',
@@ -67,6 +78,11 @@ const CATEGORY_ICONS: Record<Category, React.ComponentType<{ className?: string 
   Architecture: Layers,
   Components: Cpu,
   Modules: BookOpen,
+  Features: Sparkles,
+  Dependencies: Package,
+  Testing: CheckCircle2,
+  'Git History': GitBranch,
+  Glossary: List,
   'API Reference': Zap,
   'Data Model': Database,
   Configuration: SettingsIcon,
@@ -79,17 +95,28 @@ function categorize(item: WikiPageTreeItem): Category {
   const t = (item.title || '').toLowerCase();
   const p = (item.parent || '').toLowerCase();
   const tp = (item.type || '').toLowerCase();
+
   if (id === 'overview' || t === 'overview') return 'Overview';
-  if (id.includes('getting-started') || t.includes('getting started') || tp === 'guide') return 'Getting Started';
-  if (id === 'architecture' || t.includes('architecture') || tp === 'architecture') return 'Architecture';
-  if (id === 'components' || t.includes('component') || tp === 'components') return 'Components';
-  if (p === 'modules' || tp === 'module' || id.startsWith('module') || t.includes('module')) return 'Modules';
-  if (id.includes('api') || t.includes('api') || t.includes('endpoint') || t.includes('reference') || tp === 'api') return 'API Reference';
-  if (id.includes('data-model') || t.includes('data model') || t.includes('database') || tp === 'database') return 'Data Model';
-  if (id.includes('configuration') || t.includes('configuration') || tp === 'config') return 'Configuration';
-  if (id.includes('references') || t.includes('references') || tp === 'references') return 'References';
+  if (id.includes('project_structure') || id.includes('project-structure') || t.includes('project structure')) return 'Overview';
+  if (id.includes('getting-started') || id.includes('getting_started') || t.includes('getting started') || tp === 'guide' || id.includes('setup') || t.includes('setup') || id.includes('install')) return 'Getting Started';
+  if (id.includes('architecture') || t.includes('architecture') || tp === 'architecture' || id.includes('runtime_flow') || id.includes('workflow')) return 'Architecture';
+  if (id.includes('feature') || t.includes('feature') || tp === 'feature') return 'Features';
+  if (id.includes('dependenc') || t.includes('dependenc') || tp === 'dependencies') return 'Dependencies';
+  if (id.includes('test') || t.includes('test') || tp === 'testing') return 'Testing';
+  if (id.includes('git') || id.includes('history') || t.includes('history') || id.includes('churn') || tp === 'git_history') return 'Git History';
+  if (id.includes('glossary') || t.includes('glossary') || tp === 'glossary') return 'Glossary';
+  if (p === 'modules' || tp === 'module' || id.startsWith('module') || t.includes('module') || id.startsWith('pkg-') || id.startsWith('package-')) return 'Modules';
+  if (id.includes('api') || t.includes('api') || id.includes('route') || t.includes('route') || t.includes('endpoint') || tp === 'api' || tp === 'api_routes') return 'API Reference';
+  if (id.includes('data-model') || id.includes('data_layer') || t.includes('data model') || t.includes('database') || tp === 'database' || id.includes('schema') || tp === 'entity' || tp === 'model') return 'Data Model';
+  if (id.includes('configuration') || id.includes('config') || t.includes('configuration') || tp === 'config' || id.includes('setting')) return 'Configuration';
   if (id.includes('change') || id.includes('impact') || t.includes('change') || t.includes('impact') || tp === 'impact') return 'Change Impact';
-  return 'Overview';
+  if (id.includes('references') || id.includes('citation') || t.includes('references') || tp === 'references') return 'References';
+  if (id === 'components' || t.includes('component') || tp === 'components') return 'Components';
+  if (tp === 'class' || tp === 'method' || tp === 'function') {
+    if (p.includes('model') || t.includes('entity') || id.includes('model')) return 'Data Model';
+    return 'Components';
+  }
+  return 'Components';
 }
 
 function cleanHeading(heading: string): string {
@@ -109,13 +136,22 @@ function groupByCategory(tree: WikiPageTreeItem[]): Record<Category, WikiPageTre
     'Architecture': [],
     'Components': [],
     'Modules': [],
+    'Features': [],
+    'Dependencies': [],
+    'Testing': [],
+    'Git History': [],
+    'Glossary': [],
     'API Reference': [],
     'Data Model': [],
     'Configuration': [],
     'References': [],
     'Change Impact': [],
   };
-  tree.forEach(item => { grouped[categorize(item)].push(item); });
+  tree.forEach(item => {
+    const cat = categorize(item);
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(item);
+  });
   return grouped;
 }
 
@@ -128,11 +164,13 @@ function verdictToBadge(verdict?: string | null): Verdict {
   return 'NOT_VERIFIED';
 }
 
-const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
+const MermaidBlock: React.FC<{ code: string; onExpand?: () => void; isModal?: boolean }> = ({ code, onExpand, isModal = false }) => {
   const [svg, setSvg] = useState<string | null>(null);
   const [renderErr, setRenderErr] = useState(false);
   const idRef = useRef(`wiki-mermaid-${Math.random().toString(36).slice(2, 9)}`);
   const [themeTick, setThemeTick] = useState(0);
+  const [zoom, setZoom] = useState(1.0);
+  const [showSource, setShowSource] = useState(false);
 
   useEffect(() => {
     const obs = new MutationObserver(() => {
@@ -163,30 +201,107 @@ const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
     return () => { cancelled = true; };
   }, [code, themeTick]);
 
-  if (renderErr) {
+  if (renderErr || showSource) {
     return (
-      <div className="rounded-sm p-3 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#12131a] text-xs font-mono text-slate-600 dark:text-slate-400">
-        <div className="dl-panel-label text-xs mb-1">ARCHITECTURE DIAGRAM (SOURCE)</div>
-        <pre className="whitespace-pre overflow-x-auto text-[11px]">{code}</pre>
+      <div className="rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#12131a] p-3 text-xs font-mono">
+        <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200 dark:border-slate-800">
+          <span className="dl-panel-label text-xs">MERMAID SOURCE</span>
+          {svg && (
+            <button
+              onClick={() => setShowSource(false)}
+              className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline"
+            >
+              View Rendered Diagram
+            </button>
+          )}
+        </div>
+        <pre className="whitespace-pre overflow-x-auto text-[11px] text-slate-700 dark:text-slate-300 bg-white dark:bg-black/40 p-2.5 rounded border border-slate-200 dark:border-slate-800">
+          {code}
+        </pre>
       </div>
     );
   }
 
   if (svg) {
     return (
-      <div
-        className="overflow-x-auto p-3 rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#12131a]"
-        role="figure"
-        aria-label="Repository Architecture Diagram"
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
+      <div className="rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#10121a] overflow-hidden shadow-sm">
+        {/* Diagram Zoom & Clarity Toolbar */}
+        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 dark:bg-[#161822] border-b border-slate-200 dark:border-slate-800 text-xs font-mono">
+          <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider">DIAGRAM CONTROLS</span>
+            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">({Math.round(zoom * 100)}%)</span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setZoom(z => Math.max(0.5, Number((z - 0.2).toFixed(1))))}
+              className="px-2 py-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1 text-[11px]"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setZoom(1.0)}
+              className="px-2 py-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1 text-[11px]"
+              title="Reset Zoom to 100%"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset</span>
+            </button>
+            <button
+              onClick={() => setZoom(z => Math.min(2.5, Number((z + 0.2).toFixed(1))))}
+              className="px-2 py-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1 text-[11px]"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setShowSource(true)}
+              className="px-2 py-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1 text-[11px] ml-1"
+              title="View Mermaid Code"
+            >
+              <Code className="w-3.5 h-3.5" />
+            </button>
+            {!isModal && onExpand && (
+              <button
+                onClick={onExpand}
+                className="px-2 py-1 rounded bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 hover:bg-sky-100 flex items-center gap-1 text-[11px] font-bold border border-sky-300/60 dark:border-sky-700/60 ml-1"
+                title="Expand to Fullscreen View"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span>Expand</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Diagram Canvas with Zoom Transform */}
+        <div
+          className={`p-4 overflow-auto flex items-center justify-center transition-all ${
+            isModal ? 'min-h-[500px] max-h-[75vh]' : 'min-h-[260px] max-h-[560px]'
+          }`}
+          style={{ cursor: zoom > 1 ? 'grab' : 'default' }}
+        >
+          <div
+            className="transition-transform duration-150 ease-out flex items-center justify-center w-full"
+            style={{
+              transform: `scale(${zoom})`,
+              transformOrigin: 'center center',
+            }}
+            role="figure"
+            aria-label="Repository Architecture Diagram"
+            dangerouslySetInnerHTML={{ __html: svg }}
+          />
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="rounded-sm p-3 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#12131a] animate-pulse">
-      <div className="h-24 flex items-center justify-center text-xs font-mono text-slate-400">
-        Rendering diagram…
+    <div className="rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#12131a] p-6 animate-pulse">
+      <div className="h-28 flex items-center justify-center text-xs font-mono text-slate-400 gap-2">
+        <Loader2 className="w-4 h-4 animate-spin text-sky-500" />
+        <span>Generating and rendering evidence diagram…</span>
       </div>
     </div>
   );
@@ -429,11 +544,7 @@ const SectionView: React.FC<SectionViewProps> = ({ section, idx, pagesSummary, p
 
         {hasMermaid && (
           <div className="space-y-2">
-            <MermaidBlock code={section.mermaid} />
-            <button onClick={() => onExpandDiagram(section.mermaid)} className="text-[11px] font-mono underline underline-offset-2 flex items-center gap-1.5" style={{ color: 'var(--dl-accent)' }}>
-              <FileCode className="w-3.5 h-3.5" />
-              Expand diagram
-            </button>
+            <MermaidBlock code={section.mermaid} onExpand={() => onExpandDiagram(section.mermaid)} />
           </div>
         )}
 
@@ -512,6 +623,11 @@ export const WikiView: React.FC = () => {
     'Architecture': true,
     'Components': true,
     'Modules': true,
+    'Features': true,
+    'Dependencies': true,
+    'Testing': true,
+    'Git History': true,
+    'Glossary': true,
     'API Reference': true,
     'Data Model': true,
     'Configuration': true,
@@ -1090,13 +1206,20 @@ export const WikiView: React.FC = () => {
 
       {/* Expanded diagram modal */}
       {expandedDiagram && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: 'rgba(0,0,0,0.8)' }} onClick={() => setExpandedDiagram(null)} role="dialog" aria-label="Expanded diagram">
-          <div className="dl-panel p-5 rounded-sm max-w-5xl w-full max-h-[85vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="dl-panel-label">Diagram</span>
-              <button onClick={() => setExpandedDiagram(null)} className="dl-btn-ghost px-3 py-1 text-xs font-mono" aria-label="Close expanded diagram">Close ✕</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={() => setExpandedDiagram(null)} role="dialog" aria-label="Expanded diagram">
+          <div className="bg-white dark:bg-[#0e1017] border border-slate-300 dark:border-neutral-700 p-4 sm:p-6 rounded-lg max-w-6xl w-full max-h-[92vh] overflow-hidden flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 dark:border-neutral-800">
+              <span className="font-bold text-xs font-mono uppercase text-slate-900 dark:text-white flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-sky-500" />
+                <span>Expanded Evidence Diagram View</span>
+              </span>
+              <button onClick={() => setExpandedDiagram(null)} className="px-3 py-1 rounded bg-slate-200 dark:bg-neutral-800 hover:bg-slate-300 dark:hover:bg-neutral-700 text-xs font-mono font-bold text-slate-800 dark:text-slate-200 transition-colors" aria-label="Close expanded diagram">
+                Close ✕
+              </button>
             </div>
-            <MermaidBlock code={expandedDiagram} />
+            <div className="flex-1 overflow-auto">
+              <MermaidBlock code={expandedDiagram} isModal={true} />
+            </div>
           </div>
         </div>
       )}

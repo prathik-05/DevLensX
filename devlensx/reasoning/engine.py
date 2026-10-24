@@ -403,23 +403,67 @@ class RepositoryReasoningEngine:
 
         if not explanation_text:
             is_test = sym_match.get("is_test") or "test" in stereotype.lower() or "/test" in file_path.lower() or sym_name.endswith("Test") or sym_name.endswith("Tests")
+            m_list = [m.get("name") if isinstance(m, dict) else str(m) for m in methods[:5]]
+            callers_str = ", ".join(f"`{c['caller']}`" for c in incoming_callers[:5]) if incoming_callers else "no upstream callers directly observed"
+            deps_str = ", ".join(f"`{d['dependency']}`" for d in outgoing_deps[:5]) if outgoing_deps else "no external dependencies injected"
+            radius_str = ", ".join(f"`{r}`" for r in blast_radius[:5]) if blast_radius else "isolated component (leaf node)"
+            ops_str = ", ".join(f"`{m}()`" for m in m_list) if m_list else "core state properties"
+
             if is_test:
                 tested_class = sym_name.replace("Test", "").replace("TestCase", "")
-                m_list = [m.get("name") if isinstance(m, dict) else str(m) for m in methods[:4]]
-                cases_str = f" with verification cases: {', '.join(m_list)}" if m_list else ""
-                explanation_text = f"`{sym_name}` is a test suite verifying behavior of `{tested_class}` in `{file_path}`{cases_str}."
+                explanation_text = (
+                    f"### 🧪 Test Suite Analysis: `{sym_name}`\n\n"
+                    f"`{sym_name}` serves as an automated test verification harness for `{tested_class}` in `{file_path}`.\n\n"
+                    f"- **Target SUT (System Under Test):** Verifies contracts, assertions, and boundary conditions for `{tested_class}`.\n"
+                    f"- **Verification Cases:** {ops_str}.\n"
+                    f"- **Regression Protection:** Ensures changes to downstream model or controller logic fail closed if expectations are violated."
+                )
             elif action == "who_calls_this":
-                callers_str = ", ".join(c["caller"] for c in incoming_callers[:4]) if incoming_callers else "no direct callers detected"
-                explanation_text = f"`{sym_name}` is invoked by: {callers_str}."
+                explanation_text = (
+                    f"### 📞 Call Hierarchy & Upstream Invocations for `{sym_name}`\n\n"
+                    f"In the repository graph, `{sym_name}` ({stereotype}) is directly invoked or orchestrated by: {callers_str}.\n\n"
+                    f"- **Architectural Role:** Operates as a foundational `{stereotype}` providing core operations to higher application layers.\n"
+                    f"- **Integration Boundary:** Defined in `{file_path}` (lines {line_start}–{line_end}). Incoming changes to signature or visibility directly affect caller bindings."
+                )
             elif action == "what_does_this_depend_on":
-                deps_str = ", ".join(d["dependency"] for d in outgoing_deps[:4]) if outgoing_deps else "no explicit dependencies"
-                explanation_text = f"`{sym_name}` depends on: {deps_str}."
+                explanation_text = (
+                    f"### 🔗 Outbound Dependencies & Services for `{sym_name}`\n\n"
+                    f"`{sym_name}` delegates execution and state management to: {deps_str}.\n\n"
+                    f"- **Layer Delegation:** Resides in `{file_path}` as a `{stereotype}`, consuming specialized abstractions.\n"
+                    f"- **Coupling & Cohesion:** Encapsulates internal business logic while relying on these explicit interfaces for lower-level operations."
+                )
             elif action == "what_would_be_affected":
-                radius_str = ", ".join(blast_radius[:4]) if blast_radius else "isolated component"
-                explanation_text = f"Modifying `{sym_name}` impacts downstream components: {radius_str}."
+                explanation_text = (
+                    f"### 💥 Blast Radius & Regression Risk Analysis for `{sym_name}`\n\n"
+                    f"Modifying `{sym_name}` introduces regression risk across downstream dependents: {radius_str}.\n\n"
+                    f"- **Impact Severity:** {'MODERATE to HIGH' if blast_radius else 'LOW (Localized Scope)'}.\n"
+                    f"- **Validation Strategy:** Run test suites associated with {radius_str if blast_radius else sym_name} before committing modifications.\n"
+                    f"- **Source Reference:** Grounded at `{file_path}#L{line_start}-L{line_end}`."
+                )
+            elif action == "why_does_this_exist":
+                explanation_text = (
+                    f"### 🏛️ Architectural Rationale: `{sym_name}`\n\n"
+                    f"`{sym_name}` exists to encapsulate `{stereotype}` responsibilities within `{file_path}`.\n\n"
+                    f"- **Design Principle:** Separates domain logic and state transitions from presentation and transport protocols.\n"
+                    f"- **Key Operations:** Exposes {ops_str} to maintain cohesive system invariants.\n"
+                    f"- **Graph Position:** Consumed by {callers_str} and delegates to {deps_str}."
+                )
+            elif action == "explain_code_simple":
+                explanation_text = (
+                    f"### 💡 Simple Explanation: `{sym_name}`\n\n"
+                    f"Think of `{sym_name}` like a specialized worker responsible for `{stereotype.lower()}` tasks in the application.\n\n"
+                    f"- **What it does:** It handles operations like {ops_str}.\n"
+                    f"- **Who uses it:** Other parts of the program ({callers_str}) ask it to do work and hand off results.\n"
+                    f"- **Where it lives:** In `{file_path}` (lines {line_start}–{line_end})."
+                )
             else:
-                method_txt = f" with operations: {', '.join(method_names[:3])}" if method_names else ""
-                explanation_text = f"`{sym_name}` acts as `{stereotype}` in `{file_path}`{method_txt}."
+                explanation_text = (
+                    f"### 📦 Component Architecture: `{sym_name}` (`{stereotype}`)\n\n"
+                    f"`{sym_name}` acts as a core `{stereotype}` component residing in `{file_path}` (lines {line_start}–{line_end}).\n\n"
+                    f"- **Primary Responsibilities:** Manages domain state and operational logic via operations: {ops_str}.\n"
+                    f"- **Graph Context:** Driven by {callers_str}; delegates execution downstream to {deps_str}.\n"
+                    f"- **Verified Evidence:** Grounded against AST declarations and repository property graph topology."
+                )
 
         methods_normalized = []
         for m in methods:

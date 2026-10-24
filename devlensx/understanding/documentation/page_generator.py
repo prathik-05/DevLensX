@@ -311,10 +311,24 @@ EVIDENCE CONTEXT:
         }
 
     def _generate_diagrams(self, page: DocumentationPage, evidence_context: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Generates diagrams for a page based on evidence."""
+        """Generates topic-grounded diagrams for a page based on its type and evidence."""
         from devlensx.understanding.diagram_generator import EvidenceDiagramGenerator
         from devlensx.urm.models import URMSymbol, URMRelationship, SymbolKind, RelationshipType, SourceEvidence
-        
+        from devlensx.understanding.documentation.models import PageType
+
+        # Only generate diagrams for architectural, module, component, and data flow pages
+        allowed_types = {
+            PageType.OVERVIEW,
+            PageType.CORE_ARCHITECTURE,
+            PageType.DOMAIN_ARCHITECTURE,
+            PageType.COMPONENTS,
+            PageType.DATA_LAYER,
+            PageType.RUNTIME_FLOW,
+            PageType.STATE_MANAGEMENT,
+        }
+        if page.page_type not in allowed_types:
+            return []
+
         # Convert evidence symbols to URM symbols for diagram generation
         symbols = []
         for name, details in evidence_context.get("symbols", {}).items():
@@ -330,18 +344,44 @@ EVIDENCE CONTEXT:
                 stereotype=details.get("stereotype"),
                 injected_dependencies=details.get("injected_dependencies", []),
             ))
-        
-        # Generate architecture diagram if relevant
+
+        if not symbols:
+            return []
+
+        # Extract real relationships if present in brain
+        relationships: List[URMRelationship] = []
+        if hasattr(self.brain, "relationships") and self.brain.relationships:
+            relationships = list(self.brain.relationships)
+
         diagrams = []
-        if symbols:
-            mermaid = EvidenceDiagramGenerator.generate_architecture_diagram(symbols, [])
+        if page.page_type in (PageType.OVERVIEW, PageType.CORE_ARCHITECTURE, PageType.DOMAIN_ARCHITECTURE):
+            mermaid = EvidenceDiagramGenerator.generate_architecture_diagram(symbols, relationships)
             diagrams.append({
                 "diagram_type": "ARCHITECTURE",
                 "title": f"{page.title} Architecture",
                 "mermaid_code": mermaid,
                 "node_citations": {s.name: f"{s.file}#L{s.line_start}-{s.line_end}" for s in symbols},
             })
-        
+        elif page.page_type in (PageType.DATA_LAYER, PageType.STATE_MANAGEMENT):
+            mermaid = EvidenceDiagramGenerator.generate_architecture_diagram(
+                [s for s in symbols if s.stereotype in ("Entity", "Model", "Repository", "DAO", "Component")] or symbols[:8],
+                relationships
+            )
+            diagrams.append({
+                "diagram_type": "DATA_FLOW",
+                "title": f"{page.title} Data Model",
+                "mermaid_code": mermaid,
+                "node_citations": {s.name: f"{s.file}#L{s.line_start}-{s.line_end}" for s in symbols},
+            })
+        elif page.page_type in (PageType.COMPONENTS, PageType.RUNTIME_FLOW):
+            mermaid = EvidenceDiagramGenerator.generate_architecture_diagram(symbols[:12], relationships)
+            diagrams.append({
+                "diagram_type": "COMPONENTS",
+                "title": f"{page.title} Interaction Map",
+                "mermaid_code": mermaid,
+                "node_citations": {s.name: f"{s.file}#L{s.line_start}-{s.line_end}" for s in symbols},
+            })
+
         return diagrams
 
 

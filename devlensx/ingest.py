@@ -51,6 +51,111 @@ RATE_LIMIT_WINDOW_SECONDS = 60.0
 _INGEST_CACHE: Dict[str, Dict[str, Any]] = {}
 CACHE_TTL_SECONDS = 3600.0  # 1 hour
 
+_CACHE_LOCK = threading.Lock()
+_KEY_LOCKS: Dict[str, threading.Lock] = {}
+
+
+def _get_key_lock(key: str) -> threading.Lock:
+    with _CACHE_LOCK:
+        if key not in _KEY_LOCKS:
+            _KEY_LOCKS[key] = threading.Lock()
+        return _KEY_LOCKS[key]
+
+
+def _safe_rmtree_windows(path: Path, max_retries: int = 3) -> bool:
+    """Robust Windows directory cleanup with read-only permission recovery and retries."""
+    if not path.exists():
+        return True
+
+    def _handle_readonly(func, p, exc):
+        import stat
+        try:
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+        except Exception:
+            pass
+
+    for attempt in range(max_retries):
+        try:
+            shutil.rmtree(path, onerror=_handle_readonly)
+            if not path.exists():
+                return True
+        except Exception:
+            time.sleep(0.05 * (attempt + 1))
+    return not path.exists()
+
+
+def _publish_cached_clone(temp_path: Path, owner: str, repo: str, commit_sha: str) -> str:
+    """
+    Safely publishes a cloned repository to a managed persistent cache location.
+    - Uses unique staging directory first.
+    - Verifies completion marker.
+    - Thread-safe and process/filesystem race-free (avoids Windows WinError 183).
+    - Scoped by owner + repo + commit to prevent cross-repository collisions.
+    """
+    import uuid
+    import json
+
+    safe_owner = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', owner or 'local')
+    safe_repo = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', repo or 'repo')
+    short_commit = (commit_sha or 'head')[:10]
+
+    cache_root = Path(tempfile.gettempdir()) / "devlensx_ingest_cache"
+    cache_root.mkdir(parents=True, exist_ok=True)
+
+    cache_key = f"{safe_owner}_{safe_repo}_{short_commit}"
+    key_lock = _get_key_lock(cache_key)
+
+    with key_lock:
+        cache_dest = cache_root / cache_key
+        marker_file = cache_dest / ".complete"
+
+        # Check if an existing published cache directory is already complete and valid
+        if cache_dest.exists() and marker_file.exists():
+            try:
+                marker_data = json.loads(marker_file.read_text(encoding="utf-8"))
+                if marker_data.get("commit_sha") == commit_sha or not commit_sha:
+                    return str(cache_dest)
+            except Exception:
+                pass
+
+        # Use an isolated unique staging directory
+        staging_dir = cache_root / f"staging_{uuid.uuid4().hex[:12]}_{safe_repo}"
+        try:
+            shutil.copytree(temp_path, staging_dir)
+            marker_content = {
+                "owner": owner,
+                "repo": repo,
+                "commit_sha": commit_sha,
+                "cached_at": time.time(),
+            }
+            (staging_dir / ".complete").write_text(json.dumps(marker_content), encoding="utf-8")
+
+            # Clean up stale or corrupt destination before publishing
+            if cache_dest.exists():
+                removed = _safe_rmtree_windows(cache_dest)
+                if not removed:
+                    # Locked handle fallback: rename aside
+                    fallback_old = cache_root / f"old_{uuid.uuid4().hex[:8]}_{safe_repo}"
+                    try:
+                        cache_dest.rename(fallback_old)
+                        _safe_rmtree_windows(fallback_old)
+                    except Exception:
+                        pass
+
+            try:
+                staging_dir.rename(cache_dest)
+            except Exception:
+                shutil.move(str(staging_dir), str(cache_dest))
+
+            return str(cache_dest)
+        except Exception as e:
+            _safe_rmtree_windows(staging_dir)
+            if cache_dest.exists() and marker_file.exists():
+                return str(cache_dest)
+            raise e
+
+
 LANGUAGE_MAP: Dict[str, str] = {
     ".py": "Python",
     ".pyi": "Python",
@@ -939,13 +1044,17 @@ def ingest_repository_sync(
             )
 
             if persist_cloned_dir:
-                # Retain cloned directory in a managed cache location for /api/analyze/from-ingest
-                cache_hold = Path(tempfile.gettempdir()) / "devlensx_ingest_cache" / f"{parsed.repo}_{commit_sha[:8]}"
-                if cache_hold.exists():
-                    shutil.rmtree(cache_hold, ignore_errors=True)
-                cache_hold.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copytree(temp_path, cache_hold)
-                cached_cloned_dir = str(cache_hold)
+                try:
+                    cached_cloned_dir = _publish_cached_clone(
+                        temp_path=temp_path,
+                        owner=parsed.owner,
+                        repo=parsed.repo,
+                        commit_sha=commit_sha,
+                    )
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning("Clone cache persist notice: %s", e)
+                    cached_cloned_dir = None
 
         finally:
             # Guarantee resilient cleanup of clone temporary directory across Windows read-only git locks

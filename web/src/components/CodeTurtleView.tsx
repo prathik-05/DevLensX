@@ -14,7 +14,7 @@ import type { ResolvedEvidence } from '../evidence';
 import { SourceViewer } from './SourceViewer';
 import { useAppStore } from '../store';
 import { useWorkspaceContext } from '../workspaceContext';
-import { reviewStreamReview, reviewCodeTurtle, getExecutionFlow } from '../apiClient';
+import { reviewStreamReview, reviewCodeTurtle, getExecutionFlow, fetchFileContent } from '../apiClient';
 
 // Module-level mermaid theme cache — avoids calling initialize() unnecessarily.
 let _turtleMermaidTheme: 'dark' | 'default' | null = null;
@@ -725,16 +725,30 @@ export const CodeTurtleView: React.FC = () => {
   const [executionFlow, setExecutionFlow] = useState<any | null>(null);
   const [activeFindings, setActiveFindings] = useState<any[]>([]);
 
-  // Build list of unique files from active repository classes
+  // Build list of unique files from active repository classes, graph nodes, and files
   const activeRepoFiles = React.useMemo(() => {
-    if (!analysisData?.classes) return [];
     const map = new Map<string, { path: string; status: string; additions: number; deletions: number; lang: string }>();
-    for (const c of analysisData.classes) {
+    for (const c of (analysisData?.classes || [])) {
       if (!c.file) continue;
-      const p = String(c.file).replace(/\\/g, '/');
+      const p = String(c.file).replace(/\\/g, '/').replace(/^\/+/, '');
       if (!map.has(p)) {
         const ext = p.split('.').pop()?.toUpperCase() || 'SRC';
         map.set(p, { path: p, status: 'M', additions: 15, deletions: 2, lang: ext });
+      }
+    }
+    for (const n of (analysisData?.knowledge_graph?.nodes || [])) {
+      if (!n.file) continue;
+      const p = String(n.file).replace(/\\/g, '/').replace(/^\/+/, '');
+      if (!map.has(p)) {
+        const ext = p.split('.').pop()?.toUpperCase() || 'SRC';
+        map.set(p, { path: p, status: 'M', additions: 10, deletions: 1, lang: ext });
+      }
+    }
+    for (const f of (analysisData?.files || [])) {
+      const p = String(typeof f === 'string' ? f : (f.path || f.file || '')).replace(/\\/g, '/').replace(/^\/+/, '');
+      if (p && !map.has(p)) {
+        const ext = p.split('.').pop()?.toUpperCase() || 'SRC';
+        map.set(p, { path: p, status: 'M', additions: 8, deletions: 0, lang: ext });
       }
     }
     return Array.from(map.values());
@@ -751,7 +765,7 @@ export const CodeTurtleView: React.FC = () => {
   }, [activeRepoFiles, selectedActiveFile]);
 
   useEffect(() => {
-    const effectiveRunId = analysisRunId || analysisId;
+    const effectiveRunId = (analysisRunId || analysisId) || undefined;
     if (effectiveRunId) {
       getExecutionFlow(effectiveRunId)
         .then(res => {
@@ -782,6 +796,7 @@ export const CodeTurtleView: React.FC = () => {
   // Live Editor & Code Review Assistant State
   const [viewMode, setViewMode] = useState<'review' | 'editor'>('editor');
   const [selectedScenario, setSelectedScenario] = useState<string>('angular-click-me');
+  const [activeInitialCode, setActiveInitialCode] = useState<string>('');
   const [editorCode, setEditorCode] = useState<string>(PRESET_SCENARIOS[0].initialCode);
   const [appliedFixSuccess, setAppliedFixSuccess] = useState<string | null>(null);
   const [isAnalyzingCode, setIsAnalyzingCode] = useState(false);
@@ -790,14 +805,43 @@ export const CodeTurtleView: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([
     {
       role: 'assistant',
-      text: 'Hello! I am Code Turtle (@codeturtleai), your AI-powered Senior Code Review Assistant. I have analyzed src/app/app-click-me.component.ts. I spotted 2 potential issues: missing type="button" (which defaults to submit in forms) and missing ChangeDetectionStrategy.OnPush. Review my findings below, click "Copy Suggestion" to copy proposals into your clipboard (DevLensX never modifies repository source directly), or ask me any questions!',
+      text: 'Hello! I am Code Turtle (@codeturtleai), your AI-powered Senior Code Review Assistant. Select an active file or demo scenario, review findings, or ask me architectural and regression risk questions!',
     },
   ]);
 
   const activeScenario = PRESET_SCENARIOS.find(s => s.id === selectedScenario) || PRESET_SCENARIOS[0];
-  const currentFindings = reviewSource === 'active' && activeFindings.length > 0
+  const currentFindings = reviewSource === 'active'
     ? activeFindings
     : (liveFindings[selectedScenario] || activeScenario.findings);
+
+  // Load real active repository file content when in active mode
+  useEffect(() => {
+    if (reviewSource === 'active') {
+      if (activeRepoFiles.length > 0) {
+        const fileToLoad = selectedActiveFile || activeRepoFiles[0].path;
+        const effectiveRunId = (analysisRunId || analysisId) || undefined;
+        fetchFileContent(fileToLoad, effectiveRunId)
+          .then(res => {
+            if (res && res.content) {
+              setEditorCode(res.content);
+              setActiveInitialCode(res.content);
+            } else if (res && res.lines && res.lines.length > 0) {
+              const joined = res.lines.join('\n');
+              setEditorCode(joined);
+              setActiveInitialCode(joined);
+            }
+          })
+          .catch(err => {
+            console.warn('Notice: active file content not found in snapshot:', err);
+          });
+      } else {
+        setEditorCode('');
+        setActiveInitialCode('');
+      }
+    } else {
+      setEditorCode(activeScenario.initialCode);
+    }
+  }, [reviewSource, selectedActiveFile, activeRepoFiles, analysisRunId, analysisId, activeScenario]);
 
   const handleSelectScenario = (id: string) => {
     setSelectedScenario(id);
@@ -828,7 +872,7 @@ export const CodeTurtleView: React.FC = () => {
   const triggerLiveCodeReview = async () => {
     setIsAnalyzingCode(true);
     try {
-      const effectiveRunId = analysisRunId || analysisId;
+      const effectiveRunId = (analysisRunId || analysisId) || undefined;
       const targetFileName = reviewSource === 'active'
         ? (selectedActiveFile || (activeRepoFiles[0]?.path) || 'RepositoryComponent')
         : activeScenario.fileName;
@@ -1397,30 +1441,53 @@ export const CodeTurtleView: React.FC = () => {
           )}
 
           {/* Editor & AI Review Dual Columns */}
+          {reviewSource === 'active' && activeRepoFiles.length === 0 ? (
+            <GlassPanel className="p-8 text-center space-y-3">
+              <FolderGit2 className="w-12 h-12 mx-auto text-sky-500 mb-2" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white font-mono">
+                No Cataloged Source Files for {activeRepoName || 'Active Repository'}
+              </h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto font-mono">
+                The active repository snapshot contains 0 indexed source files. Ingest or analyze the repository from the left sidebar to inspect AST code.
+              </p>
+              <div className="pt-2">
+                <button
+                  onClick={() => setReviewSource('demo')}
+                  className="px-4 py-2 rounded bg-amber-600 hover:bg-amber-500 text-white text-xs font-mono font-bold shadow-sm"
+                >
+                  Explore Sample Demo Scenarios Instead
+                </button>
+              </div>
+            </GlassPanel>
+          ) : (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
             {/* Left: Code Editor & Live Diff */}
             <div className="xl:col-span-6 space-y-3">
               <GlassPanel className="p-0 overflow-hidden">
                 {/* Editor Header Toolbar */}
                 <div className="flex items-center justify-between px-4 py-2.5 bg-slate-100 dark:bg-[#121319] border-b border-slate-200 dark:border-neutral-800 flex-wrap gap-2">
-                  <div className="flex items-center gap-2 font-mono text-xs">
-                    <FileCode className="w-4 h-4 text-slate-700 dark:text-slate-300" />
-                    <span className="font-bold text-slate-900 dark:text-white">
-                      {activeScenario.fileName}
+                  <div className="flex items-center gap-2 font-mono text-xs truncate">
+                    <FileCode className="w-4 h-4 text-sky-500 shrink-0" />
+                    <span className="font-bold text-slate-900 dark:text-white truncate">
+                      {reviewSource === 'active'
+                        ? (selectedActiveFile || (activeRepoFiles[0]?.path) || 'No File Selected')
+                        : activeScenario.fileName}
                     </span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-neutral-800 text-slate-700 dark:text-slate-300">
-                      {activeScenario.fileLang}
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-neutral-800 text-slate-700 dark:text-slate-300 font-bold shrink-0">
+                      {reviewSource === 'active'
+                        ? ((selectedActiveFile || activeRepoFiles[0]?.path || '').split('.').pop()?.toUpperCase() || 'SRC')
+                        : activeScenario.fileLang}
                     </span>
-                    <span className="text-[10px] text-slate-400">
-                      ({editorCode.split('\n').length} lines)
+                    <span className="text-[10px] text-slate-400 shrink-0">
+                      ({editorCode ? editorCode.split('\n').length : 0} lines)
                     </span>
                   </div>
 
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <button
                       onClick={triggerLiveCodeReview}
-                      disabled={isAnalyzingCode}
-                      className="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-mono font-semibold flex items-center gap-1 transition-all shadow-sm"
+                      disabled={isAnalyzingCode || (reviewSource === 'active' && activeRepoFiles.length === 0)}
+                      className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-md border border-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Run AST verification and senior review on editor code"
                     >
                       {isAnalyzingCode ? (
@@ -1438,8 +1505,8 @@ export const CodeTurtleView: React.FC = () => {
 
                     <button
                       onClick={() => {
-                        setEditorCode(activeScenario.initialCode);
-                        setAppliedFixSuccess('Reverted code buffer to initial PR state.');
+                        setEditorCode(reviewSource === 'active' ? activeInitialCode : activeScenario.initialCode);
+                        setAppliedFixSuccess('Reverted code buffer to initial baseline.');
                         setTimeout(() => setAppliedFixSuccess(null), 3000);
                       }}
                       className="px-2 py-1 rounded border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-700 text-slate-600 dark:text-slate-300 text-xs font-mono flex items-center gap-1"
@@ -1504,15 +1571,15 @@ export const CodeTurtleView: React.FC = () => {
                     <span>LIVE PR DIFF PREVIEW</span>
                   </span>
                   <span className="text-[11px] text-slate-400">
-                    {editorCode === activeScenario.initialCode ? 'No uncommitted local edits' : 'Modified from base'}
+                    {editorCode === (reviewSource === 'active' ? activeInitialCode : activeScenario.initialCode) ? 'No uncommitted local edits' : 'Modified from base'}
                   </span>
                 </div>
 
                 <div className="rounded border border-slate-200 dark:border-neutral-800 bg-slate-950 text-slate-200 font-mono text-xs p-3 overflow-x-auto max-h-56">
                   <div className="text-[11px] text-slate-500 mb-1 pb-1 border-b border-slate-800">
-                    --- a/{activeScenario.fileName}
+                    --- a/{reviewSource === 'active' ? (selectedActiveFile || activeRepoFiles[0]?.path || 'repository_file') : activeScenario.fileName}
                     <br />
-                    +++ b/{activeScenario.fileName}
+                    +++ b/{reviewSource === 'active' ? (selectedActiveFile || activeRepoFiles[0]?.path || 'repository_file') : activeScenario.fileName}
                   </div>
                   {currentFindings[0]?.diffSnippet ? (
                     <div>
@@ -1541,10 +1608,14 @@ export const CodeTurtleView: React.FC = () => {
                 <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-200 dark:border-neutral-800 pb-2.5">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                      {activeScenario.prTitle}
+                      {reviewSource === 'active'
+                        ? `Inspection: ${(selectedActiveFile || activeRepoFiles[0]?.path || '').split('/').pop() || (activeRepoName || 'Codebase')}`
+                        : `[DEMO] ${activeScenario.prTitle}`}
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-                      {activeScenario.description}
+                      {reviewSource === 'active'
+                        ? `AST-grounded code review for ${activeRepoName || 'active repository'} (${activeRepoFiles.length} cataloged files).`
+                        : `Demo scenario: ${activeScenario.description}`}
                     </p>
                   </div>
                   <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-slate-100 dark:bg-neutral-800 text-slate-800 dark:text-neutral-200 border border-slate-300 dark:border-neutral-700">
@@ -1612,6 +1683,15 @@ export const CodeTurtleView: React.FC = () => {
 
               {/* Review Findings Cards */}
               <div className="space-y-3">
+                {currentFindings.length === 0 && (
+                  <div className="p-6 text-center rounded border border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-[#121319] text-xs font-mono text-slate-500 space-y-1">
+                    <Sparkles className="w-5 h-5 mx-auto text-sky-500 mb-1.5" />
+                    <p className="font-bold text-slate-700 dark:text-slate-300">No Review Findings Yet</p>
+                    <p className="text-[11px] text-slate-500">
+                      Click <strong className="text-emerald-500 font-bold">"Run Senior AI Review"</strong> in the toolbar to inspect this file against AST rules.
+                    </p>
+                  </div>
+                )}
                 {currentFindings.filter(f => {
                   if (sevFilter !== 'ALL' && f.severity?.toUpperCase() !== sevFilter) return false;
                   if (catFilter !== 'ALL' && f.category !== catFilter) return false;
@@ -1848,6 +1928,7 @@ export const CodeTurtleView: React.FC = () => {
               </GlassPanel>
             </div>
           </div>
+          )}
         </div>
       )}
 
