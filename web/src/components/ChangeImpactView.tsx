@@ -5,45 +5,29 @@ import {
   CheckCircle2,
   FileCode,
   ListChecks,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  ShieldCheck,
+  FileDiff
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Badge } from './Badge';
 import { SourceViewer, useEvidenceResolver } from './SourceViewer';
-import { resolveEvidence } from '../apiClient';
-
-interface CascadeNode {
-  name: string;
-  stereotype: string;
-  file: string;
-  line?: number;
-  relation?: string;
-  isTest?: boolean;
-}
-
-interface CascadeImpactResult {
-  target: CascadeNode;
-  riskLevel: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
-  tier1Change: CascadeNode;
-  tier2DirectlyAffected: CascadeNode[];
-  tier3DependentComponents: CascadeNode[];
-  tier4PotentialImpact: {
-    apiContracts: string[];
-    dataAccess: string[];
-    transactionRisks: string[];
-  };
-  verificationChecklist: string[];
-  mermaidDiagram: string;
-}
+import { resolveEvidence, getWorkspaceImpact } from '../apiClient';
+import type { ImpactResult } from '../apiClient';
 
 export const ChangeImpactView: React.FC = () => {
   const data = useAppStore((s) => s.analysisData);
+  const analysisId = useAppStore((s) => s.analysisId);
   const [query, setQuery] = useState<string>('');
+  const [gitDiff, setGitDiff] = useState<string>('');
+  const [showDiffInput, setShowDiffInput] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
-  const [cascadeResult, setCascadeResult] = useState<CascadeImpactResult | null>(null);
+  const [impactResult, setImpactResult] = useState<ImpactResult | null>(null);
+  const [_error, setError] = useState<string | null>(null);
   const { evidence, setEvidence, loading: resolvingSource, setLoading: setResolvingSource } = useEvidenceResolver();
 
-  // Extract candidate components from AST / Knowledge Graph
+  // Extract candidate components/methods from AST / Knowledge Graph
   const candidateComponents = useMemo(() => {
     const nodes: any[] = data?.knowledge_graph?.nodes || [];
     const list: any[] = nodes.length > 0 ? nodes : ((data as any)?.classes || []);
@@ -62,163 +46,128 @@ export const ChangeImpactView: React.FC = () => {
     if (!sym || loading) return;
     if (targetName) setQuery(sym);
     setLoading(true);
-    setCascadeResult(null);
+    setError(null);
 
-    const nodes: any[] = data?.knowledge_graph?.nodes || [];
-    const edges: any[] = data?.knowledge_graph?.edges || [];
+    const effectiveRunId = analysisId || data?.analysis_run_id || 'latest';
 
-    // 1. Locate target component in repository model
-    const targetNode = nodes.find(
-      (n: any) =>
-        n.name === sym ||
-        n.id === sym ||
-        String(n.name || '').toLowerCase() === sym.toLowerCase()
-    );
+    try {
+      const res = await getWorkspaceImpact(effectiveRunId, sym, gitDiff.trim() || undefined);
+      setImpactResult(res);
+    } catch (err: any) {
+      console.warn('Backend impact call failed, attempting client-side fallback:', err);
+      // Fallback: build from in-memory knowledge graph if backend offline
+      const nodes: any[] = data?.knowledge_graph?.nodes || [];
+      const edges: any[] = data?.knowledge_graph?.edges || [];
 
-    const target: CascadeNode = {
-      name: targetNode?.name || sym,
-      stereotype: targetNode?.stereotype || targetNode?.kind || 'Component',
-      file: targetNode?.file || '',
-      line: targetNode?.line_start || 1,
-    };
+      const targetNode = nodes.find(
+        (n: any) =>
+          n.name === sym ||
+          n.id === sym ||
+          String(n.name || '').toLowerCase() === sym.toLowerCase()
+      );
 
-    // 2. Query direct incoming callers (Tier 2)
-    const directCallers: CascadeNode[] = [];
-    const directCallerIds = new Set<string>();
+      const targetNameResolved = targetNode?.name || sym;
+      const targetFile = targetNode?.file || '';
 
-    edges.forEach((e: any) => {
-      if (e.target === target.name || e.target === targetNode?.id) {
-        if (!directCallerIds.has(e.source)) {
-          directCallerIds.add(e.source);
-          const callerNode = nodes.find((n: any) => n.name === e.source || n.id === e.source);
-          directCallers.push({
-            name: callerNode?.name || e.source,
-            stereotype: callerNode?.stereotype || callerNode?.kind || 'Component',
-            file: callerNode?.file || '',
-            relation: e.relationship || 'CALLS',
-            isTest: (callerNode?.name || e.source).toLowerCase().includes('test'),
+      const direct: any[] = [];
+      const directSet = new Set<string>();
+      edges.forEach((e: any) => {
+        if (e.target === targetNameResolved || e.target === targetNode?.id) {
+          if (!directSet.has(e.source)) {
+            directSet.add(e.source);
+            direct.push({
+              symbol: e.source,
+              file: targetFile,
+              line_start: 1,
+              line_end: 20,
+              relation: e.relationship || 'CALLS',
+              confidence: 'INFERRED_CALL',
+            });
+          }
+        }
+      });
+
+      const transitive: any[] = [];
+      const transSet = new Set<string>();
+      edges.forEach((e: any) => {
+        if (directSet.has(e.target) && !directSet.has(e.source) && e.source !== targetNameResolved && !transSet.has(e.source)) {
+          transSet.add(e.source);
+          transitive.push({
+            symbol: e.source,
+            file: '',
+            relation: 'TRANSITIVE_CALL',
+            hop: 2,
+            path: [targetNameResolved, e.target, e.source],
           });
         }
-      }
-    });
-
-    // 3. Query 2nd-hop and 3rd-hop dependent components (Tier 3)
-    const dependentComponents: CascadeNode[] = [];
-    const dependentIds = new Set<string>();
-
-    edges.forEach((e: any) => {
-      if (
-        directCallerIds.has(e.target) &&
-        !directCallerIds.has(e.source) &&
-        e.source !== target.name &&
-        !dependentIds.has(e.source)
-      ) {
-        dependentIds.add(e.source);
-        const depNode = nodes.find((n: any) => n.name === e.source || n.id === e.source);
-        dependentComponents.push({
-          name: depNode?.name || e.source,
-          stereotype: depNode?.stereotype || depNode?.kind || 'Component',
-          file: depNode?.file || '',
-          relation: 'TRANSITIVE',
-          isTest: (depNode?.name || e.source).toLowerCase().includes('test'),
-        });
-      }
-    });
-
-    // Tier 4: Potential Architectural Impact Analysis
-    const allImpacted = [target, ...directCallers, ...dependentComponents];
-    const apiContracts = allImpacted
-      .filter((c) => c.stereotype.toLowerCase().includes('controller') || c.stereotype.toLowerCase().includes('endpoint'))
-      .map((c) => `${c.name} (REST API Boundary)`);
-
-    const dataAccess = allImpacted
-      .filter((c) => c.stereotype.toLowerCase().includes('repo') || c.stereotype.toLowerCase().includes('entity'))
-      .map((c) => `${c.name} (Persistent Schema Contract)`);
-
-    const transactionRisks = [];
-    if (dataAccess.length > 0) {
-      transactionRisks.push(`Modifications may break entity persistence or transactional rollback in ${dataAccess[0]}.`);
-    }
-    if (apiContracts.length > 0) {
-      transactionRisks.push(`Public HTTP response contract altered for clients consuming ${apiContracts[0]}.`);
-    }
-    if (allImpacted.some((c) => c.isTest)) {
-      transactionRisks.push(`Test harness regression: Unit/Integration suites depend directly on this implementation.`);
-    }
-
-    // Tier 5: Verification Checklist
-    const verificationChecklist: string[] = [
-      `Execute unit test suite for ${target.name} to verify input validation boundaries.`,
-    ];
-    directCallers.forEach((dc) => {
-      verificationChecklist.push(`Run regression tests on direct caller ${dc.name} [${dc.stereotype}].`);
-    });
-    if (apiContracts.length > 0) {
-      verificationChecklist.push(`Perform end-to-end HTTP contract validation for endpoints in ${apiContracts[0]}.`);
-    }
-    if (dataAccess.length > 0) {
-      verificationChecklist.push(`Verify database queries and schema constraints against ${dataAccess[0]}.`);
-    }
-
-    // Compute Risk Level
-    const totalAffected = directCallers.length + dependentComponents.length;
-    let riskLevel: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = 'LOW';
-    if (totalAffected >= 6 || (apiContracts.length > 0 && dataAccess.length > 0)) {
-      riskLevel = 'CRITICAL';
-    } else if (totalAffected >= 3 || apiContracts.length > 0) {
-      riskLevel = 'HIGH';
-    } else if (totalAffected >= 1) {
-      riskLevel = 'MEDIUM';
-    }
-
-    // Generate Mermaid Cascade Topology
-    let mermaid = `graph LR\n`;
-    mermaid += `  subgraph Tier1["1. CHANGE"]\n    T["${target.name}\\n(${target.stereotype})"]\n  end\n`;
-    if (directCallers.length > 0) {
-      mermaid += `  subgraph Tier2["2. DIRECTLY AFFECTED"]\n`;
-      directCallers.slice(0, 5).forEach((dc, i) => {
-        mermaid += `    DC${i}["${dc.name}"]\n`;
-        mermaid += `    DC${i} -->|${dc.relation || 'calls'}| T\n`;
       });
-      mermaid += `  end\n`;
-    }
-    if (dependentComponents.length > 0) {
-      mermaid += `  subgraph Tier3["3. DEPENDENT COMPONENTS"]\n`;
-      dependentComponents.slice(0, 5).forEach((dep, i) => {
-        mermaid += `    DEP${i}["${dep.name}"]\n`;
-        mermaid += `    DEP${i} -.->|transitive| DC0\n`;
-      });
-      mermaid += `  end\n`;
-    }
 
-    setCascadeResult({
-      target,
-      riskLevel,
-      tier1Change: target,
-      tier2DirectlyAffected: directCallers,
-      tier3DependentComponents: dependentComponents,
-      tier4PotentialImpact: {
-        apiContracts,
-        dataAccess,
-        transactionRisks,
-      },
-      verificationChecklist,
-      mermaidDiagram: mermaid,
-    });
-    setLoading(false);
+      const tests: any[] = [];
+      nodes.forEach((n: any) => {
+        const nName = n.name || n.id || '';
+        if (nName.toLowerCase().includes('test') && (nName.toLowerCase().includes(sym.toLowerCase()) || directSet.has(nName))) {
+          tests.push({
+            symbol: nName,
+            file: n.file || '',
+            relation: 'TESTS',
+            status: 'VERIFIED',
+          });
+        }
+      });
+
+      setImpactResult({
+        repository_id: data?.repository || 'repo',
+        analysis_run_id: effectiveRunId,
+        commit_hash: null,
+        target_symbol: targetNameResolved,
+        status: targetNode ? 'OK' : 'TARGET_NOT_FOUND',
+        risk_level: direct.length >= 4 ? 'HIGH' : direct.length >= 1 ? 'MEDIUM' : 'LOW',
+        direct: [{ symbol: targetNameResolved, file: targetFile, status: 'VERIFIED' }],
+        downstream: direct.map(d => ({ symbol: d.symbol, file: d.file, status: 'VERIFIED' })),
+        direct_callers: direct,
+        transitive_callers: transitive,
+        dependencies: [],
+        tests,
+        configs: [],
+        evidence_refs: [],
+        diagram: null,
+        potential_regressions: [
+          `Modifications to ${targetNameResolved} may alter behavior for ${direct.length} direct caller(s).`,
+          'Boundary condition checks and return value contracts must be maintained.'
+        ],
+        recommended_validations: [
+          `Execute unit tests covering ${targetNameResolved}.`,
+          'Validate edge conditions and callers across adjacent architectural boundaries.'
+        ],
+        coverage_limitations: [
+          'Client-side fallback: full AST call hierarchy requires active backend server.'
+        ],
+        execution_order_type: direct.length > 0 ? 'VERIFIED_CALL_ORDER' : 'INFERRED_ARCHITECTURE_ORDER',
+        risk_assessment: {
+          risk_level: direct.length >= 4 ? 'HIGH' : direct.length >= 1 ? 'MEDIUM' : 'LOW',
+          risk_score: direct.length * 10,
+          reasons: [`${direct.length} direct caller(s) depend on this symbol.`],
+          caller_count: direct.length,
+          transitive_count: transitive.length,
+          test_count: tests.length,
+        }
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleOpenSource = async (node: CascadeNode) => {
-    if (!node.file || resolvingSource) return;
+  const handleOpenSource = async (file: string, lineStart?: number, lineEnd?: number, symbol?: string) => {
+    if (!file || resolvingSource) return;
     setResolvingSource(true);
     try {
       const ref = {
         repository_id: data?.repository || 'repo',
         analysis_run_id: data?.analysis_run_id || 'run',
-        file_path: node.file,
-        line_start: node.line || 1,
-        line_end: (node.line || 1) + 20,
-        symbol_name: node.name,
+        file_path: file,
+        line_start: lineStart || 1,
+        line_end: lineEnd || (lineStart || 1) + 20,
+        symbol_name: symbol || query,
         evidence_type: 'AST' as const,
       };
       const resolved = await resolveEvidence(ref);
@@ -230,43 +179,63 @@ export const ChangeImpactView: React.FC = () => {
     }
   };
 
+  const targetSymbol = impactResult?.target_symbol || query;
+  const directCallers = impactResult?.direct_callers || [];
+  const transitiveCallers = impactResult?.transitive_callers || [];
+  const tests = impactResult?.tests || [];
+  const potentialRegressions = impactResult?.potential_regressions || [];
+  const recommendedValidations = impactResult?.recommended_validations || [];
+  const coverageLimitations = impactResult?.coverage_limitations || [];
+  const execOrderType = impactResult?.execution_order_type || 'VERIFIED_CALL_ORDER';
+  const riskLevel = impactResult?.risk_level || 'LOW';
+
   return (
     <div className="space-y-6 font-sans bg-white dark:bg-[#0a0a0f] text-black dark:text-[#f8fafc]">
       {/* Header */}
       <div className="border-b-2 border-black dark:border-slate-800 pb-4 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="flex items-center space-x-2 mb-1.5">
-            <span className="px-2.5 py-1 text-[11px] font-sans font-black bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 border-2 border-black dark:border-amber-500 uppercase tracking-wider shadow-[2px_2px_0px_0px_#000000]">
-              4-TIER BLAST RADIUS CASCADE
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+            <span className="px-2.5 py-0.5 text-[11px] font-mono font-bold bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 border border-black dark:border-amber-500 uppercase tracking-wider">
+              CHANGE IMPACT & BLAST RADIUS
             </span>
-            <span className="px-2.5 py-1 text-[11px] font-sans font-black bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300 border-2 border-black dark:border-emerald-500 uppercase tracking-wider shadow-[2px_2px_0px_0px_#000000]">
-              ● GRAPH REACHABILITY VERIFIED
-            </span>
+            {impactResult && (
+              <span
+                className={`px-2.5 py-0.5 text-[11px] font-mono font-bold border ${
+                  execOrderType === 'VERIFIED_CALL_ORDER'
+                    ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-600'
+                    : execOrderType === 'UNRESOLVED_RUNTIME_BEHAVIOR'
+                    ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 border-amber-600'
+                    : 'bg-sky-100 text-sky-900 dark:bg-sky-950/60 dark:text-sky-300 border-sky-600'
+                }`}
+              >
+                ● {execOrderType.replace(/_/g, ' ')}
+              </span>
+            )}
           </div>
           <h1 className="text-2xl font-black text-black dark:text-white flex items-center space-x-2 tracking-tight">
             <GitBranch className="w-6 h-6 text-[#0284c7]" />
-            <span>Change Impact & Blast Radius Cascade</span>
+            <span>Impact Analysis & Blast Radius Cascade</span>
           </h1>
           <p className="text-xs text-slate-700 dark:text-slate-300 font-medium mt-1">
-            Determine exact regression risk, upstream callers, architectural boundaries, and test verification requirements before modifying code.
+            Determine exact regression risks, callers, affected tests, and coverage limitations before modifying code.
           </p>
         </div>
 
-        {cascadeResult && (
+        {impactResult && (
           <div className="flex items-center space-x-2">
             <Badge
               variant={
-                cascadeResult.riskLevel === 'CRITICAL'
+                riskLevel === 'CRITICAL'
                   ? 'risk-high'
-                  : cascadeResult.riskLevel === 'HIGH'
+                  : riskLevel === 'HIGH'
                   ? 'risk-high'
-                  : cascadeResult.riskLevel === 'MEDIUM'
+                  : riskLevel === 'MEDIUM'
                   ? 'risk-medium'
                   : 'risk-low'
               }
               size="lg"
             >
-              {cascadeResult.riskLevel} REGRESSION RISK
+              {riskLevel} REGRESSION RISK
             </Badge>
           </div>
         )}
@@ -274,9 +243,19 @@ export const ChangeImpactView: React.FC = () => {
 
       {/* Target Selector & Query Bar */}
       <div className="p-4 bg-slate-50 dark:bg-[#12131a] border-2 border-black dark:border-slate-800 space-y-3 shadow-[3px_3px_0px_0px_#000000] dark:shadow-none">
-        <label className="text-xs font-black uppercase text-black dark:text-white block">
-          Select Target Component or Method to Analyze:
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-black uppercase text-black dark:text-white block">
+            Target Function, Class, or Method to Modify:
+          </label>
+          <button
+            onClick={() => setShowDiffInput(!showDiffInput)}
+            className="text-[11px] font-mono text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1"
+          >
+            <FileDiff className="w-3.5 h-3.5" />
+            <span>{showDiffInput ? 'Hide Git Diff' : 'Compare with Git Diff'}</span>
+          </button>
+        </div>
+
         <div className="flex flex-wrap gap-2">
           <input
             type="text"
@@ -285,7 +264,7 @@ export const ChangeImpactView: React.FC = () => {
             onKeyDown={(e) => {
               if (e.key === 'Enter') runAnalysis();
             }}
-            placeholder="e.g. OwnerController, PetRepository, UserService..."
+            placeholder="e.g. Board.isWinner, GameController, evaluateBoard, place_ship..."
             className="flex-1 px-3 py-2 text-xs font-mono border-2 border-black dark:border-slate-700 bg-white dark:bg-[#0c0e14] text-black dark:text-white outline-none"
           />
           <button
@@ -294,14 +273,30 @@ export const ChangeImpactView: React.FC = () => {
             className="px-5 py-2 bg-black dark:bg-sky-600 text-white font-mono text-xs font-black shadow-[2px_2px_0px_0px_#000000] dark:shadow-none hover:bg-neutral-800 dark:hover:bg-sky-500 disabled:opacity-50 transition-all flex items-center gap-1.5"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            <span>Calculate Cascade</span>
+            <span>Calculate Impact</span>
           </button>
         </div>
+
+        {/* Optional Git Diff Input */}
+        {showDiffInput && (
+          <div className="pt-2 space-y-1.5">
+            <span className="text-[10px] font-mono font-bold text-slate-500 uppercase block">
+              Paste Unified Diff to Analyze Signature & Line Breakages:
+            </span>
+            <textarea
+              value={gitDiff}
+              onChange={(e) => setGitDiff(e.target.value)}
+              placeholder="diff --git a/Board.java b/Board.java\n@@ -250,5 +250,5 @@\n- boolean isWinner()\n+ boolean isWinner(Player player)"
+              rows={4}
+              className="w-full p-2 text-xs font-mono border-2 border-black dark:border-slate-700 bg-white dark:bg-[#0c0e14] text-black dark:text-white outline-none"
+            />
+          </div>
+        )}
 
         {/* Quick Suggestion Chips */}
         {candidateComponents.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">Top Candidates:</span>
+            <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">Top Symbols:</span>
             {candidateComponents.map((c) => (
               <button
                 key={c.name}
@@ -315,59 +310,83 @@ export const ChangeImpactView: React.FC = () => {
         )}
       </div>
 
-      {/* 4-Tier Cascade Presentation */}
-      {cascadeResult && (
+      {/* Target Not Found Notice */}
+      {impactResult?.status === 'TARGET_NOT_FOUND' && (
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border-2 border-amber-500 text-amber-900 dark:text-amber-200 font-mono text-xs flex items-start gap-2">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0 text-amber-600 mt-0.5" />
+          <div>
+            <span className="font-bold block">Target '{targetSymbol}' Not Found</span>
+            <span>This symbol does not exist in the active repository snapshot. Verify spelling or choose from the Top Symbols chips above.</span>
+          </div>
+        </div>
+      )}
+
+      {/* Diff Analysis Card if active */}
+      {impactResult?.diff_analysis && (
+        <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border-2 border-blue-500 text-blue-900 dark:text-blue-200 font-mono text-xs space-y-1">
+          <div className="flex items-center gap-2">
+            <FileDiff className="w-4 h-4 text-blue-600" />
+            <span className="font-black uppercase">Git Diff Change Comparison:</span>
+          </div>
+          <p>{impactResult.diff_analysis.impact_summary}</p>
+          {impactResult.diff_analysis.signature_altered && (
+            <span className="text-rose-600 dark:text-rose-400 font-bold block">
+              ⚠ Method signature altered: direct callers may require signature parameter updates.
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* 4-Tier Presentation Grid */}
+      {impactResult && impactResult.status !== 'TARGET_NOT_FOUND' && (
         <div className="space-y-6">
-          {/* 4-Tier Grid */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* TIER 1: CHANGE */}
             <div className="border-2 border-black dark:border-sky-500 bg-white dark:bg-[#12131a] p-4 space-y-3 shadow-[3px_3px_0px_0px_#000000] dark:shadow-none">
               <div className="flex items-center justify-between border-b-2 border-black dark:border-slate-800 pb-2">
                 <span className="text-[11px] font-black uppercase text-sky-700 dark:text-sky-300">
-                  1. CHANGE
+                  1. CHANGE TARGET
                 </span>
                 <span className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-sky-100 dark:bg-sky-950 text-sky-900 dark:text-sky-300 border border-black dark:border-sky-600">
-                  TARGET
+                  PRIMARY
                 </span>
               </div>
               <div className="space-y-1">
                 <div className="text-sm font-black text-black dark:text-white truncate">
-                  {cascadeResult.tier1Change.name}
+                  {targetSymbol}
                 </div>
-                <div className="text-[11px] font-mono text-slate-600 dark:text-slate-400">
-                  [{cascadeResult.tier1Change.stereotype}]
-                </div>
+                {impactResult.direct?.[0]?.file && (
+                  <button
+                    onClick={() => handleOpenSource(impactResult.direct[0].file, 1, 30, targetSymbol)}
+                    className="text-[10px] font-mono text-[#0284c7] hover:underline flex items-center gap-1 truncate"
+                  >
+                    <FileCode className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate">{impactResult.direct[0].file}</span>
+                  </button>
+                )}
               </div>
-              {cascadeResult.tier1Change.file && (
-                <button
-                  onClick={() => handleOpenSource(cascadeResult.tier1Change)}
-                  className="text-[10px] font-mono text-[#0284c7] hover:underline flex items-center gap-1"
-                >
-                  <FileCode className="w-3 h-3" />
-                  <span className="truncate">{cascadeResult.tier1Change.file}</span>
-                </button>
-              )}
             </div>
 
-            {/* TIER 2: DIRECTLY AFFECTED */}
+            {/* TIER 2: DIRECT CALLERS */}
             <div className="border-2 border-black dark:border-amber-500 bg-white dark:bg-[#12131a] p-4 space-y-3 shadow-[3px_3px_0px_0px_#000000] dark:shadow-none">
               <div className="flex items-center justify-between border-b-2 border-black dark:border-slate-800 pb-2">
                 <span className="text-[11px] font-black uppercase text-amber-700 dark:text-amber-300">
-                  2. DIRECTLY AFFECTED
+                  2. DIRECT CALLERS
                 </span>
                 <span className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 border border-black dark:border-amber-600">
-                  {cascadeResult.tier2DirectlyAffected.length} CALLERS
+                  {directCallers.length} CALLS
                 </span>
               </div>
               <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                {cascadeResult.tier2DirectlyAffected.length > 0 ? (
-                  cascadeResult.tier2DirectlyAffected.map((dc, idx) => (
+                {directCallers.length > 0 ? (
+                  directCallers.map((dc, idx) => (
                     <div
                       key={idx}
-                      className="p-2 bg-slate-50 dark:bg-[#1a1c26] border border-black dark:border-slate-700 text-xs font-mono flex items-center justify-between"
+                      onClick={() => handleOpenSource(dc.file, dc.line_start, dc.line_end, dc.symbol)}
+                      className="p-2 bg-slate-50 dark:bg-[#1a1c26] border border-black dark:border-slate-700 text-xs font-mono flex items-center justify-between cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors"
                     >
-                      <span className="font-bold text-black dark:text-white truncate">{dc.name}</span>
-                      <span className="text-[9px] text-slate-500 uppercase">[{dc.relation}]</span>
+                      <span className="font-bold text-black dark:text-white truncate">{dc.symbol}</span>
+                      <span className="text-[9px] text-amber-700 dark:text-amber-300 font-bold uppercase">[{dc.relation}]</span>
                     </div>
                   ))
                 ) : (
@@ -376,25 +395,26 @@ export const ChangeImpactView: React.FC = () => {
               </div>
             </div>
 
-            {/* TIER 3: DEPENDENT COMPONENTS */}
+            {/* TIER 3: TRANSITIVE DOWNSTREAM */}
             <div className="border-2 border-black dark:border-purple-500 bg-white dark:bg-[#12131a] p-4 space-y-3 shadow-[3px_3px_0px_0px_#000000] dark:shadow-none">
               <div className="flex items-center justify-between border-b-2 border-black dark:border-slate-800 pb-2">
                 <span className="text-[11px] font-black uppercase text-purple-700 dark:text-purple-300">
-                  3. DEPENDENTS
+                  3. TRANSITIVE IMPACT
                 </span>
                 <span className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-purple-100 dark:bg-purple-950 text-purple-900 dark:text-purple-300 border border-black dark:border-purple-600">
-                  {cascadeResult.tier3DependentComponents.length} UPSTREAM
+                  {transitiveCallers.length} DOWNSTREAM
                 </span>
               </div>
               <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                {cascadeResult.tier3DependentComponents.length > 0 ? (
-                  cascadeResult.tier3DependentComponents.map((dep, idx) => (
+                {transitiveCallers.length > 0 ? (
+                  transitiveCallers.map((tc, idx) => (
                     <div
                       key={idx}
-                      className="p-2 bg-slate-50 dark:bg-[#1a1c26] border border-black dark:border-slate-700 text-xs font-mono flex items-center justify-between"
+                      onClick={() => handleOpenSource(tc.file, tc.line_start, tc.line_end, tc.symbol)}
+                      className="p-2 bg-slate-50 dark:bg-[#1a1c26] border border-black dark:border-slate-700 text-xs font-mono flex items-center justify-between cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-950/40 transition-colors"
                     >
-                      <span className="font-bold text-black dark:text-white truncate">{dep.name}</span>
-                      <span className="text-[9px] text-slate-500">[{dep.stereotype}]</span>
+                      <span className="font-bold text-black dark:text-white truncate">{tc.symbol}</span>
+                      <span className="text-[9px] text-purple-700 dark:text-purple-300 font-bold">Hop {tc.hop || 2}</span>
                     </div>
                   ))
                 ) : (
@@ -403,58 +423,93 @@ export const ChangeImpactView: React.FC = () => {
               </div>
             </div>
 
-            {/* TIER 4: POTENTIAL IMPACT */}
-            <div className="border-2 border-black dark:border-rose-500 bg-white dark:bg-[#12131a] p-4 space-y-3 shadow-[3px_3px_0px_0px_#000000] dark:shadow-none">
+            {/* TIER 4: RELEVANT TESTS */}
+            <div className="border-2 border-black dark:border-emerald-500 bg-white dark:bg-[#12131a] p-4 space-y-3 shadow-[3px_3px_0px_0px_#000000] dark:shadow-none">
               <div className="flex items-center justify-between border-b-2 border-black dark:border-slate-800 pb-2">
-                <span className="text-[11px] font-black uppercase text-rose-700 dark:text-rose-300">
-                  4. POTENTIAL IMPACT
+                <span className="text-[11px] font-black uppercase text-emerald-700 dark:text-emerald-300">
+                  4. TESTS TO RUN
                 </span>
-                <span className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-rose-100 dark:bg-rose-950 text-rose-900 dark:text-rose-300 border border-black dark:border-rose-600">
-                  BOUNDARIES
+                <span className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-300 border border-black dark:border-emerald-600">
+                  {tests.length} TEST SUITES
                 </span>
               </div>
-              <div className="space-y-2 text-xs font-mono">
-                {cascadeResult.tier4PotentialImpact.apiContracts.length > 0 && (
-                  <div className="p-2 bg-rose-50 dark:bg-rose-950/20 border border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200">
-                    <span className="font-black text-[10px] block uppercase">API Boundary Impact:</span>
-                    <span className="text-[11px]">{cascadeResult.tier4PotentialImpact.apiContracts[0]}</span>
-                  </div>
-                )}
-                {cascadeResult.tier4PotentialImpact.dataAccess.length > 0 && (
-                  <div className="p-2 bg-purple-50 dark:bg-purple-950/20 border border-purple-300 dark:border-purple-800 text-purple-900 dark:text-purple-200">
-                    <span className="font-black text-[10px] block uppercase">Database Boundary Impact:</span>
-                    <span className="text-[11px]">{cascadeResult.tier4PotentialImpact.dataAccess[0]}</span>
-                  </div>
-                )}
-                {cascadeResult.tier4PotentialImpact.transactionRisks.length === 0 && (
-                  <div className="text-xs text-slate-500 italic py-2">Isolated component change.</div>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {tests.length > 0 ? (
+                  tests.map((tc, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handleOpenSource(tc.file, tc.line_start, tc.line_end, tc.symbol)}
+                      className="p-2 bg-slate-50 dark:bg-[#1a1c26] border border-black dark:border-slate-700 text-xs font-mono flex items-center justify-between cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+                    >
+                      <span className="font-bold text-black dark:text-white truncate">{tc.symbol}</span>
+                      <span className="text-[9px] text-emerald-700 dark:text-emerald-300 font-bold uppercase">[TESTS]</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-xs text-slate-500 italic py-2">No tests specifically covering this symbol.</div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Verification Checklist (Grounded AI Reasoning) */}
-          <div className="border-2 border-black dark:border-slate-800 bg-white dark:bg-[#12131a] p-5 space-y-4 shadow-[3px_3px_0px_0px_#000000] dark:shadow-none">
-            <div className="flex items-center space-x-2 border-b-2 border-black dark:border-slate-800 pb-3">
-              <ListChecks className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              <h2 className="text-sm font-black uppercase text-black dark:text-white">
-                Grounded Verification & Testing Checklist
-              </h2>
+          {/* Potential Regressions & Recommended Validation */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Potential Regressions */}
+            <div className="border-2 border-black dark:border-slate-800 bg-white dark:bg-[#12131a] p-5 space-y-3 shadow-[3px_3px_0px_0px_#000000] dark:shadow-none">
+              <div className="flex items-center space-x-2 border-b-2 border-black dark:border-slate-800 pb-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                <h2 className="text-sm font-black uppercase text-black dark:text-white">
+                  Potential Regressions (Hypotheses to Validate)
+                </h2>
+              </div>
+              <div className="space-y-2 font-mono text-xs">
+                {potentialRegressions.map((reg, idx) => (
+                  <div
+                    key={idx}
+                    className="p-2.5 bg-slate-50 dark:bg-[#070b14] border border-black/20 dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                  >
+                    • {reg}
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="space-y-2 font-mono text-xs">
-              {cascadeResult.verificationChecklist.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-start space-x-2.5 p-2.5 bg-slate-50 dark:bg-[#070b14] border border-black/20 dark:border-slate-800"
-                >
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-900 dark:text-slate-100 font-medium leading-relaxed">
-                    {item}
-                  </span>
-                </div>
-              ))}
+
+            {/* Recommended Validation Checklist */}
+            <div className="border-2 border-black dark:border-slate-800 bg-white dark:bg-[#12131a] p-5 space-y-3 shadow-[3px_3px_0px_0px_#000000] dark:shadow-none">
+              <div className="flex items-center space-x-2 border-b-2 border-black dark:border-slate-800 pb-2">
+                <ListChecks className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <h2 className="text-sm font-black uppercase text-black dark:text-white">
+                  Recommended Validation Checklist
+                </h2>
+              </div>
+              <div className="space-y-2 font-mono text-xs">
+                {recommendedValidations.map((val, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-start space-x-2 p-2.5 bg-slate-50 dark:bg-[#070b14] border border-black/20 dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                    <span>{val}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
+
+          {/* Uncertainty Disclosure / Coverage Limitations */}
+          {coverageLimitations.length > 0 && (
+            <div className="border-2 border-black dark:border-amber-600 bg-amber-50/50 dark:bg-amber-950/20 p-4 space-y-2 font-mono text-xs">
+              <div className="flex items-center space-x-2 font-black text-amber-900 dark:text-amber-200 uppercase">
+                <ShieldCheck className="w-4 h-4 text-amber-600" />
+                <span>Honest Coverage Limitations & Uncertainty Disclosure</span>
+              </div>
+              <ul className="list-disc pl-5 space-y-1 text-slate-800 dark:text-slate-300">
+                {coverageLimitations.map((lim, idx) => (
+                  <li key={idx}>{lim}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Inline Source Viewer if active */}
           {evidence && (

@@ -178,9 +178,21 @@ def get_guided_tour(
 
 @router.get("/change-impact/{class_name}")
 @router.get("/change-impact")
-def get_change_impact(class_name: str = "OwnerController"):
+def get_change_impact(class_name: str = "OwnerController", analysis_run_id: Optional[str] = None):
     """Calculates blast-radius dependency callers for a component."""
     from devlensx.api.main import global_state
+
+    if analysis_run_id:
+        try:
+            from devlensx.impact.analyzer import ImpactAnalyzer
+            impact = ImpactAnalyzer.analyze(class_name, analysis_run_id)
+            d = impact.to_dict()
+            d["target_class"] = class_name
+            d["status"] = "success"
+            return d
+        except Exception:
+            pass
+
     graph_store = global_state.get("graph_store")
     callers = []
     if graph_store:

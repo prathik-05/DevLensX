@@ -38,6 +38,7 @@ class WorkspaceContextUpdate(BaseModel):
 class ImpactRequest(BaseModel):
     target_symbol: str
     repository_id: Optional[str] = None
+    git_diff: Optional[str] = None
 
 
 class BuildPlanRequest(BaseModel):
@@ -99,7 +100,7 @@ def get_change_impact(analysis_run_id: str, req: ImpactRequest):
         raise HTTPException(status_code=404, detail="Unknown analysis run")
     
     try:
-        impact = ImpactAnalyzer.analyze(req.target_symbol, analysis_run_id)
+        impact = ImpactAnalyzer.analyze(req.target_symbol, analysis_run_id, git_diff=req.git_diff)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     
@@ -120,6 +121,15 @@ def get_change_impact(analysis_run_id: str, req: ImpactRequest):
         "configs": impact.configs,
         "evidence_refs": impact.evidence_refs,
         "diagram": impact.diagram,
+        "direct_callers": impact.direct_callers,
+        "transitive_callers": impact.transitive_callers,
+        "dependencies": impact.dependencies,
+        "potential_regressions": impact.potential_regressions,
+        "recommended_validations": impact.recommended_validations,
+        "coverage_limitations": impact.coverage_limitations,
+        "execution_order_type": impact.execution_order_type,
+        "risk_assessment": impact.risk_assessment,
+        "diff_analysis": impact.diff_analysis,
     }
 
 

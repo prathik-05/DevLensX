@@ -1038,12 +1038,57 @@ export interface ImpactResult {
   analysis_run_id: string;
   commit_hash: string | null;
   target_symbol: string;
+  status?: string;
+  risk_level?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | string;
   direct: Array<{ symbol: string; file: string; status: string; evidence_ref?: any }>;
   downstream: Array<{ symbol: string; file: string; status: string }>;
-  tests: Array<{ symbol: string; file: string; status: string }>;
+  tests: Array<{ symbol: string; file: string; status: string; relation?: string; line_start?: number; line_end?: number }>;
   configs: any[];
   evidence_refs: any[];
   diagram: any;
+  direct_callers?: Array<{
+    symbol: string;
+    file: string;
+    line_start?: number;
+    line_end?: number;
+    relation: string;
+    confidence?: string;
+    citation?: string;
+  }>;
+  transitive_callers?: Array<{
+    symbol: string;
+    file: string;
+    line_start?: number;
+    line_end?: number;
+    relation: string;
+    hop?: number;
+    path?: string[];
+    confidence?: string;
+  }>;
+  dependencies?: Array<{
+    symbol: string;
+    file: string;
+    relation: string;
+    detail?: string;
+  }>;
+  potential_regressions?: string[];
+  recommended_validations?: string[];
+  coverage_limitations?: string[];
+  execution_order_type?: 'VERIFIED_CALL_ORDER' | 'INFERRED_ARCHITECTURE_ORDER' | 'UNRESOLVED_RUNTIME_BEHAVIOR' | string;
+  risk_assessment?: {
+    risk_level: string;
+    risk_score: number;
+    reasons: string[];
+    caller_count: number;
+    transitive_count: number;
+    test_count: number;
+  };
+  diff_analysis?: {
+    changed_in_diff: boolean;
+    signature_altered: boolean;
+    impact_summary: string;
+    affected_callers?: string[];
+  } | null;
 }
 
 export interface BuildPlanResult {
@@ -1173,12 +1218,13 @@ export async function updateWorkspaceContext(
 /** Calculate change impact for a target symbol. */
 export async function getWorkspaceImpact(
   analysisRunId: string,
-  targetSymbol: string
+  targetSymbol: string,
+  gitDiff?: string
 ): Promise<ImpactResult> {
   const res = await fetch(`${API_BASE}/api/workspace/${encodeURIComponent(analysisRunId)}/impact`, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ target_symbol: targetSymbol }),
+    body: JSON.stringify({ target_symbol: targetSymbol, git_diff: gitDiff }),
   });
   if (!res.ok) {
     const body = await res.text();

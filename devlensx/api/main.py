@@ -845,7 +845,7 @@ def classify_planner_intent(req: PlannerClassifyRequest):
 
 @app.get("/api/change-impact/{class_name:path}")
 @app.get("/api/change-impact")
-def get_change_impact(class_name: str = "OwnerController"):
+def get_change_impact(class_name: str = "OwnerController", analysis_run_id: Optional[str] = None):
     """Calculates blast-radius dependency callers for a component with path traversal sanitization."""
     from devlensx.core.security import is_safe_path
     
@@ -853,6 +853,17 @@ def get_change_impact(class_name: str = "OwnerController"):
     clean_name = Path(class_name.replace("..", "").replace("/", "").replace("\\", "")).name
     if not clean_name:
         clean_name = "OwnerController"
+
+    if analysis_run_id:
+        try:
+            from devlensx.impact.analyzer import ImpactAnalyzer
+            impact = ImpactAnalyzer.analyze(clean_name, analysis_run_id)
+            d = impact.to_dict()
+            d["target_class"] = clean_name
+            d["status"] = "success"
+            return d
+        except Exception:
+            pass
 
     graph_store = global_state.get("graph_store")
     callers = []
