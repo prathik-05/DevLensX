@@ -488,4 +488,13 @@ class CriticAgent:
     def verify_all(self, findings: List[Dict[str, Any]], repo_model: Dict[str, Any]) -> List[Dict[str, Any]]:
         if not findings:
             return []
-        return [self.verify_finding(f, repo_model) for f in findings if isinstance(f, dict)]
+        deduped = []
+        seen = set()
+        for f in findings:
+            if not isinstance(f, dict):
+                continue
+            key = (f.get("category"), f.get("title"), f.get("class_name"), f.get("file"))
+            if key not in seen:
+                seen.add(key)
+                deduped.append(f)
+        return [self.verify_finding(f, repo_model) for f in deduped]

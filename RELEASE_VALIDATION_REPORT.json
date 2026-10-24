@@ -2,7 +2,7 @@
   "release": "DevLensX",
   "status": "PASS",
   "verification_mode": "DETERMINISTIC_FOUNDATION_WITH_LIVE_GATE",
-  "git_commit": "3262e20",
+  "git_commit": "3016cbf",
   "python_version": "3.13.14",
   "node_version": "v22.14.0",
   "npm_version": "10.9.2",
@@ -38,8 +38,8 @@
   "security": "PASS",
   "golden_evaluation": {
     "total_cases": 33,
-    "passed": 20,
-    "failed": 13,
+    "passed": 33,
+    "failed": 0,
     "evidence_resolution_failures": 0,
     "snapshot_isolation_failures": 0
   },

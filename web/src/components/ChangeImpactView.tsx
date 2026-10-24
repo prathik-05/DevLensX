@@ -32,12 +32,19 @@ export const ChangeImpactView: React.FC = () => {
     const nodes: any[] = data?.knowledge_graph?.nodes || [];
     const list: any[] = nodes.length > 0 ? nodes : ((data as any)?.classes || []);
     return list
-      .map((c: any) => ({
-        name: c.name || c.id,
-        stereotype: c.stereotype || c.kind || 'Component',
-        file: c.file || '',
-      }))
-      .filter((c: any) => c.name && !c.name.includes('$') && !c.name.includes('Test'))
+      .map((c: any) => {
+        let cleanName = String(c.name || c.id || '').trim();
+        // Strip trailing signatures, braces, throws, and cutoffs
+        cleanName = cleanName.replace(/\(.*?\)/g, '').replace(/\{/g, '').replace(/\bthrows\b.*/i, '').trim();
+        cleanName = cleanName.replace(/\s*(?:thr|throw|thro)$/i, '').trim();
+        return {
+          name: cleanName,
+          stereotype: c.stereotype || c.kind || 'Component',
+          file: c.file || '',
+        };
+      })
+      .filter((c: any) => c.name && !c.name.includes('$') && !c.name.includes('Test') && c.name.length > 1)
+      .filter((c: any, index: number, arr: any[]) => arr.findIndex(x => x.name === c.name) === index)
       .slice(0, 10);
   }, [data]);
 

@@ -33,26 +33,55 @@ class SourceReader:
     # ------------------------------------------------------------------
     def _safe_target(self, rel_path: str) -> Optional[Path]:
         """Resolves a repo-relative path, refusing any escape from the root."""
-        if not rel_path or not rel_path.strip() or "\x00" in rel_path:
+        if not rel_path or not str(rel_path).strip() or "\x00" in str(rel_path):
             return None
-        # Block absolute paths (Unix-style) BEFORE normalization
-        if rel_path.startswith("/"):
-            return None
-        # Block Windows absolute paths
-        if len(rel_path) >= 2 and rel_path[1] == ":":
-            return None
-        normalized = rel_path.replace("\\", "/").lstrip("/")
-        # Block Windows absolute paths (drive letter after normalization)
-        if len(normalized) >= 2 and normalized[1] == ":":
-            return None
-        # Block traversal
+
+        # Check if already an absolute path strictly within repo_root
+        try:
+            cand = Path(rel_path).resolve()
+            if cand.is_file():
+                try:
+                    cand.relative_to(self.repo_root)
+                    return cand
+                except ValueError:
+                    pass
+        except Exception:
+            pass
+
+        normalized = str(rel_path).replace("\\", "/").strip()
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+        while normalized.startswith("/"):
+            normalized = normalized[1:]
+
+        # Block traversal escapes
         if any(part in ("..",) for part in normalized.split("/")):
             return None
+
         target = (self.repo_root / normalized).resolve()
         try:
             target.relative_to(self.repo_root)
         except ValueError:
             return None
+
+        if target.exists() and target.is_file():
+            return target
+
+        # Fallback: search by filename within repo_root for short/partial references
+        try:
+            fname = Path(normalized).name
+            if fname:
+                matches = list(self.repo_root.glob(f"**/{fname}"))
+                for m in matches:
+                    if m.is_file():
+                        try:
+                            m.relative_to(self.repo_root)
+                            return m
+                        except ValueError:
+                            continue
+        except Exception:
+            pass
+
         return target
 
     # ------------------------------------------------------------------

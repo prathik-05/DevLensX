@@ -58,14 +58,19 @@ class ArchitectureAgent:
                     if isinstance(c, dict) and c.get("name")}
 
         god_classes = []
+        seen_god = set()
         for c in repo_model.get("classes", []):
             if not isinstance(c, dict) or not c.get("name"):
                 continue
-            n_methods = len(prod_methods(_method_index, c["name"])) if _method_index \
+            name = c["name"]
+            if name in seen_god:
+                continue
+            n_methods = len(prod_methods(_method_index, name)) if _method_index \
                 else len(c.get("methods", []) or [])
             if n_methods > 15:
+                seen_god.add(name)
                 god_classes.append({
-                    "class_name": c["name"],
+                    "class_name": name,
                     "file": c.get("file", ""),
                     "method_count": n_methods,
                     "stereotype": c.get("stereotype", "")
@@ -108,9 +113,17 @@ class ArchitectureAgent:
                     }
                 })
 
+        deduped_findings = []
+        seen_f = set()
+        for f in findings:
+            key = (f.get("category"), f.get("title"), f.get("class_name"), f.get("file"))
+            if key not in seen_f:
+                seen_f.add(key)
+                deduped_findings.append(f)
+
         return {
             "layer_flows": layer_flows,
             "dependency_chains": dependency_chains,
             "god_classes": god_classes,
-            "findings": findings
+            "findings": deduped_findings
         }

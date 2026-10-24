@@ -909,8 +909,9 @@ class EngineeringDecisionRequest(BaseModel):
 # POST-P2: AI Explorer & Architecture Explanation Endpoints
 # ==============================================================================
 class ExplorerExplainRequest(BaseModel):
-    symbol: str
-    action: str = "what_does_this_do"
+    symbol: Optional[str] = None
+    symbol_name_or_file: Optional[str] = None
+    action: Optional[str] = "what_does_this_do"
     analysis_run_id: Optional[str] = None
 
 @app.post("/api/explorer/explain")
@@ -919,6 +920,7 @@ def explain_explorer_symbol(req: ExplorerExplainRequest):
     from devlensx.reasoning.engine import RepositoryReasoningEngine
     reasoner = RepositoryReasoningEngine()
 
+    target_symbol = req.symbol_name_or_file or req.symbol or ""
     model = None
     graph_store = None
     if req.analysis_run_id:
@@ -932,14 +934,17 @@ def explain_explorer_symbol(req: ExplorerExplainRequest):
     graph_store = global_state.get("graph_store")
 
     result = reasoner.explain_symbol(
-        symbol_name_or_file=req.symbol,
-        action=req.action,
+        symbol_name_or_file=target_symbol,
+        action=req.action or "what_does_this_do",
         repo_model=model,
         graph_store=graph_store
     )
     return {
+        "status": "success",
         "symbol": result.symbol_name,
+        "symbol_name": result.symbol_name,
         "file": result.file_path,
+        "file_path": result.file_path,
         "line_start": result.line_start,
         "line_end": result.line_end,
         "stereotype": result.stereotype,
@@ -948,8 +953,10 @@ def explain_explorer_symbol(req: ExplorerExplainRequest):
         "incoming_callers": result.incoming_callers,
         "outgoing_dependencies": result.outgoing_dependencies,
         "blast_radius": result.blast_radius,
+        "source_snippet": result.source_snippet,
         "citations": result.citations,
-        "verdict": result.verdict
+        "verdict": result.verdict,
+        "methods": getattr(result, "methods", [])
     }
 
 @app.get("/api/architecture/explain")
@@ -1524,44 +1531,7 @@ def trace_root_cause(req: TraceDebugRequest):
 # ==============================================================================
 # AI Repository Reasoning: Explorer & Architecture Explanation Endpoints
 # ==============================================================================
-class ExplorerExplainRequest(BaseModel):
-    symbol_name_or_file: str
-    action: Optional[str] = "what_does_this_do"
-    analysis_run_id: Optional[str] = None
-
-@app.post("/api/explorer/explain")
-def explain_explorer_symbol(req: ExplorerExplainRequest):
-    """Answers AI developer questions on files/symbols with AST, Kuzu relations, and citations."""
-    from devlensx.reasoning.engine import RepositoryReasoningEngine
-    intelligence = global_state.get("repository_intelligence")
-    repo_model = intelligence.model if intelligence else global_state.get("repo_model") or {}
-    graph_store = intelligence.graph_store if intelligence else global_state.get("graph_store")
-
-    engine = RepositoryReasoningEngine()
-    result = engine.explain_symbol(
-        symbol_name_or_file=req.symbol_name_or_file,
-        action=req.action or "what_does_this_do",
-        repo_model=repo_model,
-        graph_store=graph_store
-    )
-    return {
-        "status": "success",
-        "symbol_name": result.symbol_name,
-        "file_path": result.file_path,
-        "line_start": result.line_start,
-        "line_end": result.line_end,
-        "stereotype": result.stereotype,
-        "action": result.action,
-        "explanation": result.explanation,
-        "incoming_callers": result.incoming_callers,
-        "outgoing_dependencies": result.outgoing_dependencies,
-        "blast_radius": result.blast_radius,
-        "source_snippet": result.source_snippet,
-        "citations": result.citations,
-        "verdict": result.verdict,
-        "methods": getattr(result, "methods", [])
-    }
-
+# Architecture explanation endpoint
 @app.get("/api/architecture/explain")
 def explain_architecture_endpoint(analysis_run_id: Optional[str] = None):
     """Provides grounded AI architectural reasoning and layer explanations."""

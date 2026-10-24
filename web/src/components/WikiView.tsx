@@ -475,7 +475,7 @@ const SectionView: React.FC<SectionViewProps> = ({ section, idx, pagesSummary, p
                     <ArrowRight className="w-3 h-3 text-slate-400" />
                     <span className="font-bold text-slate-900 dark:text-white">{cl.object}</span>
                     {cl.evidence_source && (
-                      <span className="ml-auto text-[10px] text-slate-500 truncate max-w-xs" title={cl.evidence_source}>
+                      <span className="ml-auto text-[10px] text-slate-500 font-mono flex-shrink-0" title={cl.evidence_source}>
                         📍 {cl.evidence_source}
                       </span>
                     )}
@@ -1036,7 +1036,7 @@ export const WikiView: React.FC = () => {
                           <div className="pt-1.5 border-t border-gray-800 space-y-1">
                             <div className="text-[10px] text-[var(--dl-text-muted)]">CITATIONS:</div>
                             {h.citations.map((c, ci) => (
-                              <div key={ci} className="text-[10px] text-zinc-900 dark:text-zinc-100 font-mono truncate">
+                              <div key={ci} className="text-[10px] text-zinc-900 dark:text-zinc-100 font-mono break-all">
                                 🔗 {c}
                               </div>
                             ))}

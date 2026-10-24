@@ -60,13 +60,24 @@ const renderAssistantMessage = (content: string) => {
   let codeBuffer: string[] = [];
 
   const formatInline = (text: string) => {
-    const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+    const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]*\))/g);
     return parts.map((part, idx) => {
       if (part.startsWith('`') && part.endsWith('`')) {
-        return <code key={idx} className="px-1 py-0.5 bg-neutral-100 dark:bg-zinc-800 rounded font-mono text-[11px] text-zinc-800 dark:text-zinc-200">{part.slice(1, -1)}</code>;
+        let codeText = part.slice(1, -1);
+        codeText = codeText.replace(/\s*(?:thr|throw|thro)$/i, '').trim();
+        return <code key={idx} className="px-1.5 py-0.5 bg-neutral-100 dark:bg-zinc-800 rounded font-mono text-[11px] text-zinc-800 dark:text-zinc-200">{codeText}</code>;
       }
       if (part.startsWith('**') && part.endsWith('**')) {
         return <strong key={idx} className="font-semibold text-neutral-900 dark:text-white">{part.slice(2, -2)}</strong>;
+      }
+      const linkMatch = part.match(/^\[(.*?)\]\((.*?)\)$/);
+      if (linkMatch) {
+        const label = linkMatch[1];
+        return (
+          <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded font-mono text-[10px] bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800">
+            📍 {label}
+          </span>
+        );
       }
       return part;
     });
@@ -270,43 +281,43 @@ export const AIAssistantView: React.FC = () => {
           </div>
 
           {/* Tab Selection */}
-          <div className="flex flex-wrap gap-1 p-1 border border-black/20 dark:border-zinc-800 bg-neutral-100 dark:bg-[#18191f] rounded-sm">
+          <div className="flex flex-wrap gap-1.5 p-1.5 border border-black/20 dark:border-zinc-800 bg-neutral-100 dark:bg-[#18191f] rounded">
             <button
               onClick={() => setActiveTab('ask')}
-              className={`px-3 py-1.5 text-xs font-bold uppercase transition-all rounded-sm ${
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-all rounded ${
                 activeTab === 'ask'
-                  ? 'bg-black text-white dark:bg-zinc-800 dark:text-zinc-100 shadow-sm border border-black dark:border-zinc-700'
-                  : 'bg-white text-black dark:bg-[#121316] dark:text-zinc-400 hover:bg-neutral-200 dark:hover:bg-zinc-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm border border-blue-500'
+                  : 'bg-white text-black dark:bg-[#121316] dark:text-zinc-300 border border-neutral-200 dark:border-zinc-700 hover:border-blue-400'
               }`}
             >
               Ask Repository
             </button>
             <button
               onClick={() => setActiveTab('where-to-edit')}
-              className={`px-3 py-1.5 text-xs font-bold uppercase transition-all rounded-sm ${
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-all rounded ${
                 activeTab === 'where-to-edit'
-                  ? 'bg-black text-white dark:bg-zinc-800 dark:text-zinc-100 shadow-sm border border-black dark:border-zinc-700'
-                  : 'bg-white text-black dark:bg-[#121316] dark:text-zinc-400 hover:bg-neutral-200 dark:hover:bg-zinc-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm border border-blue-500'
+                  : 'bg-white text-black dark:bg-[#121316] dark:text-zinc-300 border border-neutral-200 dark:border-zinc-700 hover:border-blue-400'
               }`}
             >
               Where Should I Edit?
             </button>
             <button
               onClick={() => setActiveTab('explain')}
-              className={`px-3 py-1.5 text-xs font-bold uppercase transition-all rounded-sm ${
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-all rounded ${
                 activeTab === 'explain'
-                  ? 'bg-black text-white dark:bg-zinc-800 dark:text-zinc-100 shadow-sm border border-black dark:border-zinc-700'
-                  : 'bg-white text-black dark:bg-[#121316] dark:text-zinc-400 hover:bg-neutral-200 dark:hover:bg-zinc-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm border border-blue-500'
+                  : 'bg-white text-black dark:bg-[#121316] dark:text-zinc-300 border border-neutral-200 dark:border-zinc-700 hover:border-blue-400'
               }`}
             >
               Explain Concepts
             </button>
             <button
               onClick={() => setActiveTab('blast-radius')}
-              className={`px-3 py-1.5 text-xs font-bold uppercase transition-all rounded-sm ${
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-all rounded ${
                 activeTab === 'blast-radius'
-                  ? 'bg-black text-white dark:bg-zinc-800 dark:text-zinc-100 shadow-sm border border-black dark:border-zinc-700'
-                  : 'bg-white text-black dark:bg-[#121316] dark:text-zinc-400 hover:bg-neutral-200 dark:hover:bg-zinc-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm border border-blue-500'
+                  : 'bg-white text-black dark:bg-[#121316] dark:text-zinc-300 border border-neutral-200 dark:border-zinc-700 hover:border-blue-400'
               }`}
             >
               Change Impact

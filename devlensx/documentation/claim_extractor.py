@@ -16,7 +16,13 @@ class ClaimExtractor:
 
     # Matches factual assertions: "X calls Y", "X depends on Y", "X uses Y", "X extends Y", "X handles Y"
     CLAIM_PATTERN = re.compile(
-        r'([A-Za-z0-9_]+)\s+(calls|depends on|depends_on|uses|injects|extends|implements|routes to|routes_to|delegates to|delegates_to|persists|manages)\s+([A-Za-z0-9_]+)',
+        r'[`"]?([A-Za-z0-9_]+)[`"]?\s+(calls|depends on|depends_on|uses|injects|extends|implements|routes to|routes_to|delegates to|delegates_to|persists|manages|provides|imports|has structure|has_structure|architecture|layer)\s+[`"]?([A-Za-z0-9_./@-]+)[`"]?',
+        re.IGNORECASE
+    )
+
+    # Matches definition and location assertions: "X is defined in Y", "X defined in Y", "X located in Y"
+    DEFINITION_PATTERN = re.compile(
+        r'[`"]?([A-Za-z0-9_]+)[`"]?\s+(?:is\s+)?(defined in|defined_in|located in)\s+[`"]?([A-Za-z0-9_./@-]+)[`"]?',
         re.IGNORECASE
     )
 
@@ -33,9 +39,14 @@ class ClaimExtractor:
         if not text:
             return claims
 
+        # Strip markdown formatting markers so regex matches clean tokens
+        clean_text = re.sub(r'[*`"]', '', text)
+
         # 1. Structural / Relationship assertions
-        matches = cls.CLAIM_PATTERN.findall(text)
+        matches = cls.CLAIM_PATTERN.findall(clean_text)
         for sub, pred, obj in matches:
+            if sub.lower() in ("is", "the", "this", "that", "it"):
+                continue
             c_type = "structural"
             pred_norm = pred.lower()
             if pred_norm in ("calls", "injects", "delegates to"):
@@ -44,13 +55,30 @@ class ClaimExtractor:
                 c_type = "inheritance"
             elif pred_norm in ("routes to", "manages"):
                 c_type = "endpoint"
+            elif pred_norm in ("layer", "architecture"):
+                c_type = "architecture"
+            elif pred_norm in ("provides", "has structure", "has_structure"):
+                c_type = "structure"
 
             claims.append(AtomicClaim(
                 subject=sub.strip(),
                 predicate=pred_norm,
-                object=obj.strip(),
+                object=obj.strip().rstrip(".,;:)'\""),
                 claim_type=c_type,
                 verdict=ClaimVerdict.UNSUPPORTED,  # Unverified candidate
+            ))
+
+        # 2. Definition assertions
+        def_matches = cls.DEFINITION_PATTERN.findall(clean_text)
+        for sub, pred, obj in def_matches:
+            if sub.lower() in ("is", "the", "this", "that", "it"):
+                continue
+            claims.append(AtomicClaim(
+                subject=sub.strip(),
+                predicate="defined in",
+                object=obj.strip().rstrip(".,;:)'\""),
+                claim_type="definition",
+                verdict=ClaimVerdict.UNSUPPORTED,
             ))
 
         # 2. Recommendation / Suggestion assertions
