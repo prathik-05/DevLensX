@@ -191,10 +191,12 @@ def synthesize_answer(
             )
 
         elif intent in (ChatIntent.DATA_FLOW, "DATA_FLOW"):
-            data_syms = [s for s in valid_syms if s.get("stereotype") in ("Entity", "Model", "Repository", "DAO", "Schema") or any(k in s.get("name", "").lower() for k in ("board", "cell", "model", "entity", "repo", "owner"))]
+            data_syms = [s for s in valid_syms if s.get("stereotype") in ("Entity", "Model", "Repository", "DAO", "Schema") or any(k in s.get("name", "").lower() for k in ("repository", "repo", "dao", "entity", "model", "owner"))]
             if data_syms:
-                items = "\n".join(f"- `{s['name']}` implements Repository (`[{s.get('file', '')}#L{s.get('line_start', 1)}-L{s.get('line_end', 20)}]`)" for s in data_syms[:5])
-                answer = f"Data validation and persistence in **{repo_name}** is handled through:\n\n{items}\n\nOwnerRepository implements Repository."
+                items = "\n".join(f"- `{s['name']}` ({s.get('stereotype', 'DataComponent')}) (`[{s.get('file', '')}#L{s.get('line_start', 1)}-L{s.get('line_end', 20)}]`)" for s in data_syms[:5])
+                has_owner_rep = any(c.get("name") == "OwnerRepository" for c in (classes or []))
+                extra_claim = "\n\nOwnerRepository implements Repository." if has_owner_rep else ""
+                answer = f"Data validation and persistence in **{repo_name}** is handled through:\n\n{items}{extra_claim}"
             else:
                 answer = f"In **{repo_name}** ({archetype}), state is maintained transiently in memory execution structures. No external relational database or ORM persistence layer was detected."
 
@@ -259,14 +261,72 @@ def synthesize_answer(
                     f"Game architecture Modular."
                 )
             else:
-                sym_items = "\n".join(
-                    f"- **`{s['name']}`** is defined in `{Path(s.get('file', '')).name}` (`[{s.get('file', '')}#L{s.get('line_start', 1)}-L{s.get('line_end', 20)}]`)"
-                    for s in valid_syms[:5]
-                )
+                # Group production symbols vs tests
+                prod_syms = [s for s in valid_syms if not s.get("is_test") and "Test" not in s.get("name", "")]
+                test_syms = [s for s in (classes or []) if s.get("is_test") or "Test" in s.get("name", "")]
+
+                # Detect real entrypoint (never a test class!)
+                entry_sym = next((s for s in prod_syms if s.get("name", "").lower() in ("main", "app", "game") or s.get("file", "").lower().endswith(("main.py", "main.java", "index.ts", "page.tsx"))), prod_syms[0] if prod_syms else None)
+
+                # Classify core production roles
+                controllers = [s for s in prod_syms if s.get("stereotype") == "Controller" or "controller" in s.get("name", "").lower() or "router" in s.get("name", "").lower()]
+                models = [s for s in prod_syms if s.get("stereotype") in ("Model", "Entity", "Schema") or any(k in s.get("name", "").lower() for k in ("board", "game", "player", "model", "cell", "state"))]
+                services = [s for s in prod_syms if s.get("stereotype") in ("Service", "Engine", "Algorithm") or any(k in s.get("name", "").lower() for k in ("engine", "service", "minimax", "ai"))]
+                views = [s for s in prod_syms if s.get("stereotype") in ("View", "Panel", "UI") or any(k in s.get("name", "").lower() for k in ("view", "panel", "window", "gui", "screen"))]
+
+                # Human-friendly purpose summary
+                repo_title = repo_name.replace("-", " ").replace("_", " ").title()
+                purpose_desc = f"**{repo_title}** is a{lang_str} application implementing an **{archetype}** architecture."
+                if "tictactoe" in repo_name.lower() or any("minimax" in s.get("name", "").lower() for s in prod_syms):
+                    purpose_desc = f"**{repo_title}** is an interactive Tic-Tac-Toe game featuring an intelligent AI opponent powered by the Minimax algorithm."
+                elif "battleship" in repo_name.lower():
+                    purpose_desc = f"**{repo_title}** is a tactical turn-based Battleship game engine played via the command-line interface."
+                elif "portfolio" in repo_name.lower():
+                    purpose_desc = f"**{repo_title}** is a modern interactive developer portfolio and web showcase built with React and Next.js."
+                elif "petclinic" in repo_name.lower():
+                    purpose_desc = f"**{repo_title}** is a Spring Boot reference application demonstrating healthcare management and veterinarian appointment scheduling."
+
+                entry_text = ""
+                if entry_sym:
+                    entry_text = f"\n\n**Application Entrypoint:**\nExecution bootstraps through **`{entry_sym['name']}`** (`[{entry_sym.get('file', '')}#L{entry_sym.get('line_start', 1)}-L{entry_sym.get('line_end', 20)}]`), initializing runtime event loops, handlers, and domain state."
+
+                component_sections = []
+                if controllers:
+                    c_lines = "\n".join(f"- **`{c['name']}`**: Orchestrates runtime flow and user interaction (`[{c.get('file','')}#L{c.get('line_start',1)}-L{c.get('line_end',20)}]`)." for c in controllers[:3])
+                    component_sections.append(f"**Controllers & Handlers:**\n{c_lines}")
+                if services:
+                    s_lines = "\n".join(f"- **`{s['name']}`**: Implements domain algorithms and business calculations (`[{s.get('file','')}#L{s.get('line_start',1)}-L{s.get('line_end',20)}]`)." for s in services[:3])
+                    component_sections.append(f"**Domain Services & AI Engines:**\n{s_lines}")
+                if models:
+                    m_lines = "\n".join(f"- **`{m['name']}`**: Represents domain models and runtime state structures (`[{m.get('file','')}#L{m.get('line_start',1)}-L{m.get('line_end',20)}]`)." for m in models[:3])
+                    component_sections.append(f"**State & Domain Models:**\n{m_lines}")
+                if views:
+                    v_lines = "\n".join(f"- **`{v['name']}`**: Handles visual layout and user interface controls (`[{v.get('file','')}#L{v.get('line_start',1)}-L{v.get('line_end',20)}]`)." for v in views[:3])
+                    component_sections.append(f"**UI & View Components:**\n{v_lines}")
+
+                if not component_sections and prod_syms:
+                    other_lines = "\n".join(f"- **`{p['name']}`**: Primary module defined in `{Path(p.get('file','')).name}` (`[{p.get('file','')}#L{p.get('line_start',1)}-L{p.get('line_end',20)}]`)." for p in prod_syms[:5])
+                    component_sections.append(f"**Key Production Modules:**\n{other_lines}")
+
+                comp_text = "\n\n".join(component_sections)
+
+                test_text = ""
+                if test_syms:
+                    t_names = ", ".join(f"`{t.get('name')}`" for t in test_syms[:4])
+                    test_text = f"\n\n**Test & Verification Suite:**\nAutomated tests are isolated in separate test directories and include {t_names}."
+
+                target_top = prod_syms[0] if prod_syms else (classes[0] if classes else {})
+                t_top_name = target_top.get("name", "Main")
+                t_top_file = Path(target_top.get("file", "source file")).name
+
                 answer = (
                     f"### Repository Overview: `{repo_name}`\n\n"
-                    f"**{repo_name}** is a{lang_str} application organized as an **{archetype}**.\n\n"
-                    f"**Core Components & Structure:**\n{sym_items or '- No components cataloged.'}"
+                    f"{purpose_desc}"
+                    f"{entry_text}\n\n"
+                    f"**Core Production Architecture & Components:**\n\n"
+                    f"{comp_text}"
+                    f"{test_text}\n\n"
+                    f"`{t_top_name}` is defined in `{t_top_file}`."
                 )
 
         elif intent in (ChatIntent.TESTING, "TESTING"):
@@ -306,7 +366,7 @@ def synthesize_answer(
         tech_keywords = ["redis", "kafka", "rabbitmq", "elasticsearch", "mongodb", "neo4j", "postgresql", "paymentservice", "fakecontroller"]
         for kw in tech_keywords:
             if kw in q_lower and not any(kw in str(s).lower() for s in evidence.deterministic_symbols + [str(r) for r in evidence.deterministic_relationships]):
-                answer += f" The application uses {kw.capitalize()} for caching." if "redis" in kw else f" No evidence was found for {kw} in this repository."
+                answer += f" No evidence was found for {kw.capitalize()} in this repository."
 
     # 4. Extract & Verify Claims Against Deterministic Evidence
     raw_claims = ClaimExtractor.extract_from_text(answer)

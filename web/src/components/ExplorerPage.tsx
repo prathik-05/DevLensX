@@ -69,7 +69,15 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
   const defaultExt = langExtMap[detectedLang] || '.java';
   const langLabel = data.repo_summary?.language || 'Source';
 
-  const initialFile = nodes[0]?.file || rawClasses[0]?.file || (data.repo_summary.language === 'Python' ? 'main.py' : 'index.ts');
+  const isTestItem = (n: any) => {
+    const f = (n?.file || '').toLowerCase();
+    const nm = (n?.name || '').toLowerCase();
+    const st = (n?.stereotype || '').toLowerCase();
+    return st === 'test' || Boolean(n?.is_test) || f.includes('/test/') || f.includes('/tests/') || nm.endsWith('test') || nm.endsWith('tests');
+  };
+  const prodNodes = nodes.filter(n => !isTestItem(n));
+  const mainNode = prodNodes.find(n => n.name.toLowerCase() === 'main' || n.name.toLowerCase().includes('entry') || n.file?.toLowerCase().endsWith('main.py') || n.file?.toLowerCase().endsWith('main.java')) || prodNodes[0];
+  const initialFile = mainNode?.file || prodNodes[0]?.file || nodes[0]?.file || (data.repo_summary.language === 'Python' ? 'main.py' : 'index.ts');
   const [selectedFile, setSelectedFile] = useState<string>(initialFile);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [summary, setSummary] = useState<FileSummaryResponse | null>(null);
@@ -141,16 +149,19 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
     );
   }, [nodes, searchQuery]);
 
-  const controllers = filteredNodes.filter(
+  const testNodes = filteredNodes.filter(isTestItem);
+  const productionNodes = filteredNodes.filter(n => !isTestItem(n));
+
+  const controllers = productionNodes.filter(
     n => n.stereotype === 'Controller' || n.name.toLowerCase().includes('controller') || n.name.toLowerCase().includes('router') || n.name.toLowerCase().includes('api')
   );
-  const services = filteredNodes.filter(
+  const services = productionNodes.filter(
     n => n.stereotype === 'Service' || n.name.toLowerCase().includes('service') || n.name.toLowerCase().includes('handler') || n.name.toLowerCase().includes('manager')
   );
-  const repositories = filteredNodes.filter(
+  const repositories = productionNodes.filter(
     n => n.stereotype === 'Repository' || n.stereotype === 'Entity' || n.name.toLowerCase().includes('repo') || n.name.toLowerCase().includes('db') || n.name.toLowerCase().includes('model')
   );
-  const others = filteredNodes.filter(
+  const others = productionNodes.filter(
     n => !controllers.includes(n) && !services.includes(n) && !repositories.includes(n)
   );
 
@@ -383,6 +394,38 @@ export const ExplorerPage: React.FC<ExplorerPageProps> = ({ data, onNavigateTab 
                       >
                         <FileCode className="w-3.5 h-3.5 shrink-0 text-slate-500" />
                         <span className="truncate">{o.file ? o.file.split('/').pop() : `${o.name}${defaultExt}`}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {testNodes.length > 0 && (
+              <div className="space-y-1">
+                <div className="flex items-center space-x-1.5 text-amber-600 dark:text-amber-400 font-black py-0.5 font-sans">
+                  <Folder className="w-4 h-4" />
+                  <span>Tests & Fixtures ({testNodes.length})</span>
+                </div>
+                <div className="pl-2 space-y-1 border-l-2 border-amber-300 dark:border-amber-800 ml-1.5">
+                  {testNodes.map(t => {
+                    const fname = t.file || `${t.name}${defaultExt}`;
+                    const isSel = selectedFile === fname;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => {
+                          setSelectedFile(fname);
+                          setExplanation(null);
+                        }}
+                        className={`w-full text-left py-1.5 px-2 rounded-none truncate flex items-center space-x-1.5 transition-all text-xs ${
+                          isSel
+                            ? 'bg-amber-100 dark:bg-amber-950/60 text-black dark:text-amber-200 border-2 border-black dark:border-amber-500 font-bold shadow-[2px_2px_0px_0px_#000000]'
+                            : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                        <span className="truncate">{t.file ? t.file.split('/').pop() : `${t.name}${defaultExt}`}</span>
                       </button>
                     );
                   })}

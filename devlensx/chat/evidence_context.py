@@ -57,6 +57,8 @@ def collect_evidence(
         "neo4j": ("neo4j",),
         "paymentservice": ("payment", "paymentservice", "stripe"),
         "fakecontroller": ("fakecontroller",),
+        "database": ("database", "db", "datasource", "sql", "hibernate", "jpa", "jdbc", "persistence", "connection pool", "relational database"),
+        "file_upload": ("upload", "multipart", "fileupload", "file upload", "attachment"),
     }
     missing_caps: List[str] = []
     for cap_name, keywords in tech_topics.items():

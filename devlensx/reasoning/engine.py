@@ -258,24 +258,62 @@ class RepositoryReasoningEngine:
         graph_store: Optional[Any] = None
     ) -> SymbolExplanation:
         """Explains any file or symbol in the codebase with AST, Kùzu relationships, and citations."""
+        if hasattr(repo_model, "model") and isinstance(getattr(repo_model, "model"), dict):
+            repo_model = repo_model.model
         repo_model = repo_model or {}
         classes = repo_model.get("classes", [])
 
-        # Locate symbol in repo_model
+        # Locate symbol in repo_model with exact, normalized path and ID matching
         sym_match = None
+        target_norm = symbol_name_or_file.replace("\\", "/").strip("/")
+        from pathlib import Path
+        base_name = Path(target_norm).stem
+
         for c in classes:
-            if c.get("name") == symbol_name_or_file or c.get("file") == symbol_name_or_file or symbol_name_or_file.endswith(c.get("name", "")):
+            c_name = c.get("name", "")
+            c_file = (c.get("file") or "").replace("\\", "/").strip("/")
+            c_id = c.get("id", "")
+            if (
+                c_name == symbol_name_or_file
+                or c_file == target_norm
+                or target_norm.endswith(c_file)
+                or c_file.endswith(target_norm)
+                or c_id == symbol_name_or_file
+                or c_name == base_name
+            ):
                 sym_match = c
                 break
 
-        if not sym_match and classes:
-            sym_match = classes[0]
+        if not sym_match:
+            for c in classes:
+                c_file = (c.get("file") or "").replace("\\", "/").strip("/")
+                if target_norm in c_file or c_file.endswith(base_name):
+                    sym_match = c
+                    break
 
-        sym_name = sym_match.get("name", symbol_name_or_file) if sym_match else symbol_name_or_file
-        file_path = sym_match.get("file", "") if sym_match else symbol_name_or_file
-        line_start = sym_match.get("line_start", 1) if sym_match else 1
-        line_end = sym_match.get("line_end", line_start + 20) if sym_match else line_start + 20
-        stereotype = sym_match.get("stereotype") or sym_match.get("kind") or "Component" if sym_match else "SourceFile"
+        if not sym_match:
+            return SymbolExplanation(
+                symbol_name=symbol_name_or_file,
+                file_path=symbol_name_or_file,
+                line_start=1,
+                line_end=1,
+                stereotype="NotFound",
+                action=action,
+                explanation=f"Symbol or file '{symbol_name_or_file}' was not found in the active snapshot evidence.",
+                incoming_callers=[],
+                outgoing_dependencies=[],
+                blast_radius=[],
+                source_snippet="// File or symbol not found in active snapshot",
+                citations=[],
+                verdict="INSUFFICIENT_EVIDENCE",
+                methods=[]
+            )
+
+        sym_name = sym_match.get("name", symbol_name_or_file)
+        file_path = sym_match.get("file", "")
+        line_start = sym_match.get("line_start", 1)
+        line_end = sym_match.get("line_end", line_start + 20)
+        stereotype = sym_match.get("stereotype") or sym_match.get("kind") or "Component"
 
         # Query incoming & outgoing relationships
         incoming_callers: List[Dict[str, Any]] = []
@@ -364,7 +402,13 @@ class RepositoryReasoningEngine:
                 explanation_text = ""
 
         if not explanation_text:
-            if action == "who_calls_this":
+            is_test = sym_match.get("is_test") or "test" in stereotype.lower() or "/test" in file_path.lower() or sym_name.endswith("Test") or sym_name.endswith("Tests")
+            if is_test:
+                tested_class = sym_name.replace("Test", "").replace("TestCase", "")
+                m_list = [m.get("name") if isinstance(m, dict) else str(m) for m in methods[:4]]
+                cases_str = f" with verification cases: {', '.join(m_list)}" if m_list else ""
+                explanation_text = f"`{sym_name}` is a test suite verifying behavior of `{tested_class}` in `{file_path}`{cases_str}."
+            elif action == "who_calls_this":
                 callers_str = ", ".join(c["caller"] for c in incoming_callers[:4]) if incoming_callers else "no direct callers detected"
                 explanation_text = f"`{sym_name}` is invoked by: {callers_str}."
             elif action == "what_does_this_depend_on":
@@ -613,6 +657,8 @@ class RepositoryReasoningEngine:
         retriever: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Answers developer questions using fused structural Graph + FAISS vector context."""
+        if hasattr(repo_model, "model") and isinstance(getattr(repo_model, "model"), dict):
+            repo_model = repo_model.model
         repo_model = repo_model or {}
         repo_name = repo_model.get("repo") or repo_model.get("repository") or "Repository"
         classes = repo_model.get("classes", [])
@@ -649,25 +695,7 @@ class RepositoryReasoningEngine:
                     "verdict": "VERIFIED_CONCEPT",
                     "concept_info": concept_res
                 }        # Grounded repo summary based on active snapshot model
-        if "beginner" in q_lower or "what is this repository about" in q_lower or "what does this project do" in q_lower:
-            lang = repo_model.get("language") or repo_model.get("repo_summary", {}).get("language", "Source")
-            total_classes = len(classes)
-            if not classes:
-                return {
-                    "answer": f"INSUFFICIENT_EVIDENCE: Repository '{repo_name}' has no indexed AST symbols in the active snapshot. Ingest or analyze the repository first.",
-                    "citations": [],
-                    "verdict": "INSUFFICIENT_EVIDENCE"
-                }
 
-            top_symbols = [c for c in classes if c.get("file")][:5]
-            nl = chr(10)
-            sym_items = nl.join(f"- `{c.get('file', '')}` ({c.get('name', 'Symbol')} · {c.get('stereotype', 'Component')})" for c in top_symbols)
-            summary = f"### Repository Overview: `{repo_name}`{nl}{nl}- **Primary Detected Language:** {lang}{nl}- **Indexed Components:** {total_classes} declared classes/modules in active snapshot{nl}{nl}**Key components detected in active snapshot:**{nl}{sym_items}"
-            return {
-                "answer": summary,
-                "citations": [f"{c.get('file', '')}#L1-L20" for c in top_symbols if c.get("file")],
-                "verdict": "VERIFIED_FACT" if top_symbols else "INSUFFICIENT_EVIDENCE"
-            }
 
         # 1. Resolve or construct snapshot record for active run
         from devlensx.evidence.models import SnapshotRecord
@@ -735,6 +763,8 @@ class RepositoryReasoningEngine:
     ) -> Dict[str, Any]:
         """Pinpoints the exact primary file, related files, function/component to modify,
         dependency chain, and risk assessment for a requested feature or bug fix."""
+        if hasattr(repo_model, "model") and isinstance(getattr(repo_model, "model"), dict):
+            repo_model = repo_model.model
         repo_model = repo_model or {}
         repo_name = repo_model.get("repo") or repo_model.get("repository") or "Repository"
         classes = repo_model.get("classes", [])
@@ -911,6 +941,8 @@ class RepositoryReasoningEngine:
         2. Why it is used
         3. How this repository uses it
         4. Where it is implemented (exact files & symbols)"""
+        if hasattr(repo_model, "model") and isinstance(getattr(repo_model, "model"), dict):
+            repo_model = repo_model.model
         repo_model = repo_model or {}
         repo_name = repo_model.get("repo") or repo_model.get("repository") or "Repository"
         classes = repo_model.get("classes", [])
@@ -1048,6 +1080,8 @@ class RepositoryReasoningEngine:
         5. State persistence & verified test suites
         Orders nodes strictly by call hierarchy, never alphabetically or discovery order.
         """
+        if hasattr(repo_model, "model") and isinstance(getattr(repo_model, "model"), dict):
+            repo_model = repo_model.model
         repo_model = repo_model or {}
         repo_name = repo_model.get("repo") or repo_model.get("repository") or "Repository"
         classes = repo_model.get("classes", [])

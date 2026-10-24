@@ -32,6 +32,12 @@ class ClaimExtractor:
         re.IGNORECASE
     )
 
+    # Matches absent / negative assertions: "No evidence was found for X", "No implementation for X"
+    NEGATIVE_PATTERN = re.compile(
+        r'(?:no evidence was found for|no implementation for|lacks evidence for|not found for|no evidence for)\s+([A-Za-z0-9_]+)',
+        re.IGNORECASE
+    )
+
     @classmethod
     def extract_from_text(cls, text: str) -> List[AtomicClaim]:
         """Extracts candidate claims from raw prose text."""
@@ -92,6 +98,19 @@ class ClaimExtractor:
                     object=sug_clean,
                     claim_type="suggestion",
                     verdict=ClaimVerdict.PARTIAL,  # Explicit AI_SUGGESTION
+                ))
+
+        # 3. Absent / Negative capability assertions
+        neg_matches = cls.NEGATIVE_PATTERN.findall(clean_text)
+        for target_tech in neg_matches:
+            target_clean = target_tech.strip()
+            if target_clean and target_clean.lower() not in ("is", "the", "this", "that"):
+                claims.append(AtomicClaim(
+                    subject="Repository",
+                    predicate="lacks",
+                    object=target_clean,
+                    claim_type="negative",
+                    verdict=ClaimVerdict.UNSUPPORTED,
                 ))
 
         return claims

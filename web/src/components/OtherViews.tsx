@@ -1,13 +1,12 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
-  Sun, Moon, Search, Copy, Check,
+  Search, Copy, Check,
   ChevronDown, ChevronRight, GitBranch, ArrowRight,
   Zap, Activity, RefreshCw, Play
 } from 'lucide-react';
 import mermaid from 'mermaid';
 import { GlassPanel } from './GlassPanel';
 import { Badge, RiskBadge, VerificationBadge } from './Badge';
-import { ThemeToggle } from './ThemeToggle';
 import { useAppStore } from '../store';
 
 const EmptyAnalysis: React.FC<{ what: string }> = ({ what }) => (
@@ -1359,8 +1358,6 @@ const PROVIDER_OPTIONS = [
 export const SettingsView: React.FC = () => {
   const config = useAppStore(s => s.codeReviewConfig);
   const setConfig = useAppStore(s => s.setCodeReviewConfig);
-  const theme = useAppStore(s => s.theme);
-  const setTheme = useAppStore(s => s.setTheme);
   const [saved, setSaved] = useState(false);
   const [health, setHealth] = useState<any | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -1389,49 +1386,6 @@ export const SettingsView: React.FC = () => {
 
   return (
     <div className="space-y-4 max-w-2xl">
-      {/* Theme & Appearance Panel */}
-      <GlassPanel className="p-4">
-        <div className="dl-flex-between mb-3">
-          <span className="dl-panel-label">APPEARANCE & THEME</span>
-          <ThemeToggle variant="switch" />
-        </div>
-        <div className="space-y-3">
-          <p className="text-xs" style={{ color: 'var(--dl-text-dim)' }}>
-            Choose your preferred interface theme. Preference is saved in your browser and persists across reloads. Defaults to respecting your system theme.
-          </p>
-          <div className="grid grid-cols-2 gap-3 max-w-md pt-1">
-            <button
-              onClick={() => setTheme('light')}
-              className={`p-3 border-2 text-left transition-all cursor-pointer ${
-                theme === 'light'
-                  ? 'border-black bg-white text-black shadow-[3px_3px_0px_0px_#000000]'
-                  : 'border-neutral-300 bg-neutral-50 text-neutral-600 hover:border-black'
-              }`}
-            >
-              <div className="flex items-center gap-2 font-bold text-xs uppercase mb-1">
-                <Sun className="w-4 h-4 text-amber-500" />
-                Light Mode
-              </div>
-              <p className="text-[10px] text-neutral-500">Bauhaus white & black crisp layout</p>
-            </button>
-            <button
-              onClick={() => setTheme('dark')}
-              className={`p-3 border-2 text-left transition-all cursor-pointer ${
-                theme === 'dark'
-                  ? 'border-[#00ff88] bg-[#12131a] text-[#00ff88] shadow-[3px_3px_0px_0px_rgba(0,255,136,0.3)]'
-                  : 'border-neutral-300 bg-neutral-50 text-neutral-600 hover:border-black'
-              }`}
-            >
-              <div className="flex items-center gap-2 font-bold text-xs uppercase mb-1">
-                <Moon className="w-4 h-4 text-emerald-400" />
-                Dark Mode
-              </div>
-              <p className="text-[10px] text-neutral-500">Cyber-terminal aesthetic with neon green accents</p>
-            </button>
-          </div>
-        </div>
-      </GlassPanel>
-
       <GlassPanel className="p-4">
         <div className="dl-flex-between mb-3">
           <span className="dl-panel-label">CODE REVIEW PROVIDER</span>

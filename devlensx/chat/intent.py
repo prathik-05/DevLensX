@@ -5,10 +5,13 @@ from devlensx.chat.models import ChatIntent
 
 def classify_intent(message: str) -> ChatIntent:
     q = (message or "").lower()
+    # High-priority overview and repo comprehension queries
+    if any(k in q for k in ("overview", "what is this repository", "what does this project do", "what does this repository do", "what does this application do", "what does this app do", "what does this codebase do", "summary", "getting started", "project does", "about")):
+        return ChatIntent.OVERVIEW
     # Fake tech queries should be EXPLANATION, not architecture
     if any(k in q for k in ("redis", "kafka", "mongodb", "postgres", "paymentservice", "fakecontroller")):
         return ChatIntent.EXPLANATION
-    if any(k in q for k in ("persistence", "persisted", "repository", "dao", "database", "schema", "table", "data flow", "data validated", "storage")):
+    if any(k in q for k in ("persistence", "persisted", "repositories", "dao", "database", "schema", "table", "data flow", "data validated", "storage", "implements repository")):
         return ChatIntent.DATA_FLOW
     if any(k in q for k in ("which tests", "test coverage", "unit test", "test suite", "covered by tests", "assert")):
         return ChatIntent.TESTING

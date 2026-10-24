@@ -59,21 +59,56 @@ class ArchitectureAgent:
 
         god_classes = []
         seen_god = set()
+        from devlensx.understanding.profiling.repository_profiler import is_test_file_or_symbol
+
         for c in repo_model.get("classes", []):
             if not isinstance(c, dict) or not c.get("name"):
                 continue
             name = c["name"]
             if name in seen_god:
                 continue
+
+            file_path = c.get("file", "")
+            # Exclude test fixtures and test cases from architectural God Class alerts
+            if is_test_file_or_symbol(file_path, name) or c.get("is_test"):
+                continue
+
+            fp_lower = file_path.replace("\\", "/").lower()
+            # Cohesive domain models, entities, DTOs, and value objects represent data/state, not god classes
+            is_model_or_pojo = (
+                any(seg in fp_lower for seg in ("/model/", "/entity/", "/domain/", "/dto/", "/vo/")) or
+                c.get("stereotype") in ("Model", "Entity", "DTO", "VO", "POJO", "Config", "Configuration") or
+                name.endswith(("DTO", "Model", "Config", "Entity", "Event"))
+            )
+
             n_methods = len(prod_methods(_method_index, name)) if _method_index \
                 else len(c.get("methods", []) or [])
-            if n_methods > 15:
+
+            deps_count = len(c.get("injected_dependencies", []) or [])
+            fields_count = len(c.get("fields", []) or [])
+            loc = c.get("loc") or max(0, (c.get("line_end", 0) or 0) - (c.get("line_start", 0) or 0))
+
+            # Explainable structural God Class heuristic:
+            # 1. Models/entities must have extreme method bloat (>35 methods) and high coupling to be god classes
+            # 2. General classes require >15 methods AND structural complexity indicators (coupling, fields, or high LOC)
+            is_god_class = False
+            if is_model_or_pojo:
+                if n_methods > 35 and fields_count > 15 and deps_count >= 3:
+                    is_god_class = True
+            else:
+                if n_methods > 15 and (deps_count >= 2 or fields_count >= 6 or loc >= 250 or n_methods >= 25):
+                    is_god_class = True
+
+            if is_god_class:
                 seen_god.add(name)
                 god_classes.append({
                     "class_name": name,
-                    "file": c.get("file", ""),
+                    "file": file_path,
                     "method_count": n_methods,
-                    "stereotype": c.get("stereotype", "")
+                    "stereotype": c.get("stereotype", ""),
+                    "deps_count": deps_count,
+                    "fields_count": fields_count,
+                    "loc": loc,
                 })
 
         findings = []

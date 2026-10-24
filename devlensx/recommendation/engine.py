@@ -37,7 +37,8 @@ class RecommendationEngine:
 
         sec_high = sum(1 for f in verified if f["category"] in ("Hardcoded Secret", "API Security") and f["severity"] == "HIGH")
         sec_med = sum(1 for f in verified if f["category"] in ("Hardcoded Secret", "API Security") and f["severity"] == "MEDIUM")
-        security_score = max(0, 100 - (sec_high * 20 + sec_med * 10))
+        sec_scanned = repo_model.get("security_scanned", True)
+        security_score = max(0, 100 - (sec_high * 20 + sec_med * 10)) if sec_scanned else None
 
         files_parsed = repo_model.get("stats", {}).get("files_parsed", 0)
         repo_lang = repo_model.get("repo_summary", {}).get("language", "Unknown")
@@ -60,15 +61,77 @@ class RecommendationEngine:
             else:
                 evidence_coverage_score = 100.0
 
+            sec_val = security_score if security_score is not None else 100.0
             # Weighted Overall Score (Locked 5-Weighted Formula)
             overall_score = round(
                 (architecture_score * SCORE_WEIGHTS["architecture"]) +
-                (security_score * SCORE_WEIGHTS["security"]) +
+                (sec_val * SCORE_WEIGHTS["security"]) +
                 (maintainability_score * SCORE_WEIGHTS["maintainability"]) +
                 (coupling_score * SCORE_WEIGHTS["coupling"]) +
                 (evidence_coverage_score * SCORE_WEIGHTS["evidence_coverage"]),
                 1
             )
+
+        total_attempts = sum(f.get("attempt_count", 1) for f in verified_findings)
+        duplicate_attempts = max(0, total_attempts - len(verified_findings))
+
+        scoring_breakdown = {
+            "maintainability": {
+                "name": "Maintainability",
+                "raw_count": maint_penalties,
+                "penalty_per_finding": 15,
+                "unweighted_score": maintainability_score,
+                "category_weight": SCORE_WEIGHTS["maintainability"],
+                "weighted_contribution": round(maintainability_score * SCORE_WEIGHTS["maintainability"], 2),
+                "scanner_status": "COMPLETED",
+                "formula": f"max(0, 100 - ({maint_penalties} * 15))",
+                "limitations": "Heuristic detection of God Classes (>15 methods with high coupling and low cohesion)."
+            },
+            "coupling": {
+                "name": "Coupling",
+                "raw_count": high_couplings,
+                "penalty_per_finding": 10,
+                "unweighted_score": coupling_score,
+                "category_weight": SCORE_WEIGHTS["coupling"],
+                "weighted_contribution": round(coupling_score * SCORE_WEIGHTS["coupling"], 2),
+                "scanner_status": "COMPLETED",
+                "formula": f"max(0, 100 - ({high_couplings} * 10))",
+                "limitations": "Evaluates reverse dependency edges and blast radius in Kuzu knowledge graph."
+            },
+            "architecture": {
+                "name": "Architecture",
+                "raw_count": maint_penalties + high_couplings,
+                "penalty_per_finding": "Composite (Avg)",
+                "unweighted_score": architecture_score,
+                "category_weight": SCORE_WEIGHTS["architecture"],
+                "weighted_contribution": round(architecture_score * SCORE_WEIGHTS["architecture"], 2),
+                "scanner_status": "COMPLETED",
+                "formula": f"({maintainability_score} + {coupling_score}) / 2",
+                "limitations": "Composite metric of architectural maintainability and coupling cohesion."
+            },
+            "security": {
+                "name": "Security",
+                "raw_count": sec_high + sec_med,
+                "penalty_per_finding": "20 per HIGH, 10 per MEDIUM",
+                "unweighted_score": security_score if sec_scanned else "UNKNOWN",
+                "category_weight": SCORE_WEIGHTS["security"],
+                "weighted_contribution": round((security_score or 0) * SCORE_WEIGHTS["security"], 2) if sec_scanned else 0.0,
+                "scanner_status": "COMPLETED" if sec_scanned else "UNKNOWN",
+                "formula": f"max(0, 100 - ({sec_high} * 20 + {sec_med} * 10))" if sec_scanned else "UNKNOWN",
+                "limitations": "Scans for hardcoded credentials, weak variables, and endpoint authorization guards."
+            },
+            "evidence_coverage": {
+                "name": "Evidence Coverage",
+                "raw_count": len(verified),
+                "penalty_per_finding": "N/A",
+                "unweighted_score": evidence_coverage_score,
+                "category_weight": SCORE_WEIGHTS["evidence_coverage"],
+                "weighted_contribution": round(evidence_coverage_score * SCORE_WEIGHTS["evidence_coverage"], 2),
+                "scanner_status": "COMPLETED",
+                "formula": "Mean 4-source evidence coverage % across verified findings",
+                "limitations": "Requires multi-source grounding (AST, Graph, Semgrep, Path) to eliminate hallucinations."
+            }
+        }
 
         if files_parsed == 0 and parsed_symbols == 0:
             sub_score_explanations = {
@@ -121,7 +184,13 @@ class RecommendationEngine:
                     "evidence_coverage": evidence_coverage_score
                 },
                 "sub_score_explanations": sub_score_explanations,
-                "score_weights_configured": SCORE_WEIGHTS
+                "scoring_breakdown": scoring_breakdown,
+                "score_weights_configured": SCORE_WEIGHTS,
+                "unique_candidates_count": len(verified_findings),
+                "accepted_findings_count": len(verified),
+                "rejected_findings_count": len(rejected),
+                "duplicate_attempts_count": duplicate_attempts,
+                "formula_summary": "Overall = (Architecture * 0.30) + (Security * 0.25) + (Maintainability * 0.20) + (Coupling * 0.15) + (Evidence * 0.10)"
             },
             "top_engineering_recommendations": recommendation_cards,
             "total_verified_findings": len(verified),

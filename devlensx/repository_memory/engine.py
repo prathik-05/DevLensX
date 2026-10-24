@@ -37,12 +37,45 @@ class RepositoryIntelligenceEngine:
 
         started = perf_counter()
         _log.info("[Engine] Parsing repository: %s", repository_path)
-        model = self._parser(repository_path)
+        model = None
+        fallback_used = False
+        try:
+            model = self._parser(repository_path)
+        except Exception as _parse_err:
+            _log.warning("[Engine] Native parse encountered error: %s. Attempting controlled Gitingest fallback.", _parse_err)
+
+        # Controlled Gitingest fallback when native parser extracts 0 classes/files
+        if not model or not model.get("classes"):
+            try:
+                from gitingest import ingest
+                _summary, _tree, _content = ingest(repository_path)
+                fallback_used = True
+                _log.info("[Engine] Gitingest fallback recovered context for %s (%d chars).", repository_path, len(_content or ""))
+                if not model:
+                    model = {
+                        "repo": Path(repository_path).name,
+                        "stats": {"files_parsed": 0, "files_failed": 0, "symbols_extracted": 0},
+                        "classes": [],
+                        "relationships": [],
+                        "repo_summary": {"language": "Unknown", "total_classes": 0, "total_relationships": 0, "total_endpoints": 0},
+                    }
+                model["gitingest_fallback"] = {
+                    "used": True,
+                    "summary": _summary,
+                    "tree": _tree,
+                    "content_length": len(_content or ""),
+                    "provenance": "LOCAL_FALLBACK"
+                }
+            except Exception as _git_err:
+                _log.warning("[Engine] Gitingest fallback not available: %s", _git_err)
+                if not model:
+                    raise
+
         model["root_path"] = str(Path(repository_path).resolve())
         model["repo_path"] = str(Path(repository_path).resolve())
         parsed_at = perf_counter()
-        _log.info("[Engine] Parsed %d symbols in %.2fs",
-                  len(model.get("classes", [])), parsed_at - started)
+        _log.info("[Engine] Parsed %d symbols in %.2fs (fallback: %s)",
+                  len(model.get("classes", [])), parsed_at - started, fallback_used)
 
         graph_store = self._graph_factory()
         edge_stats = graph_store.build_from_model(model)

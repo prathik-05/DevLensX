@@ -406,19 +406,42 @@ class CriticAgent:
                 claim_specific_passed = True
                 ast_details = f"AST Match: Verified class '{class_name}' in package '{matched_class.get('package', '')}'."
 
-        # Source 3: Semgrep Ground Truth Check & Explicit Execution Status
+        # Determine rule-aware applicability across sources
+        is_arch_or_maintain = category in ("Maintainability", "Coupling", "Architecture") or "GOD" in category.upper()
+        is_security = category in ("Hardcoded Secret", "Secret", "Credential Leak", "Access Key", "API Security", "Semgrep Violation")
+        is_impact = category in ("Change Impact", "Blast Radius")
+
+        # Source 3: Semgrep Ground Truth Check & Rule-Aware Execution Status
         semgrep_check = False
-        semgrep_status = "SKIPPED"
-        if shutil.which("semgrep") is None:
-            semgrep_status = "NOT_INSTALLED"
+        if is_arch_or_maintain or is_impact:
+            semgrep_status = "NOT_APPLICABLE"
+            semgrep_details = "Rule-aware: Semgrep static analyzer is not applicable to architectural smell or graph topology."
+            semgrep_applicable = False
+        elif shutil.which("semgrep") is None:
+            semgrep_status = "UNAVAILABLE"
             semgrep_details = "Semgrep binary not installed on host."
+            semgrep_applicable = True
         elif category == "Semgrep Violation" or evidence.get("semgrep_confirmed") is True:
             semgrep_check = True
-            semgrep_status = "EXECUTED_MATCH"
+            semgrep_status = "VERIFIED"
             semgrep_details = "Semgrep Ground Truth Match: Rule violation confirmed by static analysis engine."
+            semgrep_applicable = True
         else:
-            semgrep_status = "EXECUTED_NO_MATCH"
+            semgrep_status = "INFERRED"
             semgrep_details = "Semgrep scan executed: No static rule violations reported for this claim."
+            semgrep_applicable = True
+
+        # Graph check applicability
+        if is_security:
+            graph_status = "NOT_APPLICABLE"
+            graph_details = "Rule-aware: Knowledge graph traversal not applicable to static secret/credential analysis."
+            graph_applicable = False
+        elif graph_check:
+            graph_status = "VERIFIED"
+            graph_applicable = True
+        else:
+            graph_status = "UNAVAILABLE"
+            graph_applicable = True
 
         # Source 4: Structural Consistency Check
         structural_check = False
@@ -430,10 +453,21 @@ class CriticAgent:
                 structural_check = True
                 structural_details = f"Structural Match: File path '{matched_class.get('file')}' matches class '{class_name}'."
 
-        # Evidence-Coverage Calculation
-        verified_sources = sum([graph_check, ast_check, semgrep_check, structural_check])
-        total_sources = 4
-        evidence_coverage_score = round((verified_sources / total_sources) * 100.0, 1)
+        ast_status = "VERIFIED" if ast_check else ("CONTRADICTED" if "Fail Closed" in ast_details else "UNAVAILABLE")
+        structural_status = "VERIFIED" if structural_check else "CONTRADICTED"
+
+        # Evidence-Coverage Calculation over applicable sources
+        applicable_checks = []
+        if graph_applicable:
+            applicable_checks.append(graph_check)
+        applicable_checks.append(ast_check)
+        if semgrep_applicable:
+            applicable_checks.append(semgrep_check)
+        applicable_checks.append(structural_check)
+
+        verified_sources = sum(1 for c in applicable_checks if c)
+        total_sources = len(applicable_checks)
+        evidence_coverage_score = round((verified_sources / max(1, total_sources)) * 100.0, 1)
 
         # Hard Verification Gate:
         # VERIFIED requires:
@@ -478,23 +512,35 @@ class CriticAgent:
             "evidence_coverage_score": evidence_coverage_score,
             "evidence_ratio": f"{verified_sources}/{total_sources}",
             "evidence_trail": {
-                "graph_check": {"passed": graph_check, "details": graph_details},
-                "ast_check": {"passed": ast_check, "details": ast_details},
+                "graph_check": {"passed": graph_check, "status": graph_status, "details": graph_details},
+                "ast_check": {"passed": ast_check, "status": ast_status, "details": ast_details},
                 "semgrep_check": {"passed": semgrep_check, "status": semgrep_status, "details": semgrep_details},
-                "structural_check": {"passed": structural_check, "details": structural_details}
+                "structural_check": {"passed": structural_check, "status": structural_status, "details": structural_details}
             }
         }
 
     def verify_all(self, findings: List[Dict[str, Any]], repo_model: Dict[str, Any]) -> List[Dict[str, Any]]:
         if not findings:
             return []
-        deduped = []
-        seen = set()
+        candidates_by_fp = {}
+        attempts_by_fp = {}
+        run_id = (repo_model or {}).get("analysis_run_id", "")
         for f in findings:
             if not isinstance(f, dict):
                 continue
-            key = (f.get("category"), f.get("title"), f.get("class_name"), f.get("file"))
-            if key not in seen:
-                seen.add(key)
-                deduped.append(f)
-        return [self.verify_finding(f, repo_model) for f in deduped]
+            rule_id = f.get("category", "") or f.get("agent", "")
+            target_sym = f.get("class_name", "") or f.get("symbol", "")
+            norm_file = (f.get("file", "") or "").replace("\\", "/").lstrip("/")
+            norm_claim = re.sub(r'\s+', ' ', (f.get("claim", "") or f.get("title", "")).strip().lower())
+            fp = f"{rule_id}::{target_sym}::{norm_file}::{run_id}::{norm_claim}"
+            attempts_by_fp[fp] = attempts_by_fp.get(fp, 0) + 1
+            if fp not in candidates_by_fp:
+                candidates_by_fp[fp] = f
+
+        results = []
+        for fp, candidate in candidates_by_fp.items():
+            verified = self.verify_finding(candidate, repo_model)
+            verified["fingerprint"] = fp
+            verified["attempt_count"] = attempts_by_fp[fp]
+            results.append(verified)
+        return results

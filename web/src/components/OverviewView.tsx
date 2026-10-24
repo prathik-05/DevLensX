@@ -400,9 +400,51 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data: propData }) =>
           <span className="dl-panel-label text-slate-200">INTELLIGENCE SUB-SCORES — WHAT DRIVES THE GRADE</span>
           <span className="text-[10px] font-mono flex items-center gap-1 text-slate-400"><Info className="w-3 h-3 text-cyan-400" /> weighted · evidence-grounded</span>
         </div>
-        <p className="text-xs mb-4 text-slate-400">
-          Architecture 30% · Security 25% · Maintainability 20% · Coupling 15% · Evidence 10%. Each bar shows the score and <em>why</em> — hover for the full formula.
+        <p className="text-xs mb-3 text-slate-400">
+          Architecture 30% · Security 25% · Maintainability 20% · Coupling 15% · Evidence 10%. Exact category scores and weighted contributions are computed directly by the scoring engine:
         </p>
+
+        {/* Detailed Scoring Breakdown Matrix */}
+        {data?.repository_intelligence_score?.scoring_breakdown && (
+          <div className="overflow-x-auto mb-4 border border-zinc-800 rounded bg-[#090a10]">
+            <table className="w-full text-left font-mono text-[11px]">
+              <thead className="bg-[#12141c] text-slate-400 border-b border-zinc-800 text-[10px] uppercase">
+                <tr>
+                  <th className="p-2">Category</th>
+                  <th className="p-2">Accepted Findings</th>
+                  <th className="p-2">Penalty / Finding</th>
+                  <th className="p-2">Category Score</th>
+                  <th className="p-2">Weight</th>
+                  <th className="p-2">Contribution</th>
+                  <th className="p-2">Scanner Status</th>
+                  <th className="p-2">Exact Formula</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/60 text-slate-200">
+                {Object.entries(data.repository_intelligence_score.scoring_breakdown).map(([catKey, item]: [string, any]) => (
+                  <tr key={catKey} className="hover:bg-zinc-800/30">
+                    <td className="p-2 font-bold text-slate-100">{item.name || catKey}</td>
+                    <td className="p-2 text-cyan-400">{item.raw_count ?? 0}</td>
+                    <td className="p-2 text-slate-400">{item.penalty_per_finding || '—'}</td>
+                    <td className="p-2 font-bold text-emerald-400">{item.unweighted_score != null ? `${item.unweighted_score}%` : 'UNKNOWN'}</td>
+                    <td className="p-2 text-slate-300">{item.category_weight ? `${Math.round(item.category_weight * 100)}%` : '—'}</td>
+                    <td className="p-2 font-bold text-indigo-300">{item.weighted_contribution != null ? `+${item.weighted_contribution}` : '—'}</td>
+                    <td className="p-2">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                        item.scanner_status === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' :
+                        item.scanner_status === 'UNKNOWN' ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' :
+                        'bg-zinc-800 text-slate-400'
+                      }`}>
+                        {item.scanner_status || 'COMPLETED'}
+                      </span>
+                    </td>
+                    <td className="p-2 text-[10px] text-slate-400 truncate max-w-xs" title={item.formula}>{item.formula || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         <div className="space-y-3.5">
           {Object.entries(subScores).map(([key, val]) => {
             const exp = explanations[key] || '';
@@ -461,48 +503,60 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data: propData }) =>
           <div className="space-y-2 mt-2">
             {(data?.rejected_findings_sample || []).slice(0, 5).map((rf: any, rfi: number) => {
               const trail = rf.evidence_trail || {};
+              const renderCheck = (label: string, check: any) => {
+                if (!check) return null;
+                const status = check.status || (check.passed ? 'VERIFIED' : 'UNAVAILABLE');
+                let colorClass = 'text-rose-400';
+                let textLabel = '✗ FAIL CLOSED';
+
+                if (status === 'NOT_APPLICABLE') {
+                  colorClass = 'text-slate-500';
+                  textLabel = '— N/A';
+                } else if (check.passed || status === 'VERIFIED') {
+                  colorClass = 'text-emerald-400';
+                  textLabel = '✓ VERIFIED';
+                } else if (status === 'INFERRED') {
+                  colorClass = 'text-amber-400';
+                  textLabel = '~ INFERRED';
+                }
+
+                return (
+                  <div className="p-1.5 rounded border border-zinc-800 bg-[#12141c]">
+                    <div className="text-[9px] text-slate-400">{label}</div>
+                    <div className={`font-bold ${colorClass}`}>{textLabel}</div>
+                  </div>
+                );
+              };
+
               return (
                 <div key={rfi} className="p-3 rounded border border-zinc-800 bg-[#0e1017] space-y-2">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="text-xs font-mono font-bold text-slate-100 truncate max-w-md">
                       {rf.title || rf.claim || 'Unverified Candidate Finding'}
                     </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-rose-500/40 bg-rose-500/15 text-rose-300 font-bold">
-                      REJECTED (FAIL-CLOSED)
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {rf.attempt_count && rf.attempt_count > 1 && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-slate-300">
+                          {rf.attempt_count} attempts consolidated
+                        </span>
+                      )}
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-rose-500/40 bg-rose-500/15 text-rose-300 font-bold">
+                        REJECTED (FAIL-CLOSED)
+                      </span>
+                    </div>
                   </div>
                   
-                  {/* 4-source verification breakdown */}
+                  {/* Rule-aware multi-source verification breakdown */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-[11px]">
-                    <div className="p-1.5 rounded border border-zinc-800 bg-[#12141c]">
-                      <div className="text-[9px] text-slate-400">KNOWLEDGE GRAPH</div>
-                      <div className={`font-bold ${trail.graph_check?.passed ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {trail.graph_check?.passed ? '✓ PASSED' : '✗ NO EVIDENCE'}
-                      </div>
-                    </div>
-                    <div className="p-1.5 rounded border border-zinc-800 bg-[#12141c]">
-                      <div className="text-[9px] text-slate-400">AST STRUCTURE</div>
-                      <div className={`font-bold ${trail.ast_check?.passed ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {trail.ast_check?.passed ? '✓ MATCHED' : '✗ FAIL CLOSED'}
-                      </div>
-                    </div>
-                    <div className="p-1.5 rounded border border-zinc-800 bg-[#12141c]">
-                      <div className="text-[9px] text-slate-400">SEMGREP TRUTH</div>
-                      <div className={`font-bold ${trail.semgrep_check?.passed ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {trail.semgrep_check?.passed ? '✓ CONFIRMED' : '✗ UNCONFIRMED'}
-                      </div>
-                    </div>
-                    <div className="p-1.5 rounded border border-zinc-800 bg-[#12141c]">
-                      <div className="text-[9px] text-slate-400">STRUCTURAL PATH</div>
-                      <div className={`font-bold ${trail.structural_check?.passed ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {trail.structural_check?.passed ? '✓ PATH MATCH' : '✗ NOT FOUND'}
-                      </div>
-                    </div>
+                    {renderCheck('KNOWLEDGE GRAPH', trail.graph_check)}
+                    {renderCheck('AST STRUCTURE', trail.ast_check)}
+                    {renderCheck('SEMGREP TRUTH', trail.semgrep_check)}
+                    {renderCheck('STRUCTURAL PATH', trail.structural_check)}
                   </div>
 
-                  {(trail.ast_check?.details || trail.graph_check?.details) && (
+                  {(trail.ast_check?.details || trail.graph_check?.details || trail.semgrep_check?.details) && (
                     <p className="text-[10px] font-mono text-slate-400">
-                      Audit note: {trail.ast_check?.details || trail.graph_check?.details}
+                      Audit note: {trail.ast_check?.details || trail.graph_check?.details || trail.semgrep_check?.details}
                     </p>
                   )}
                 </div>
