@@ -855,15 +855,17 @@ def get_change_impact(class_name: str = "OwnerController", analysis_run_id: Opti
         clean_name = "OwnerController"
 
     if analysis_run_id:
+        from devlensx.impact.analyzer import ImpactAnalyzer
         try:
-            from devlensx.impact.analyzer import ImpactAnalyzer
             impact = ImpactAnalyzer.analyze(clean_name, analysis_run_id)
             d = impact.to_dict()
             d["target_class"] = clean_name
             d["status"] = "success"
             return d
-        except Exception:
-            pass
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
     graph_store = global_state.get("graph_store")
     callers = []
@@ -880,7 +882,7 @@ def get_change_impact(class_name: str = "OwnerController", analysis_run_id: Opti
         "direct_callers": callers,
         "impact": {
             "directly_affected": len(callers),
-            "potentially_affected": len(callers) * 2,
+            "potentially_affected": len(callers),
             "affected_names": callers
         },
         "status": "success"
@@ -1018,269 +1020,12 @@ def engineering_decision_engine(req: EngineeringDecisionRequest):
         )
     }
 
+# Authoritative implementation lives in devlensx.api.routes.copilot
+from devlensx.api.routes.copilot import ask_copilot as _authoritative_ask_copilot
+
 @app.post("/api/copilot/ask")
 def ask_copilot(req: CopilotAskRequest):
-    q = req.question.strip()
-
-    # Attempt Real External LLM API Call (OpenAI / Groq / Ollama)
-    llm_resp = call_external_llm(
-        prompt=q,
-        system_prompt="You are DevLens X Senior AI Architect. Ground your answer in clean software architecture principles.",
-        provider=req.provider,
-        api_key=req.api_key
-    )
-
-    intent_resp = classify_planner_intent(PlannerClassifyRequest(question=q))
-    intent = intent_resp["intent"]
-
-    intelligence = global_state.get("repository_intelligence")
-    repo_model = intelligence.model if intelligence else global_state.get("repo_model")
-
-    all_classes = repo_model.get("classes", []) if repo_model else []
-    
-    # 1. Exact-Match Entity Extraction: Exact word token equality (NO substring matching!)
-    q_tokens_lower = set(w.strip("?,.!;:'\"()[]{}").lower() for w in q.split())
-    exact_matches = [
-        c for c in all_classes
-        if not c.get("is_test")
-        and not c["name"].endswith("Test")
-        and not c["name"].endswith("Tests")
-        and c.get("stereotype") != "Test"
-        and c["name"].lower() in q_tokens_lower
-    ]
-    # Sort exact matches by order of appearance in query text
-    exact_matches.sort(key=lambda c: q.lower().find(c["name"].lower()))
-
-    # Session Memory Context Resolution: If query uses pronouns ("it", "which repository", "this class"), look up context from previous turns
-    if not exact_matches and req.session_history:
-        history_text = " ".join([m.get("content", "") for m in req.session_history])
-        hist_tokens_lower = set(w.strip("?,.!;:'\"()[]{}").lower() for w in history_text.split())
-        exact_matches = [
-            c for c in all_classes
-            if not c.get("is_test")
-            and not c["name"].endswith("Test")
-            and not c["name"].endswith("Tests")
-            and c.get("stereotype") != "Test"
-            and c["name"].lower() in hist_tokens_lower
-        ]
-
-    plain_english = ""
-    recommendation = ""
-    directly_affected = 0
-    potentially_affected = 0
-    affected_names = []
-    is_interpretation = False
-
-    # ==============================================================================
-    # 2. Dynamic Evidence & Reasoning Construction Engine
-    # ==============================================================================
-    summary = ""
-    reasoning = ""
-    recommendation = ""
-    risks = []
-    directly_affected = 0
-    potentially_affected = 0
-    affected_names = []
-    is_interpretation = False
-
-    # Path A: Exact Match for 2 or more production classes
-    if len(exact_matches) >= 2:
-        c1, c2 = exact_matches[0], exact_matches[1]
-        c1_deps = c1.get("injected_dependencies", [])
-        c2_deps = c2.get("injected_dependencies", [])
-        c1_methods = [m.get("name") for m in c1.get("methods", [])]
-        
-        if c2["name"] in c1_deps or any(c2["name"] in dep for dep in c1_deps):
-            summary = f"Direct Dependency: {c1['name']} ({c1['stereotype']}) injects {c2['name']} ({c2['stereotype']})."
-            reasoning = (
-                f"FACT: {c1['name']} defines a direct dependency on {c2['name']} via constructor/field injection.\n"
-                f"INFERENCE: {c1['name']} delegates data persistence and query execution directly to {c2['name']} without an intermediate service layer.\n"
-                f"SUGGESTION: If adding business logic or billing capabilities, introduce a dedicated service layer interface."
-            )
-            recommendation = f"Preserve the injected {c2['name']} interface contract when refactoring {c1['name']}."
-            risks = [f"Tight coupling between presentation layer ({c1['name']}) and repository layer ({c2['name']})."]
-        elif c1["name"] in c2_deps or any(c1["name"] in dep for dep in c2_deps):
-            summary = f"Direct Dependency: {c2['name']} ({c2['stereotype']}) injects {c1['name']} ({c1['stereotype']})."
-            reasoning = (
-                f"FACT: {c2['name']} holds a direct reference to {c1['name']}.\n"
-                f"INFERENCE: Component calls flow from {c2['name']} into {c1['name']}."
-            )
-            recommendation = f"Preserve the injected {c1['name']} contract when modifying {c2['name']}."
-        else:
-            summary = f"Co-existing Production Components: {c1['name']} and {c2['name']} exist in the repository."
-            reasoning = f"FACT: Both {c1['name']} and {c2['name']} are verified production components in parsed AST."
-            recommendation = f"Review shared data models and service boundaries between {c1['name']} and {c2['name']}."
-
-        directly_affected = 2
-        potentially_affected = len(c1.get("methods", [])) + len(c2.get("methods", []))
-        affected_names = [c1["name"], c2["name"]]
-        verified_sources = {
-            "graph": True,
-            "ast": True,
-            "semgrep": False,
-            "structure": True,
-            "sources": ["Cypher Property Graph", "Parsed AST Dependency Tree"]
-        }
-
-    # Path B: Exact Match for 1 class
-    elif len(exact_matches) == 1:
-        c = exact_matches[0]
-        deps = c.get("injected_dependencies", [])
-        methods = [m.get("name") for m in c.get("methods", [])[:5]]
-        
-        summary = f"Analyzed Component: {c['name']} ({c['stereotype']}) in production codebase."
-        reasoning = (
-            f"FACT: {c['name']} declares {len(c.get('methods', []))} public methods ({', '.join(methods[:3])}).\n"
-            f"INFERENCE: Injected dependencies ({', '.join(deps) if deps else 'None'}) define its primary data access boundaries."
-        )
-        recommendation = f"Preserve public methods in {c['name']} to avoid breaking downstream callers."
-        directly_affected = 1
-        potentially_affected = len(deps)
-        affected_names = [c["name"]] + deps[:3]
-        verified_sources = {
-            "graph": True,
-            "ast": True,
-            "semgrep": False,
-            "structure": True,
-            "sources": ["Parsed AST Class Model"]
-        }
-
-    # Path C: General Intent / Retrieval Fallback
-    else:
-        context = intelligence.retrieve(q, top_k_graph=10, top_k_vector=5) if intelligence else {"graph_evidence_triples": [], "relevant_ast_nodes": []}
-        triples = context.get("graph_evidence_triples", [])
-        raw_nodes = context.get("relevant_ast_nodes", [])
-
-        prod_nodes = [
-            n for n in raw_nodes
-            if not n["class_name"].endswith("Test")
-            and not n["class_name"].endswith("Tests")
-            and n.get("stereotype") != "Test"
-        ]
-        nodes = prod_nodes if prod_nodes else raw_nodes
-
-        if intent == "feature_planning":
-            summary = f"Feature Implementation Guide for '{q}'"
-            reasoning = "SUGGESTION: Implement new endpoints in a new handler module without modifying existing core data schemas."
-            recommendation = "Define a new endpoint handler and inject existing data access interfaces."
-            is_interpretation = True
-            directly_affected = 0
-            potentially_affected = 0
-            affected_names = []
-        elif intent == "security":
-            summary = f"Security Inspection for '{q}'"
-            reasoning = "FACT: Evaluated controller endpoints and authorization boundaries across parsed repository endpoints."
-            recommendation = "Enforce role-based authorization and validate request payloads."
-            directly_affected = 0
-            potentially_affected = 0
-            affected_names = []
-        elif intent == "refactor":
-            summary = f"Refactoring Assessment for '{q}'"
-            reasoning = "INFERENCE: High coupling detected across class boundaries."
-            recommendation = "Extract shared interfaces to decouple class-to-class calls."
-            is_interpretation = True
-            directly_affected = 0
-            potentially_affected = 0
-            affected_names = []
-        else:
-            if nodes and nodes[0].get("relevance_score", 0) >= 0.5:
-                top_c = nodes[0]["class_name"]
-                summary = f"Retrieved Production Component: {top_c} (Stereotype: {nodes[0]['stereotype']})"
-                reasoning = f"FACT: {top_c} matches query vectors with similarity score {nodes[0]['relevance_score']}."
-                recommendation = f"Preserve method contracts on {top_c}."
-                directly_affected = len(triples)
-                potentially_affected = len(nodes) * 2
-                affected_names = [n["class_name"] for n in nodes[:5]]
-            else:
-                top_sample = [c["name"] for c in all_classes[:2]] if all_classes else ["main", "config"]
-                summary = f"Repository Execution Trace for Query: '{q}'"
-                reasoning = f"FACT: Evaluated query across parsed codebase symbols ({', '.join(top_sample)})."
-                recommendation = f"Preserve public API contracts on active components ({', '.join(top_sample)}) to prevent breaking downstream callers."
-                directly_affected = 0
-                potentially_affected = 0
-                affected_names = top_sample
-
-        verified_sources = {
-            "graph": len(triples) > 0 and directly_affected > 0,
-            "ast": len(nodes) > 0 and directly_affected > 0,
-            "semgrep": False,
-            "structure": True,
-            "sources": ["Cypher Property Graph", "FAISS Vector Store"] if (nodes and directly_affected > 0) else ["Repository Model"]
-        }
-
-    # ==============================================================================
-    # 3. External LLM Integration & D4 Reflection Layer
-    # ==============================================================================
-    plain_english = f"{summary}\n\n{reasoning}"
-    if llm_resp.get("success") and llm_resp.get("content"):
-        plain_english = f"[{llm_resp['provider']}]\n\n" + llm_resp["content"].strip()
-        verified_sources["sources"].append(llm_resp["provider"])
-
-    # D4 Post-Generation Grounding Scanner
-    all_class_names = set(c["name"] for c in all_classes)
-    words = [w.strip("?,.!;:'\"()[]{}") for w in plain_english.split()]
-    pascal_words = [
-        w for w in words
-        if w and w[0].isupper() and len(w) > 3 and not w.isupper() and w not in {
-            "Exact", "Analyzed", "Stereotype", "Injected", "Structural", "Relationship", "Verified", "Both",
-            "Service", "Repository", "Controller", "Entity", "Spring", "Boot", "Java", "REST", "HTTP", "Maven",
-            "Gradle", "Knowledge", "Graph", "FAISS", "Vector", "Store", "Model", "Evaluated", "Name", "Review",
-            "OpenRouter", "Groq", "OpenAI", "Free", "Tier", "Live", "API", "Llama", "Gemma", "Direct", "Co-existing",
-            "Production", "Components", "Analyzed", "Feature", "Implementation", "Guide", "Security", "Inspection"
-        }
-    ]
-
-    domain_suffixes = ("Service", "Controller", "Repository", "Entity", "Manager", "Handler", "Factory", "Component", "Gateway")
-    unverified_claims = [
-        w for w in pascal_words
-        if w not in all_class_names or (any(w.endswith(sfx) for sfx in domain_suffixes) and w not in all_class_names)
-    ]
-
-    if unverified_claims:
-        is_interpretation = True
-        affected_names = [name for name in affected_names if name in all_class_names]
-        if not affected_names:
-            directly_affected = 0
-            potentially_affected = 0
-            verified_sources["graph"] = False
-            verified_sources["ast"] = False
-
-    follow_up_suggestions = [
-        "Understand Flow",
-        "Build Feature",
-        "Review Security",
-        "Generate ADR"
-    ]
-
-    # Qualitative Defensible Confidence Labeling (Change 19)
-    if verified_sources["ast"] and not is_interpretation:
-        confidence_label = "Verified"
-    elif verified_sources["graph"]:
-        confidence_label = "Likely"
-    elif is_interpretation:
-        confidence_label = "Needs Review"
-    else:
-        confidence_label = "Insufficient Evidence"
-
-    return {
-        "plain_english": plain_english,
-        "summary": summary,
-        "reasoning": reasoning,
-        "recommendation": recommendation,
-        "risks": risks,
-        "confidence_level": confidence_label,
-        "confidence_score": 95 if confidence_label == "Verified" else (75 if confidence_label == "Likely" else 50),
-        "unsupported_claims": unverified_claims,
-        "impact": {
-            "directly_affected": directly_affected,
-            "potentially_affected": potentially_affected,
-            "affected_names": affected_names
-        },
-        "evidence": verified_sources,
-        "follow_up_suggestions": follow_up_suggestions,
-        "is_interpretation": is_interpretation,
-        "llm_api_status": llm_resp
-    }
+    return _authoritative_ask_copilot(req)
 
 
 # ==============================================================================

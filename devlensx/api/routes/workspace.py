@@ -112,8 +112,9 @@ def get_change_impact(analysis_run_id: str, req: ImpactRequest):
         "status": impact.status,
         "risk_level": impact.risk_level,
         "impact": {
-            "directly_affected": len(impact.downstream),
-            "potentially_affected": len(impact.downstream) + len(impact.tests),
+            "directly_affected": len(impact.direct_callers),
+            "potentially_affected": len(impact.downstream),
+            "affected_names": [dc["symbol"] for dc in impact.direct_callers] or [d["symbol"] for d in impact.downstream],
         },
         "direct": impact.direct,
         "downstream": impact.downstream,

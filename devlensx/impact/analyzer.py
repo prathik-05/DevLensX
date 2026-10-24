@@ -70,6 +70,53 @@ def _get_class_dependencies(cls: Dict[str, Any]) -> Set[str]:
     return deps
 
 
+def _clean_code_lines(raw_lines: List[str], file_path: str) -> List[str]:
+    """Returns lines with block comments, line comments, and string literals removed,
+    preserving exact 1-based line numbering (cleaned line at index i corresponds to raw line i)."""
+    cleaned: List[str] = []
+    in_block = False
+    is_python = file_path.endswith(".py")
+    block_end = '"""' if is_python else "*/"
+    block_start = '"""' if is_python else "/*"
+
+    for line in raw_lines:
+        curr = line
+        if in_block:
+            if block_end in curr:
+                _, curr = curr.split(block_end, 1)
+                in_block = False
+            else:
+                cleaned.append("")
+                continue
+
+        # Remove single-line block comments /* ... */
+        if not is_python:
+            curr = re.sub(r"/\*.*?\*/", " ", curr)
+        else:
+            curr = re.sub(r'""".*?"""', " ", curr)
+            curr = re.sub(r"'''.*?'''", " ", curr)
+
+        # Check for start of unclosed block comment
+        if block_start in curr:
+            curr, _ = curr.split(block_start, 1)
+            in_block = True
+
+        # Strip line comments
+        if is_python:
+            curr = curr.split("#")[0]
+        else:
+            curr = curr.split("//")[0].split("#")[0]
+
+        # Strip string literals: "...", '...', `...`
+        curr = re.sub(r'"([^"\\]|\\.)*"', '""', curr)
+        curr = re.sub(r"'([^'\\]|\\.)*'", "''", curr)
+        curr = re.sub(r'`([^`\\]|\\.)*`', '``', curr)
+
+        cleaned.append(curr.strip())
+
+    return cleaned
+
+
 class ImpactAnalyzer:
     @staticmethod
     def analyze(target_symbol: str, analysis_run_id: str, git_diff: Optional[str] = None) -> ImpactResult:
@@ -99,6 +146,9 @@ class ImpactAnalyzer:
                         pass
             except Exception:
                 pass
+
+        if not model or not model.get("classes"):
+            raise ValueError(f"Snapshot unavailable: model not found for analysis run: {analysis_run_id}")
 
         classes = model.get("classes", []) if isinstance(model, dict) else []
         classes = [c for c in classes if isinstance(c, dict) and c.get("name")]
@@ -221,6 +271,7 @@ class ImpactAnalyzer:
         # 5. Direct Callers & Dependency Extraction
         # Cache source file lines to scan method invocations
         file_cache: Dict[str, List[str]] = {}
+        cleaned_file_cache: Dict[str, List[str]] = {}
 
         def _get_lines(rel_path: str) -> List[str]:
             if rel_path in file_cache:
@@ -236,6 +287,14 @@ class ImpactAnalyzer:
                     return []
             file_cache[rel_path] = []
             return []
+
+        def _get_cleaned_lines(rel_path: str) -> List[str]:
+            if rel_path in cleaned_file_cache:
+                return cleaned_file_cache[rel_path]
+            raw = _get_lines(rel_path)
+            cleaned = _clean_code_lines(raw, rel_path)
+            cleaned_file_cache[rel_path] = cleaned
+            return cleaned
 
         direct_callers: List[Dict[str, Any]] = []
         direct_caller_names: Set[str] = set()
@@ -301,23 +360,23 @@ class ImpactAnalyzer:
                 continue
 
             lines = _get_lines(cfile)
+            cleaned_lines = _get_cleaned_lines(cfile)
             if not lines:
                 continue
 
             start = max(1, int(c.get("line_start", 1))) - 1
             end = min(len(lines), int(c.get("line_end", len(lines))))
 
-            # Find exact line of invocation, ignoring comments
+            # Find exact line of invocation, strictly ignoring comments and string literals
             exact_invoked_line = None
             for idx in range(start, end):
-                raw_line = lines[idx]
-                code_line = raw_line.split("//")[0].split("#")[0].strip()
+                code_line = cleaned_lines[idx] if idx < len(cleaned_lines) else ""
                 if not code_line:
                     continue
                 if is_method_target and call_pattern.search(code_line):
                     exact_invoked_line = idx + 1
                     break
-                elif not is_method_target and (class_ref_pattern.search(code_line) or target_name in _get_class_dependencies(c)):
+                elif not is_method_target and class_ref_pattern.search(code_line):
                     exact_invoked_line = idx + 1
                     break
 
@@ -348,13 +407,14 @@ class ImpactAnalyzer:
             if rel_sfile == target_file or rel_sfile in [dc["file"] for dc in direct_callers]:
                 continue
             lines = _get_lines(rel_sfile)
+            cleaned_lines = _get_cleaned_lines(rel_sfile)
             if not lines:
                 continue
 
             exact_sfile_line = None
             jsx_pat = re.compile(r"<\s*" + re.escape(target_name) + r"[\s/>]")
-            for idx, line in enumerate(lines):
-                code_line = line.split("//")[0].split("#")[0].strip()
+            for idx in range(len(cleaned_lines)):
+                code_line = cleaned_lines[idx] if idx < len(cleaned_lines) else ""
                 if not code_line:
                     continue
                 if jsx_pat.search(code_line) or (is_method_target and call_pattern.search(code_line)) or (not is_method_target and class_ref_pattern.search(code_line)):
@@ -404,12 +464,15 @@ class ImpactAnalyzer:
                     continue
 
                 lines = _get_lines(cfile)
+                cleaned_lines = _get_cleaned_lines(cfile)
                 start = max(1, int(c.get("line_start", 1))) - 1
                 end = min(len(lines), int(c.get("line_end", len(lines))))
 
                 exact_trans_line = None
                 for idx in range(start, end):
-                    code_line = lines[idx].split("//")[0].split("#")[0].strip()
+                    code_line = cleaned_lines[idx] if idx < len(cleaned_lines) else ""
+                    if not code_line:
+                        continue
                     if curr_pattern.search(code_line):
                         exact_trans_line = idx + 1
                         break
@@ -538,7 +601,8 @@ class ImpactAnalyzer:
             has_dynamic_dispatch = True
 
         # Check repository source code for dynamic behavior
-        raw_samples = list(root_path.rglob("*.java"))[:10] + list(root_path.rglob("*.py"))[:10] + list(root_path.rglob("*.ts*"))[:10]
+        target_fp = [root_path / target_file] if (target_file and (root_path / target_file).exists()) else []
+        raw_samples = target_fp + list(root_path.rglob("*.java"))[:10] + list(root_path.rglob("*.py"))[:10] + list(root_path.rglob("*.ts*"))[:10]
         sample_files = [f for f in raw_samples if "node_modules" not in str(f) and ".git" not in str(f)]
         for f in sample_files:
             try:
@@ -576,7 +640,10 @@ class ImpactAnalyzer:
         repo_desc = str(model.get("repo_summary", {}).get("description", "")).lower()
         is_game_domain = any(w in repo_name or w in repo_desc or w in str(snap.repo_path).lower() for w in ("game", "tictactoe", "board", "chess", "battleship", "minimax"))
 
-        is_game_win_symbol = is_game_domain and any(w in target_name.lower() for w in ("win", "terminal", "evaluateboard", "checkwinner"))
+        is_game_win_symbol = is_game_domain and (
+            any(w in target_name.lower() for w in ("win", "terminal", "evaluateboard", "checkwinner", "result", "gameresult")) or
+            any(w in clean_target.lower() for w in ("win", "terminal", "winner", "iswin"))
+        )
 
         if is_game_win_symbol:
             potential_regressions.extend([
